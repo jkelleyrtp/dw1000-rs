@@ -1,0 +1,21 @@
+[package]
+name    = "dwm1001"
+version = "0.1.0"
+authors = ["Hanno Braun <hanno@braun-robotics.com>"]
+
+[dependencies]
+cortex-m    = "*"
+cortex-m-rt = "*"
+nrf52       = { git = "https://github.com/jamesmunns/nrf52.git" }
+
+[features]
+rt = ["nrf52/rt"]
+
+[[example]]
+name              = "blink"
+required-features = ["rt"]
+
+[profile.release]
+codegen-units = 1
+lto           = true
+opt-level     = 3

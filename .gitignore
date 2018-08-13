@@ -1,0 +1,9 @@
+# Cargo
+/target
+/Cargo.lock
+
+# OpenOCD
+/openocd.log
+
+# Sublime Text
+/*.sublime-workspace
