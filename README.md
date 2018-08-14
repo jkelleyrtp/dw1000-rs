@@ -1,4 +1,4 @@
-# DWM1001
+# DWM1001 [![Build Status](https://travis-ci.org/braun-robotics/rust-dwm1001.svg?branch=master)](https://travis-ci.org/braun-robotics/rust-dwm1001)
 
 ## Introduction
 
