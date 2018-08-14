@@ -6,10 +6,12 @@ authors = ["Hanno Braun <hanno@braun-robotics.com>"]
 [dependencies]
 cortex-m    = "*"
 cortex-m-rt = "*"
-nrf52       = { git = "https://github.com/jamesmunns/nrf52.git" }
+# This is my fork of nrf52-hal. I'm depending on it for the time being, until
+# work on it has settled down a bit.
+nrf52-hal   = { git = "https://github.com/braun-robotics/nrf52-hal.git" }
 
 [features]
-rt = ["nrf52/rt"]
+rt = ["nrf52-hal/rt"]
 
 [[example]]
 name              = "blink"

@@ -15,7 +15,7 @@ use core::panic::PanicInfo;
 
 use dwm1001::{
     cortex_m_rt::ExceptionFrame,
-    nrf52::{
+    nrf52_hal::nrf52::{
         self,
         Peripherals,
     },

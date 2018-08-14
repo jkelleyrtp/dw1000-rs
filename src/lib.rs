@@ -11,4 +11,4 @@
 
 pub extern crate cortex_m;
 pub extern crate cortex_m_rt;
-pub extern crate nrf52;
+pub extern crate nrf52_hal;
