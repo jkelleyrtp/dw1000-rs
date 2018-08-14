@@ -15,9 +15,13 @@ use core::panic::PanicInfo;
 
 use dwm1001::{
     cortex_m_rt::ExceptionFrame,
-    nrf52_hal::nrf52::{
-        self,
-        Peripherals,
+    nrf52_hal::{
+        prelude::*,
+        gpio::GpioExt,
+        nrf52::{
+            self,
+            Peripherals,
+        },
     },
 };
 
@@ -27,15 +31,10 @@ entry!(main);
 fn main() -> ! {
     let mut p = Peripherals::take().unwrap();
 
-    // Configure P0.14 for output
-    p.P0.pin_cnf[14].write(|w|
-        w
-            .dir().output()
-            .input().disconnect() // disconnect input buffer
-            .pull().disabled()
-            .drive().s0s1() // standard '0', standard '1'
-            .sense().disabled()
-    );
+    let mut p0_14 = p.P0
+        .split()
+        .p0_14
+        .into_push_pull_output();
 
     // Configure TIMER0
     p.TIMER0.shorts.write(|w|
@@ -52,12 +51,12 @@ fn main() -> ! {
 
     loop {
         // Set P0.14 to LOW, thereby enabling the LED
-        p.P0.outclr.write(|w| w.pin14().clear());
+        p0_14.set_low();
 
         delay(&mut p.TIMER0, 20_000); // 20ms
 
         // Set P0.14 to HIGH, thereby disabling the LED
-        p.P0.outset.write(|w| w.pin14().set());
+        p0_14.set_high();
 
         delay(&mut p.TIMER0, 230_000); // 230ms
     }
