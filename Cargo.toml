@@ -3,6 +3,7 @@ name    = "dwm1001"
 version = "0.1.0"
 authors = ["Hanno Braun <hanno@braun-robotics.com>"]
 
+
 [dependencies]
 cortex-m    = "*"
 cortex-m-rt = "*"
@@ -10,12 +11,17 @@ cortex-m-rt = "*"
 # work on it has settled down a bit.
 nrf52-hal   = { git = "https://github.com/braun-robotics/nrf52-hal.git" }
 
+[dev-dependencies]
+nb = "0.1.1"
+
 [features]
 rt = ["nrf52-hal/rt"]
+
 
 [[example]]
 name              = "blink"
 required-features = ["rt"]
+
 
 [profile.release]
 codegen-units = 1
