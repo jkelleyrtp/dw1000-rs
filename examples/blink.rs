@@ -18,11 +18,7 @@ use dwm1001::{
     nrf52_hal::{
         prelude::*,
         nrf52::Peripherals,
-        gpio::GpioExt,
-        timer::{
-            Timer,
-            TimerExt,
-        },
+        timer::Timer,
     },
 };
 
