@@ -14,7 +14,6 @@ extern crate dwm1001;
 use core::panic::PanicInfo;
 
 use dwm1001::{
-    cortex_m_rt::ExceptionFrame,
     nrf52_hal::{
         prelude::*,
         nrf52::Peripherals,
@@ -58,17 +57,5 @@ fn delay<T>(timer: &mut Timer<T>, cycles: u32) where T: TimerExt {
 #[panic_implementation]
 #[no_mangle]
 pub fn panic(_: &PanicInfo) -> ! {
-    loop {}
-}
-
-
-exception!(*, default_handler);
-exception!(HardFault, handle_hard_fault);
-
-fn default_handler(_irqn: i16) {
-    loop {}
-}
-
-fn handle_hard_fault(_ef: &ExceptionFrame) -> ! {
     loop {}
 }
