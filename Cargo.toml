@@ -12,7 +12,8 @@ cortex-m-rt = "0.5.2"
 nrf52-hal   = { git = "https://github.com/braun-robotics/nrf52-hal.git" }
 
 [dev-dependencies]
-nb = "0.1.1"
+cortex-m-semihosting = "0.3.0"
+nb                   = "0.1.1"
 
 [features]
 rt = ["nrf52-hal/rt"]
