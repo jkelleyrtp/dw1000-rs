@@ -1,6 +1,3 @@
-#![feature(panic_implementation)]
-
-
 #![no_main]
 #![no_std]
 
@@ -9,9 +6,8 @@
 #[macro_use] extern crate nb;
 
 extern crate dwm1001;
+extern crate panic_semihosting;
 
-
-use core::panic::PanicInfo;
 
 use dwm1001::{
     nrf52_hal::{
@@ -51,11 +47,4 @@ fn main() -> ! {
 fn delay<T>(timer: &mut Timer<T>, cycles: u32) where T: TimerExt {
     timer.start(cycles);
     block!(timer.wait());
-}
-
-
-#[panic_implementation]
-#[no_mangle]
-pub fn panic(_: &PanicInfo) -> ! {
-    loop {}
 }

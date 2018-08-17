@@ -7,9 +7,6 @@
 //! DEV_ID are not what we expect, it starts a fast blinking pattern.
 
 
-#![feature(panic_implementation)]
-
-
 #![no_main]
 #![no_std]
 
@@ -19,10 +16,10 @@
 
 extern crate cortex_m_semihosting;
 extern crate dwm1001;
+extern crate panic_semihosting;
 
 
 use core::fmt::Write;
-use core::panic::PanicInfo;
 
 use cortex_m_semihosting::hio;
 use dwm1001::{
@@ -126,11 +123,4 @@ fn main() -> ! {
 fn delay<T>(timer: &mut Timer<T>, cycles: u32) where T: TimerExt {
     timer.start(cycles);
     block!(timer.wait());
-}
-
-
-#[panic_implementation]
-#[no_mangle]
-pub fn panic(_: &PanicInfo) -> ! {
-    loop {}
 }
