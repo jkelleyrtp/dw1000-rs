@@ -22,6 +22,11 @@ rt = ["nrf52-hal/rt"]
 name              = "blink"
 required-features = ["rt"]
 
+[[example]]
+name              = "dw1000"
+required-features = ["rt"]
+
+
 
 [profile.release]
 codegen-units = 1
