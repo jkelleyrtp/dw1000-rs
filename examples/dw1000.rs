@@ -7,9 +7,6 @@
 //! DEV_ID are not what we expect, it starts a fast blinking pattern.
 
 
-#![feature(panic_implementation)]
-
-
 #![no_main]
 #![no_std]
 
@@ -17,11 +14,14 @@
 #[macro_use] extern crate cortex_m_rt;
 #[macro_use] extern crate nb;
 
+extern crate cortex_m_semihosting;
 extern crate dwm1001;
+extern crate panic_semihosting;
 
 
-use core::panic::PanicInfo;
+use core::fmt::Write;
 
+use cortex_m_semihosting::hio;
 use dwm1001::{
     nrf52_hal::{
         prelude::*,
@@ -35,6 +35,10 @@ use dwm1001::{
 entry!(main);
 
 fn main() -> ! {
+    // Initialize semihosting for debug output
+    let mut stdout = hio::hstdout()
+        .expect("Failed to initialize semihosting");
+
     let p = Peripherals::take().unwrap();
 
     let pins = p.P0.split();
@@ -92,9 +96,13 @@ fn main() -> ! {
 
     // If everything is as expected, blink slow. Else, blink fast.
     let (low, high) = if is_as_expected {
+        writeln!(stdout, "Success!")
+            .expect("Failed to write to stdout");
         (30_000, 970_000)
     }
     else {
+        writeln!(stdout, "Failure!")
+            .expect("Failed to write to stdout");
         (100_000, 100_000)
     };
 
@@ -115,11 +123,4 @@ fn main() -> ! {
 fn delay<T>(timer: &mut Timer<T>, cycles: u32) where T: TimerExt {
     timer.start(cycles);
     block!(timer.wait());
-}
-
-
-#[panic_implementation]
-#[no_mangle]
-pub fn panic(_: &PanicInfo) -> ! {
-    loop {}
 }
