@@ -27,6 +27,7 @@ use dwm1001::{
     nrf52_hal::{
         prelude::*,
         nrf52::Peripherals,
+        spim,
         timer::Timer,
     },
 };
@@ -38,79 +39,22 @@ fn main() -> ! {
     let p = Peripherals::take().unwrap();
 
     let pins = p.P0.split();
-    let spim = p.SPIM0;
 
-    // Select P0.16 for SCK
-    let p0_16 = pins.p0_16
-        .into_push_pull_output()
-        .degrade();
-    spim.psel.sck.write(|w| {
-        let w = unsafe { w.pin().bits(p0_16.pin) };
-        w.connect().connected()
-    });
+    let spi_pins = spim::Pins {
+        sck : pins.p0_16.into_push_pull_output().degrade(),
+        mosi: pins.p0_20.into_push_pull_output().degrade(),
+        miso: pins.p0_18.into_floating_input().degrade(),
+    };
 
-    // Select P0.20 for MOSI
-    let p0_20 = pins.p0_20
-        .into_push_pull_output()
-        .degrade();
-    spim.psel.mosi.write(|w| {
-        let w = unsafe { w.pin().bits(p0_20.pin) };
-        w.connect().connected()
-    });
+    let mut dw_cs = pins.p0_17.into_push_pull_output().degrade();
 
-    // Select P0.18 for MISO
-    let p0_18 = pins.p0_18
-        .into_floating_input()
-        .degrade();
-    spim.psel.miso.write(|w| {
-        let w = unsafe { w.pin().bits(p0_18.pin) };
-        w.connect().connected()
-    });
-
-    // Use P0.17 as the chip select pin for the DW1000 (DW_CS)
-    //
-    // This is not controlled by the SPIM0 peripheral, so we need to use the
-    // GPIO pin directly. This is initially pulled high, which is the inactive
-    // state.
-    let mut dw_cs = pins.p0_17.into_push_pull_output();
-    dw_cs.set_high();
-
-    // Enable SPIM0
-    //
-    // SPIM0 shares the same address space with SPIS0, SPI0, TWIM0, TWIS0, and
-    // TWI0. All of those are disabled by default, so there's no problem here.
-    spim.enable.write(|w|
-        w.enable().enabled()
-    );
-
-    // Set SPIM0 to SPI mode 0
-    //
-    // The DW1000's SPI mode can be configured, but on the DWM1001 board, both
-    // configuration pins (GPIO5/SPIPOL and GPIO6/SPIPHA) are unconnected and
-    // internally pulled low, setting it to SPI mode 0.
-    spim.config.write(|w|
-        w
-            .order().msb_first()
-            .cpha().leading()
-            .cpol().active_high()
-    );
-
-    // Configure frequency
-    //
-    // According to its documentation, the DW1000 should be able to handle up to
-    // 3 MHz. Let's play it safe and choose something lower.
-    spim.frequency.write(|w|
-        w.frequency().k500() // 500 kHz
-    );
-
-    // Set over-read character to '0'
-    //
-    // This is the character that will be written out during a transaction, once
-    // the TXD buffer is exhausted.
-    spim.orc.write(|w|
-        // The ORC field is 8 bits long, so `0` is a valid value to write there.
-        unsafe { w.orc().bits(0) }
-    );
+    // Some notes about the hardcoded configuration of `Spim`:
+    // - The DW1000's SPI mode can be configured, but on the DWM1001 board, both
+    //   configuration pins (GPIO5/SPIPOL and GPIO6/SPIPHA) are unconnected and
+    //   internally pulled low, setting it to SPI mode 0.
+    // - The frequency is set to a moderate value that the DW1000 can easily
+    //   handle.
+    let mut spim = p.SPIM0.constrain(spi_pins);
 
     // Set up the TXD buffer
     //
@@ -123,23 +67,6 @@ fn main() -> ! {
     //   6: 0 for no sub-index
     // 5-0: 0 for DEV_ID register
     let txd_buffer = [0u8];
-    spim.txd.ptr.write(|w|
-        // We're giving the register a pointer to the stack. Since we're waiting
-        // for the SPI transaction to end before this stack pointer becomes
-        // invalid, there's nothing wrong here.
-        //
-        // The PTR field is a full 32 bits wide and accepts arbitrary values.
-        unsafe { w.ptr().bits(txd_buffer.as_ptr() as u32) }
-    );
-    spim.txd.maxcnt.write(|w|
-        // We're giving it the length of the buffer, so no danger of accessing
-        // invalid memory. We know the length of the buffer to be exactly `1`,
-        // so the cast to `u8` is also fine.
-        //
-        // The MAXCNT is 8 bits wide and the full range of values, so even if we
-        // didn't know the actual value, writing any `u8` would be fine.
-        unsafe { w.maxcnt().bits(txd_buffer.len() as u8) }
-    );
 
     // Set up the RXD buffer
     //
@@ -148,31 +75,9 @@ fn main() -> ! {
     // expect, we need an additional one that we receive while we send the
     // header.
     let mut rxd_buffer = [0u8; 5];
-    spim.rxd.ptr.write(|w|
-        // This is safe for the same reasons that writing TXD.PTR is safe.
-        // Please refer to the explanation there.
-        unsafe { w.ptr().bits(rxd_buffer.as_mut_ptr() as u32) }
-    );
-    spim.rxd.maxcnt.write(|w|
-        // This is safe for the same reasons that writing TXD.MAXCNT is safe.
-        // Please refer to the explanation there.
-        unsafe { w.maxcnt().bits(rxd_buffer.len() as u8) }
-    );
 
-    // Start SPI transaction
-    dw_cs.set_low();
-    spim.tasks_start.write(|w|
-        // `1` is a valid value to write to task registers.
-        unsafe { w.bits(1) }
-    );
-
-    // Wait for END event
-    //
-    // This event is triggered once both transmitting and receiving are done.
-    while spim.events_end.read().bits() == 0 {}
-
-    // End SPI transaction
-    dw_cs.set_high();
+    spim.read(&mut dw_cs, &txd_buffer, &mut rxd_buffer)
+        .expect("Failed to read from DW1000");
 
     // Extract the fields of the DEV_ID register that we read
     let ridtag = (rxd_buffer[4] as u16) << 8 | rxd_buffer[3] as u16;
