@@ -7,6 +7,7 @@ authors = ["Hanno Braun <hanno@braun-robotics.com>"]
 [dependencies]
 cortex-m    = "0.5.4"
 cortex-m-rt = "0.5.2"
+dw1000      = { git = "https://github.com/braun-robotics/rust-dw1000.git" }
 # This is my fork of nrf52-hal. I'm depending on it for the time being, until
 # work on it has settled down a bit.
 nrf52-hal   = { git = "https://github.com/braun-robotics/nrf52-hal.git" }
