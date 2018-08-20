@@ -1,2 +1,6 @@
+# Cargo
+/target
+/Cargo.lock
+
 # Sublime Text
 /*.sublime-workspace
