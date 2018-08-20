@@ -1,7 +1,7 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+//! Driver crate for the DW1000 UWB transceiver
+
+
+#![no_std]
+
+#![deny(missing_docs)]
+#![deny(warnings)]
