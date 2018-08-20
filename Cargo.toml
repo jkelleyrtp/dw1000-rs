@@ -25,7 +25,7 @@ name              = "blink"
 required-features = ["rt"]
 
 [[example]]
-name              = "dw1000"
+name              = "dw1000_id"
 required-features = ["rt"]
 
 
