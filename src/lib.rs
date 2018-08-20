@@ -5,3 +5,6 @@
 
 #![deny(missing_docs)]
 #![deny(warnings)]
+
+
+extern crate nrf52_hal;
