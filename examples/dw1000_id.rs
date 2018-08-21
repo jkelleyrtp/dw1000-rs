@@ -26,10 +26,10 @@ use dwm1001::{
     dw1000::DW1000,
     nrf52_hal::{
         prelude::*,
-        nrf52::Peripherals,
         spim,
         timer::Timer,
     },
+    DWM1001,
 };
 
 
@@ -40,9 +40,9 @@ fn main() -> ! {
     let mut stdout = hio::hstdout()
         .expect("Failed to initialize semihosting");
 
-    let p = Peripherals::take().unwrap();
+    let dwm1001 = DWM1001::take().unwrap();
 
-    let pins = p.P0.split();
+    let pins = dwm1001.P0.split();
 
     // Some notes about the hardcoded configuration of `Spim`:
     // - The DW1000's SPI mode can be configured, but on the DWM1001 board, both
@@ -50,7 +50,7 @@ fn main() -> ! {
     //   internally pulled low, setting it to SPI mode 0.
     // - The frequency is set to a moderate value that the DW1000 can easily
     //   handle.
-    let spim = p.SPIM0.constrain(spim::Pins {
+    let spim = dwm1001.SPIM0.constrain(spim::Pins {
         sck : pins.p0_16.into_push_pull_output().degrade(),
         mosi: pins.p0_20.into_push_pull_output().degrade(),
         miso: pins.p0_18.into_floating_input().degrade(),
@@ -82,7 +82,7 @@ fn main() -> ! {
     };
 
     // Configure timer and status LED
-    let mut timer = p.TIMER0.constrain();
+    let mut timer = dwm1001.TIMER0.constrain();
     let mut p0_14 = pins.p0_14.into_push_pull_output();
 
     loop {
