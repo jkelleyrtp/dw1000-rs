@@ -15,16 +15,27 @@ pub extern crate dw1000;
 pub extern crate nrf52_hal;
 
 
-use nrf52_hal::nrf52::{
-    self,
-    CorePeripherals,
-    Peripherals,
+use nrf52_hal::{
+    prelude::*,
+    gpio::{
+        p0,
+        Floating,
+        Input,
+    },
+    nrf52::{
+        self,
+        CorePeripherals,
+        Peripherals,
+    },
 };
 
 
 /// Provides access to all features of the DWM1001 board
 #[allow(non_snake_case)]
 pub struct DWM1001 {
+    /// The nRF52's pins
+    pub pins: Pins,
+
     /// Core peripheral: Cache and branch predictor maintenance operations
     pub CBP: nrf52::CBP,
 
@@ -249,9 +260,6 @@ pub struct DWM1001 {
 
     /// nRF52 peripheral: I2S
     pub I2S: nrf52::I2S,
-
-    /// nRF52 peripheral: P0
-    pub P0: nrf52::P0,
 }
 
 impl DWM1001 {
@@ -286,7 +294,42 @@ impl DWM1001 {
     }
 
     fn new(cp: CorePeripherals, p: Peripherals) -> Self {
+        let pins = p.P0.split();
+
         DWM1001 {
+            pins: Pins {
+                p0_02: pins.p0_2,
+                p0_03: pins.p0_3,
+                p0_04: pins.p0_4,
+                p0_05: pins.p0_5,
+                p0_06: pins.p0_6,
+                p0_07: pins.p0_7,
+                p0_08: pins.p0_8,
+                p0_09: pins.p0_9,
+                p0_10: pins.p0_10,
+                p0_11: pins.p0_11,
+                p0_12: pins.p0_12,
+                p0_13: pins.p0_13,
+                p0_14: pins.p0_14,
+                p0_15: pins.p0_15,
+                p0_16: pins.p0_16,
+                p0_17: pins.p0_17,
+                p0_18: pins.p0_18,
+                p0_19: pins.p0_19,
+                p0_20: pins.p0_20,
+                p0_21: pins.p0_21,
+                p0_22: pins.p0_22,
+                p0_23: pins.p0_23,
+                p0_24: pins.p0_24,
+                p0_25: pins.p0_25,
+                p0_26: pins.p0_26,
+                p0_27: pins.p0_27,
+                p0_28: pins.p0_28,
+                p0_29: pins.p0_29,
+                p0_30: pins.p0_30,
+                p0_31: pins.p0_31,
+            },
+
             // Core peripherals
             CBP  : cp.CBP,
             CPUID: cp.CPUID,
@@ -365,7 +408,125 @@ impl DWM1001 {
             SPI2  : p.SPI2,
             RTC2  : p.RTC2,
             I2S   : p.I2S,
-            P0    : p.P0,
         }
     }
+}
+
+
+/// The nRF52 pins that are available on the DWM1001
+///
+/// The field names in this struct follow the naming convention of the nRF52.
+/// Their documentation also states what the DWM1001 documentation calls them.
+pub struct Pins {
+    /// P0.02 - BT_WAKE_UP
+    pub p0_02: p0::P0_2<Input<Floating>>,
+
+    /// P0.03 - SPIS_CSn
+    pub p0_03: p0::P0_3<Input<Floating>>,
+
+    /// P0.04 - SPIS_CLK
+    pub p0_04: p0::P0_4<Input<Floating>>,
+
+    /// P0.05 - UART_TX
+    pub p0_05: p0::P0_5<Input<Floating>>,
+
+    /// P0.06 - SPIS_MOSI
+    pub p0_06: p0::P0_6<Input<Floating>>,
+
+    /// P0.07 - SPIS_MISO
+    pub p0_07: p0::P0_7<Input<Floating>>,
+
+    /// P0.08 - GPIO_8
+    pub p0_08: p0::P0_8<Input<Floating>>,
+
+    /// P0.09 - GPIO_9
+    pub p0_09: p0::P0_9<Input<Floating>>,
+
+    /// P0.10 - GPIO_10
+    pub p0_10: p0::P0_10<Input<Floating>>,
+
+    /// P0.11 - UART_RX
+    pub p0_11: p0::P0_11<Input<Floating>>,
+
+    /// P0.12 - GPIO_12
+    pub p0_12: p0::P0_12<Input<Floating>>,
+
+    /// P0.13 - GPIO_13
+    pub p0_13: p0::P0_13<Input<Floating>>,
+
+    /// P0.14 - GPIO_14
+    pub p0_14: p0::P0_14<Input<Floating>>,
+
+    /// P0.15 - GPIO_15
+    pub p0_15: p0::P0_15<Input<Floating>>,
+
+    /// P0.21 - RESETn
+    pub p0_21: p0::P0_21<Input<Floating>>,
+
+    /// P0.22 - GPIO_22
+    pub p0_22: p0::P0_22<Input<Floating>>,
+
+    /// P0.23 - GPIO_23
+    pub p0_23: p0::P0_23<Input<Floating>>,
+
+    /// P0.26 - READY
+    pub p0_26: p0::P0_26<Input<Floating>>,
+
+    /// P0.27 - GPIO_27
+    pub p0_27: p0::P0_27<Input<Floating>>,
+
+    /// P0.28 - I2C_SCL
+    ///
+    /// Connected to both the accelerometer and an outside pin.
+    pub p0_28: p0::P0_28<Input<Floating>>,
+
+    /// P0.29 - I2C_SDA
+    ///
+    /// Connected to both the accelerometer and an outside pin.
+    pub p0_29: p0::P0_29<Input<Floating>>,
+
+    /// P0.30 - GPIO_30
+    pub p0_30: p0::P0_30<Input<Floating>>,
+
+    /// P0.31 - GPIO_31
+    pub p0_31: p0::P0_31<Input<Floating>>,
+
+    // Pins before this comment are available outside the DWM1001. Pins after
+    // this comment are connected to components on the board, and should
+    // eventually be subsumed by higher-level abstractions.
+
+    /// P0.16 - SPI1_CLK
+    ///
+    /// Connected to the DW1000.
+    pub p0_16: p0::P0_16<Input<Floating>>,
+
+    /// P0.17 - DW_CS
+    ///
+    /// Connected to the DW1000.
+    pub p0_17: p0::P0_17<Input<Floating>>,
+
+    /// P0.18 - SPI1_MISO
+    ///
+    /// Connected to the DW1000.
+    pub p0_18: p0::P0_18<Input<Floating>>,
+
+    /// P0.19 - DW_IRQ
+    ///
+    /// Connected to the DW1000.
+    pub p0_19: p0::P0_19<Input<Floating>>,
+
+    /// P0.20 - SPI1_MOSI
+    ///
+    /// Connected to the DW1000.
+    pub p0_20: p0::P0_20<Input<Floating>>,
+
+    /// P0.24 - DW_RST
+    ///
+    /// Connected to the DW1000.
+    pub p0_24: p0::P0_24<Input<Floating>>,
+
+    /// P0.25 - IRQ_ACC
+    ///
+    /// Connected to the accelerometer.
+    pub p0_25: p0::P0_25<Input<Floating>>,
 }

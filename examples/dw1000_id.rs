@@ -42,8 +42,6 @@ fn main() -> ! {
 
     let dwm1001 = DWM1001::take().unwrap();
 
-    let pins = dwm1001.P0.split();
-
     // Some notes about the hardcoded configuration of `Spim`:
     // - The DW1000's SPI mode can be configured, but on the DWM1001 board, both
     //   configuration pins (GPIO5/SPIPOL and GPIO6/SPIPHA) are unconnected and
@@ -51,12 +49,12 @@ fn main() -> ! {
     // - The frequency is set to a moderate value that the DW1000 can easily
     //   handle.
     let spim = dwm1001.SPIM2.constrain(spim::Pins {
-        sck : pins.p0_16.into_push_pull_output().degrade(),
-        mosi: pins.p0_20.into_push_pull_output().degrade(),
-        miso: pins.p0_18.into_floating_input().degrade(),
+        sck : dwm1001.pins.p0_16.into_push_pull_output().degrade(),
+        mosi: dwm1001.pins.p0_20.into_push_pull_output().degrade(),
+        miso: dwm1001.pins.p0_18.into_floating_input().degrade(),
     });
 
-    let dw_cs = pins.p0_17.into_push_pull_output().degrade();
+    let dw_cs = dwm1001.pins.p0_17.into_push_pull_output().degrade();
 
     let mut dw1000 = DW1000::new(spim, dw_cs);
 
@@ -83,7 +81,7 @@ fn main() -> ! {
 
     // Configure timer and status LED
     let mut timer = dwm1001.TIMER0.constrain();
-    let mut p0_14 = pins.p0_14.into_push_pull_output();
+    let mut p0_14 = dwm1001.pins.p0_14.into_push_pull_output();
 
     loop {
         p0_14.set_low();
