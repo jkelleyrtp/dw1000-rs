@@ -50,7 +50,7 @@ fn main() -> ! {
     //   internally pulled low, setting it to SPI mode 0.
     // - The frequency is set to a moderate value that the DW1000 can easily
     //   handle.
-    let spim = dwm1001.SPIM0.constrain(spim::Pins {
+    let spim = dwm1001.SPIM2.constrain(spim::Pins {
         sck : pins.p0_16.into_push_pull_output().degrade(),
         mosi: pins.p0_20.into_push_pull_output().degrade(),
         miso: pins.p0_18.into_floating_input().degrade(),
