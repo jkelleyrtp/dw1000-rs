@@ -2,3 +2,12 @@
 name    = "dw1000"
 version = "0.1.0"
 authors = ["Hanno Braun <hanno@braun-robotics.com>"]
+
+[dependencies]
+# This is my fork of nrf52-hal. I'm depending on it for the time being, until
+# work on it has settled down a bit.
+# Ideally we wouldn't need a dependency on nrf52-hal at all, and would depend on
+# embedded-hal instead. Unfortunately nrf52-hal doesn't implement the SPI traits
+# of embedded-hal yet, and we need nRF52 support because it's used on the
+# DWM1001 board.
+nrf52-hal = { git = "https://github.com/braun-robotics/nrf52-hal.git" }
