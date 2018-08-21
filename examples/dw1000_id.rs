@@ -23,6 +23,7 @@ use core::fmt::Write;
 
 use cortex_m_semihosting::hio;
 use dwm1001::{
+    dw1000::DW1000,
     nrf52_hal::{
         prelude::*,
         nrf52::Peripherals,
@@ -43,56 +44,30 @@ fn main() -> ! {
 
     let pins = p.P0.split();
 
-    let spi_pins = spim::Pins {
-        sck : pins.p0_16.into_push_pull_output().degrade(),
-        mosi: pins.p0_20.into_push_pull_output().degrade(),
-        miso: pins.p0_18.into_floating_input().degrade(),
-    };
-
-    let mut dw_cs = pins.p0_17.into_push_pull_output().degrade();
-
     // Some notes about the hardcoded configuration of `Spim`:
     // - The DW1000's SPI mode can be configured, but on the DWM1001 board, both
     //   configuration pins (GPIO5/SPIPOL and GPIO6/SPIPHA) are unconnected and
     //   internally pulled low, setting it to SPI mode 0.
     // - The frequency is set to a moderate value that the DW1000 can easily
     //   handle.
-    let mut spim = p.SPIM0.constrain(spi_pins);
+    let spim = p.SPIM0.constrain(spim::Pins {
+        sck : pins.p0_16.into_push_pull_output().degrade(),
+        mosi: pins.p0_20.into_push_pull_output().degrade(),
+        miso: pins.p0_18.into_floating_input().degrade(),
+    });
 
-    // Set up the TXD buffer
-    //
-    // It consists of only one byte for the transaction header. Since this is a
-    // read operation, there is no transaction body.
-    //
-    // The transaction signals a read without a sub-index, which means it's 1
-    // byte long. This byte consists of the following bits:
-    //   7: 0 for read
-    //   6: 0 for no sub-index
-    // 5-0: 0 for DEV_ID register
-    let txd_buffer = [0u8];
+    let dw_cs = pins.p0_17.into_push_pull_output().degrade();
 
-    // Set up the RXD buffer
-    //
-    // SPI is a synchronous interface, so we're going to receive a byte for
-    // every one we send. That means in addition to the 4 bytes we actually
-    // expect, we need an additional one that we receive while we send the
-    // header.
-    let mut rxd_buffer = [0u8; 5];
+    let mut dw1000 = DW1000::new(spim, dw_cs);
 
-    spim.read(&mut dw_cs, &txd_buffer, &mut rxd_buffer)
-        .expect("Failed to read from DW1000");
-
-    // Extract the fields of the DEV_ID register that we read
-    let ridtag = (rxd_buffer[4] as u16) << 8 | rxd_buffer[3] as u16;
-    let model  = rxd_buffer[2];
-    let ver    = (rxd_buffer[1] & 0xf0) >> 4;
-    let rev    = rxd_buffer[1] & 0x0f;
+    let dev_id = dw1000.dev_id()
+        .expect("Failed to read DEV_ID register");
 
     let is_as_expected =
-        ridtag == 0xDECA &&
-        model  == 0x01 &&
-        ver    == 0x3 &&
-        rev    == 0x0;
+        dev_id.ridtag() == 0xDECA &&
+        dev_id.model()  == 0x01 &&
+        dev_id.ver()    == 0x3 &&
+        dev_id.rev()    == 0x0;
 
     // If everything is as expected, blink slow. Else, blink fast.
     let (low, high) = if is_as_expected {
