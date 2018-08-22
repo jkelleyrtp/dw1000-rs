@@ -4,8 +4,11 @@
 
 Driver for the Decawave [DW1000] UWB transceiver, written in the [Rust] programming language. This crate is in very early development.
 
+If you're using the DW1000 with a DWM1001 module or'a DWM1001-Dev board, please check out the [DWM1001 crate].
+
 [DW1000]: https://www.decawave.com/products/dw1000
 [Rust]: https://www.rust-lang.org/
+[DWM1001 crate]: https://github.com/braun-robotics/rust-dwm1001
 
 
 ## License
