@@ -587,10 +587,9 @@ pub struct Led(p0::P0_Pin<Output<PushPull>>);
 #[cfg(feature = "dev")]
 impl Led {
     fn new<Mode>(pin: P0_Pin<Mode>) -> Self {
-        let mut pin = pin.into_push_pull_output();
-        pin.set_high(); // disable LED
-
-        Led(pin)
+        let mut led = Led(pin.into_push_pull_output());
+        led.disable();
+        led
     }
 
     /// Enable the LED
