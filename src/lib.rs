@@ -251,12 +251,6 @@ pub struct DWM1001 {
     /// nRF52 peripheral: PWM2
     pub PWM2: nrf52::PWM2,
 
-    /// nRF52 peripheral: SPIS2
-    pub SPIS2: nrf52::SPIS2,
-
-    /// nRF52 peripheral: SPI2
-    pub SPI2: nrf52::SPI2,
-
     /// nRF52 peripheral: RTC2
     pub RTC2: nrf52::RTC2,
 
@@ -417,8 +411,6 @@ impl DWM1001 {
             MWU   : p.MWU,
             PWM1  : p.PWM1,
             PWM2  : p.PWM2,
-            SPIS2 : p.SPIS2,
-            SPI2  : p.SPI2,
             RTC2  : p.RTC2,
             I2S   : p.I2S,
         }
