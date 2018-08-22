@@ -15,6 +15,7 @@ pub extern crate dw1000;
 pub extern crate nrf52_hal;
 
 
+use dw1000::DW1000;
 use nrf52_hal::{
     prelude::*,
     gpio::{
@@ -27,14 +28,18 @@ use nrf52_hal::{
         CorePeripherals,
         Peripherals,
     },
+    spim,
 };
 
 
-/// Provides access to all features of the DWM1001 board
+/// Provides access to all features of the DWM1001/DWM1001-Dev board
 #[allow(non_snake_case)]
 pub struct DWM1001 {
     /// The nRF52's pins
     pub pins: Pins,
+
+    /// DW1000 UWB transceiver
+    pub DW1000: DW1000<nrf52::SPIM2>,
 
     /// Core peripheral: Cache and branch predictor maintenance operations
     pub CBP: nrf52::CBP,
@@ -246,9 +251,6 @@ pub struct DWM1001 {
     /// nRF52 peripheral: PWM2
     pub PWM2: nrf52::PWM2,
 
-    /// nRF52 peripheral: SPIM2
-    pub SPIM2: nrf52::SPIM2,
-
     /// nRF52 peripheral: SPIS2
     pub SPIS2: nrf52::SPIS2,
 
@@ -296,6 +298,20 @@ impl DWM1001 {
     fn new(cp: CorePeripherals, p: Peripherals) -> Self {
         let pins = p.P0.split();
 
+        // Some notes about the hardcoded configuration of `Spim`:
+        // - The DW1000's SPI mode can be configured, but on the DWM1001 board,
+        //   both configuration pins (GPIO5/SPIPOL and GPIO6/SPIPHA) are
+        //   unconnected and internally pulled low, setting it to SPI mode 0.
+        // - The frequency is set to a moderate value that the DW1000 can easily
+        //   handle.
+        let spim2 = p.SPIM2.constrain(spim::Pins {
+            sck : pins.p0_16.into_push_pull_output().degrade(),
+            mosi: pins.p0_20.into_push_pull_output().degrade(),
+            miso: pins.p0_18.into_floating_input().degrade(),
+        });
+
+        let dw_cs = pins.p0_17.into_push_pull_output().degrade();
+
         DWM1001 {
             pins: Pins {
                 p0_02: pins.p0_2,
@@ -312,11 +328,7 @@ impl DWM1001 {
                 p0_13: pins.p0_13,
                 p0_14: pins.p0_14,
                 p0_15: pins.p0_15,
-                p0_16: pins.p0_16,
-                p0_17: pins.p0_17,
-                p0_18: pins.p0_18,
                 p0_19: pins.p0_19,
-                p0_20: pins.p0_20,
                 p0_21: pins.p0_21,
                 p0_22: pins.p0_22,
                 p0_23: pins.p0_23,
@@ -329,6 +341,8 @@ impl DWM1001 {
                 p0_30: pins.p0_30,
                 p0_31: pins.p0_31,
             },
+
+            DW1000: DW1000::new(spim2, dw_cs),
 
             // Core peripherals
             CBP  : cp.CBP,
@@ -403,7 +417,6 @@ impl DWM1001 {
             MWU   : p.MWU,
             PWM1  : p.PWM1,
             PWM2  : p.PWM2,
-            SPIM2 : p.SPIM2,
             SPIS2 : p.SPIS2,
             SPI2  : p.SPI2,
             RTC2  : p.RTC2,
@@ -495,30 +508,10 @@ pub struct Pins {
     // this comment are connected to components on the board, and should
     // eventually be subsumed by higher-level abstractions.
 
-    /// P0.16 - SPI1_CLK
-    ///
-    /// Connected to the DW1000.
-    pub p0_16: p0::P0_16<Input<Floating>>,
-
-    /// P0.17 - DW_CS
-    ///
-    /// Connected to the DW1000.
-    pub p0_17: p0::P0_17<Input<Floating>>,
-
-    /// P0.18 - SPI1_MISO
-    ///
-    /// Connected to the DW1000.
-    pub p0_18: p0::P0_18<Input<Floating>>,
-
     /// P0.19 - DW_IRQ
     ///
     /// Connected to the DW1000.
     pub p0_19: p0::P0_19<Input<Floating>>,
-
-    /// P0.20 - SPI1_MOSI
-    ///
-    /// Connected to the DW1000.
-    pub p0_20: p0::P0_20<Input<Floating>>,
 
     /// P0.24 - DW_RST
     ///

@@ -23,10 +23,8 @@ use core::fmt::Write;
 
 use cortex_m_semihosting::hio;
 use dwm1001::{
-    dw1000::DW1000,
     nrf52_hal::{
         prelude::*,
-        spim,
         timer::Timer,
     },
     DWM1001,
@@ -40,25 +38,9 @@ fn main() -> ! {
     let mut stdout = hio::hstdout()
         .expect("Failed to initialize semihosting");
 
-    let dwm1001 = DWM1001::take().unwrap();
+    let mut dwm1001 = DWM1001::take().unwrap();
 
-    // Some notes about the hardcoded configuration of `Spim`:
-    // - The DW1000's SPI mode can be configured, but on the DWM1001 board, both
-    //   configuration pins (GPIO5/SPIPOL and GPIO6/SPIPHA) are unconnected and
-    //   internally pulled low, setting it to SPI mode 0.
-    // - The frequency is set to a moderate value that the DW1000 can easily
-    //   handle.
-    let spim = dwm1001.SPIM2.constrain(spim::Pins {
-        sck : dwm1001.pins.p0_16.into_push_pull_output().degrade(),
-        mosi: dwm1001.pins.p0_20.into_push_pull_output().degrade(),
-        miso: dwm1001.pins.p0_18.into_floating_input().degrade(),
-    });
-
-    let dw_cs = dwm1001.pins.p0_17.into_push_pull_output().degrade();
-
-    let mut dw1000 = DW1000::new(spim, dw_cs);
-
-    let dev_id = dw1000.dev_id()
+    let dev_id = dwm1001.DW1000.dev_id()
         .expect("Failed to read DEV_ID register");
 
     let is_as_expected =
