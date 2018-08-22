@@ -31,12 +31,25 @@ use nrf52_hal::{
     spim,
 };
 
+#[cfg(feature = "dev")]
+use nrf52_hal::gpio::{
+    p0::P0_Pin,
+    Output,
+    PushPull,
+};
+
 
 /// Provides access to all features of the DWM1001/DWM1001-Dev board
 #[allow(non_snake_case)]
 pub struct DWM1001 {
     /// The nRF52's pins
     pub pins: Pins,
+
+    /// The LEDs on the DWM1001-Dev board
+    ///
+    /// This is only available if the `dev` feature is enabled.
+    #[cfg(feature = "dev")]
+    pub leds: Leds,
 
     /// DW1000 UWB transceiver
     pub DW1000: DW1000<nrf52::SPIM2>,
@@ -320,11 +333,9 @@ impl DWM1001 {
                 p0_11: pins.p0_11,
                 p0_12: pins.p0_12,
                 p0_13: pins.p0_13,
-                p0_14: pins.p0_14,
                 p0_15: pins.p0_15,
                 p0_19: pins.p0_19,
                 p0_21: pins.p0_21,
-                p0_22: pins.p0_22,
                 p0_23: pins.p0_23,
                 p0_24: pins.p0_24,
                 p0_25: pins.p0_25,
@@ -332,8 +343,19 @@ impl DWM1001 {
                 p0_27: pins.p0_27,
                 p0_28: pins.p0_28,
                 p0_29: pins.p0_29,
-                p0_30: pins.p0_30,
-                p0_31: pins.p0_31,
+
+                #[cfg(not(feature = "dev"))] p0_14: pins.p0_14,
+                #[cfg(not(feature = "dev"))] p0_22: pins.p0_22,
+                #[cfg(not(feature = "dev"))] p0_30: pins.p0_30,
+                #[cfg(not(feature = "dev"))] p0_31: pins.p0_31,
+            },
+
+            #[cfg(feature = "dev")]
+            leds: Leds {
+                D9 : Led::new(pins.p0_30.degrade()),
+                D10: Led::new(pins.p0_31.degrade()),
+                D11: Led::new(pins.p0_22.degrade()),
+                D12: Led::new(pins.p0_14.degrade()),
             },
 
             DW1000: DW1000::new(spim2, dw_cs),
@@ -459,17 +481,11 @@ pub struct Pins {
     /// P0.13 - GPIO_13
     pub p0_13: p0::P0_13<Input<Floating>>,
 
-    /// P0.14 - GPIO_14
-    pub p0_14: p0::P0_14<Input<Floating>>,
-
     /// P0.15 - GPIO_15
     pub p0_15: p0::P0_15<Input<Floating>>,
 
     /// P0.21 - RESETn
     pub p0_21: p0::P0_21<Input<Floating>>,
-
-    /// P0.22 - GPIO_22
-    pub p0_22: p0::P0_22<Input<Floating>>,
 
     /// P0.23 - GPIO_23
     pub p0_23: p0::P0_23<Input<Floating>>,
@@ -490,10 +506,32 @@ pub struct Pins {
     /// Connected to both the accelerometer and an outside pin.
     pub p0_29: p0::P0_29<Input<Floating>>,
 
+    /// P0.14 - GPIO_14
+    ///
+    /// This field is only available, if the `dev` feature is disabled.
+    /// Otherwise the pin is used for an LED on the DWM1001-Dev board.
+    #[cfg(not(feature = "dev"))]
+    pub p0_14: p0::P0_14<Input<Floating>>,
+
+    /// P0.22 - GPIO_22
+    ///
+    /// This field is only available, if the `dev` feature is disabled.
+    /// Otherwise the pin is used for an LED on the DWM1001-Dev board.
+    #[cfg(not(feature = "dev"))]
+    pub p0_22: p0::P0_22<Input<Floating>>,
+
     /// P0.30 - GPIO_30
+    ///
+    /// This field is only available, if the `dev` feature is disabled.
+    /// Otherwise the pin is used for an LED on the DWM1001-Dev board.
+    #[cfg(not(feature = "dev"))]
     pub p0_30: p0::P0_30<Input<Floating>>,
 
     /// P0.31 - GPIO_31
+    ///
+    /// This field is only available, if the `dev` feature is disabled.
+    /// Otherwise the pin is used for an LED on the DWM1001-Dev board.
+    #[cfg(not(feature = "dev"))]
     pub p0_31: p0::P0_31<Input<Floating>>,
 
     // Pins before this comment are available outside the DWM1001. Pins after
@@ -514,4 +552,54 @@ pub struct Pins {
     ///
     /// Connected to the accelerometer.
     pub p0_25: p0::P0_25<Input<Floating>>,
+}
+
+
+/// The LEDs on the DWM1001-Dev board
+///
+/// The documentation of the field's states the name of the LED on the
+/// DWM1001-Dev, as well as the names of the pins on the DWM1001 and nRF52.
+///
+/// This struct is only available, if the `dev` feature is enabled.
+#[allow(non_snake_case)]
+#[cfg(feature = "dev")]
+pub struct Leds {
+    /// DWM1001-Dev: D9; DWM1001: GPIO_30; nRF52: P0.30
+    pub D9: Led,
+
+    /// DWM1001-Dev: D10; DWM1001: GPIO_31; nRF52: P0.31
+    pub D10: Led,
+
+    /// DWM1001-Dev: D11; DWM1001: GPIO_22; nRF52: P0.22
+    pub D11: Led,
+
+    /// DWM1001-Dev: D12; DWM1001: GPIO_14; nRF52: P0.14
+    pub D12: Led,
+}
+
+
+/// An LED on the DWM1001-Dev board
+///
+/// This struct is only available, if the `dev` feature is enabled.
+#[cfg(feature = "dev")]
+pub struct Led(p0::P0_Pin<Output<PushPull>>);
+
+#[cfg(feature = "dev")]
+impl Led {
+    fn new<Mode>(pin: P0_Pin<Mode>) -> Self {
+        let mut pin = pin.into_push_pull_output();
+        pin.set_high(); // disable LED
+
+        Led(pin)
+    }
+
+    /// Enable the LED
+    pub fn enable(&mut self) {
+        self.0.set_low()
+    }
+
+    /// Disable the LED
+    pub fn disable(&mut self) {
+        self.0.set_high()
+    }
 }
