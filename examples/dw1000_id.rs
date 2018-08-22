@@ -61,15 +61,14 @@ fn main() -> ! {
         (100_000, 100_000)
     };
 
-    // Configure timer and status LED
+    // Configure timer
     let mut timer = dwm1001.TIMER0.constrain();
-    let mut p0_14 = dwm1001.pins.p0_14.into_push_pull_output();
 
     loop {
-        p0_14.set_low();
+        dwm1001.leds.D12.enable();
         delay(&mut timer, low);
 
-        p0_14.set_high();
+        dwm1001.leds.D12.disable();
         delay(&mut timer, high);
     }
 }

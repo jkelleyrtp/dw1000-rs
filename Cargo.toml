@@ -18,16 +18,19 @@ nb                   = "0.1.1"
 panic-semihosting    = "0.3.0"
 
 [features]
-rt = ["nrf52-hal/rt"]
+# Activate this if you're using the DWM1001-Dev board, as opposed to a bare
+# DWM1001 module.
+dev = []
+rt  = ["nrf52-hal/rt"]
 
 
 [[example]]
 name              = "blink"
-required-features = ["rt"]
+required-features = ["dev", "rt"]
 
 [[example]]
 name              = "dw1000_id"
-required-features = ["rt"]
+required-features = ["dev", "rt"]
 
 
 

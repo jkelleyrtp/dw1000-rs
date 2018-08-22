@@ -12,33 +12,23 @@ extern crate panic_semihosting;
 use dwm1001::{
     nrf52_hal::{
         prelude::*,
-        nrf52::Peripherals,
         timer::Timer,
     },
+    DWM1001,
 };
 
 
 entry!(main);
 
 fn main() -> ! {
-    let p = Peripherals::take().unwrap();
+    let mut dwm1001 = DWM1001::take().unwrap();
 
-    let mut p0_14 = p.P0
-        .split()
-        .p0_14
-        .into_push_pull_output();
-
-    let mut timer = p.TIMER0.constrain();
+    let mut timer = dwm1001.TIMER0.constrain();
 
     loop {
-        // Set P0.14 to LOW, thereby enabling the LED
-        p0_14.set_low();
-
+        dwm1001.leds.D12.enable();
         delay(&mut timer, 20_000); // 20ms
-
-        // Set P0.14 to HIGH, thereby disabling the LED
-        p0_14.set_high();
-
+        dwm1001.leds.D12.disable();
         delay(&mut timer, 230_000); // 230ms
     }
 }
