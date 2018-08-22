@@ -321,33 +321,35 @@ impl DWM1001 {
 
         DWM1001 {
             pins: Pins {
-                p0_02: pins.p0_2,
-                p0_03: pins.p0_3,
-                p0_04: pins.p0_4,
-                p0_05: pins.p0_5,
-                p0_06: pins.p0_6,
-                p0_07: pins.p0_7,
-                p0_08: pins.p0_8,
-                p0_09: pins.p0_9,
-                p0_10: pins.p0_10,
-                p0_11: pins.p0_11,
-                p0_12: pins.p0_12,
-                p0_13: pins.p0_13,
-                p0_15: pins.p0_15,
-                p0_19: pins.p0_19,
-                p0_21: pins.p0_21,
-                p0_23: pins.p0_23,
-                p0_24: pins.p0_24,
-                p0_25: pins.p0_25,
-                p0_26: pins.p0_26,
-                p0_27: pins.p0_27,
-                p0_28: pins.p0_28,
-                p0_29: pins.p0_29,
+                BT_WAKE_UP: pins.p0_2,
+                SPIS_CSn  : pins.p0_3,
+                SPIS_CLK  : pins.p0_4,
+                UART_TX   : pins.p0_5,
+                SPIS_MOSI : pins.p0_6,
+                SPIS_MISO : pins.p0_7,
+                UART_RX   : pins.p0_11,
+                RESETn    : pins.p0_21,
+                READY     : pins.p0_26,
+                I2C_SCL   : pins.p0_28,
+                I2C_SDA   : pins.p0_29,
 
-                #[cfg(not(feature = "dev"))] p0_14: pins.p0_14,
-                #[cfg(not(feature = "dev"))] p0_22: pins.p0_22,
-                #[cfg(not(feature = "dev"))] p0_30: pins.p0_30,
-                #[cfg(not(feature = "dev"))] p0_31: pins.p0_31,
+                GPIO_8 : pins.p0_8,
+                GPIO_9 : pins.p0_9,
+                GPIO_10: pins.p0_10,
+                GPIO_12: pins.p0_12,
+                GPIO_13: pins.p0_13,
+                GPIO_15: pins.p0_15,
+                GPIO_23: pins.p0_23,
+                GPIO_27: pins.p0_27,
+
+                #[cfg(not(feature = "dev"))] GPIO_14: pins.p0_14,
+                #[cfg(not(feature = "dev"))] GPIO_22: pins.p0_22,
+                #[cfg(not(feature = "dev"))] GPIO_30: pins.p0_30,
+                #[cfg(not(feature = "dev"))] GPIO_31: pins.p0_31,
+
+                DW_IRQ : pins.p0_19,
+                DW_RST : pins.p0_24,
+                IRQ_ACC: pins.p0_25,
             },
 
             #[cfg(feature = "dev")]
@@ -442,116 +444,117 @@ impl DWM1001 {
 
 /// The nRF52 pins that are available on the DWM1001
 ///
-/// The field names in this struct follow the naming convention of the nRF52.
-/// Their documentation also states what the DWM1001 documentation calls them.
+/// The documentation of the fields states the names of the pin on the DWM1001
+/// and the nRF52.
+#[allow(non_snake_case)]
 pub struct Pins {
-    /// P0.02 - BT_WAKE_UP
-    pub p0_02: p0::P0_2<Input<Floating>>,
+    /// DWM1001: BT_WAKE_UP; nRF52: P0.02
+    pub BT_WAKE_UP: p0::P0_2<Input<Floating>>,
 
-    /// P0.03 - SPIS_CSn
-    pub p0_03: p0::P0_3<Input<Floating>>,
+    /// DWM1001: SPIS_CSn; nRF52: P0.03
+    pub SPIS_CSn: p0::P0_3<Input<Floating>>,
 
-    /// P0.04 - SPIS_CLK
-    pub p0_04: p0::P0_4<Input<Floating>>,
+    /// DWM1001: SPIS_CLK; nRF52: P0.04
+    pub SPIS_CLK: p0::P0_4<Input<Floating>>,
 
-    /// P0.05 - UART_TX
-    pub p0_05: p0::P0_5<Input<Floating>>,
+    /// DWM1001: UART_TX; nRF52: P0.05
+    pub UART_TX: p0::P0_5<Input<Floating>>,
 
-    /// P0.06 - SPIS_MOSI
-    pub p0_06: p0::P0_6<Input<Floating>>,
+    /// DWM1001: SPIS_MOSI; nRF52: P0.06
+    pub SPIS_MOSI: p0::P0_6<Input<Floating>>,
 
-    /// P0.07 - SPIS_MISO
-    pub p0_07: p0::P0_7<Input<Floating>>,
+    /// DWM1001: SPIS_MISO; nRF52: P0.07
+    pub SPIS_MISO: p0::P0_7<Input<Floating>>,
 
-    /// P0.08 - GPIO_8
-    pub p0_08: p0::P0_8<Input<Floating>>,
+    /// DWM1001: UART_RX; nRF52: P0.11
+    pub UART_RX: p0::P0_11<Input<Floating>>,
 
-    /// P0.09 - GPIO_9
-    pub p0_09: p0::P0_9<Input<Floating>>,
+    /// DWM1001: RESETn; nRF52: P0.21
+    pub RESETn: p0::P0_21<Input<Floating>>,
 
-    /// P0.10 - GPIO_10
-    pub p0_10: p0::P0_10<Input<Floating>>,
+    /// DWM1001: READY; nRF52: P0.26
+    pub READY: p0::P0_26<Input<Floating>>,
 
-    /// P0.11 - UART_RX
-    pub p0_11: p0::P0_11<Input<Floating>>,
-
-    /// P0.12 - GPIO_12
-    pub p0_12: p0::P0_12<Input<Floating>>,
-
-    /// P0.13 - GPIO_13
-    pub p0_13: p0::P0_13<Input<Floating>>,
-
-    /// P0.15 - GPIO_15
-    pub p0_15: p0::P0_15<Input<Floating>>,
-
-    /// P0.21 - RESETn
-    pub p0_21: p0::P0_21<Input<Floating>>,
-
-    /// P0.23 - GPIO_23
-    pub p0_23: p0::P0_23<Input<Floating>>,
-
-    /// P0.26 - READY
-    pub p0_26: p0::P0_26<Input<Floating>>,
-
-    /// P0.27 - GPIO_27
-    pub p0_27: p0::P0_27<Input<Floating>>,
-
-    /// P0.28 - I2C_SCL
+    /// DWM1001: I2C_SCL; nRF52: P0.28
     ///
     /// Connected to both the accelerometer and an outside pin.
-    pub p0_28: p0::P0_28<Input<Floating>>,
+    pub I2C_SCL: p0::P0_28<Input<Floating>>,
 
-    /// P0.29 - I2C_SDA
+    /// DWM1001: I2C_SDA; nRF52: P0.29
     ///
     /// Connected to both the accelerometer and an outside pin.
-    pub p0_29: p0::P0_29<Input<Floating>>,
+    pub I2C_SDA: p0::P0_29<Input<Floating>>,
 
-    /// P0.14 - GPIO_14
+    /// DWM1001: GPIO_8; nRF52: P0.08
+    pub GPIO_8: p0::P0_8<Input<Floating>>,
+
+    /// DWM1001: GPIO_9; nRF52: P0.09
+    pub GPIO_9: p0::P0_9<Input<Floating>>,
+
+    /// DWM1001: GPIO_10; nRF52: P0.10
+    pub GPIO_10: p0::P0_10<Input<Floating>>,
+
+    /// DWM1001: GPIO_12; nRF52: P0.12
+    pub GPIO_12: p0::P0_12<Input<Floating>>,
+
+    /// DWM1001: GPIO_13; nRF52: P0.13
+    pub GPIO_13: p0::P0_13<Input<Floating>>,
+
+    /// DWM1001: GPIO_15; nRF52: P0.15
+    pub GPIO_15: p0::P0_15<Input<Floating>>,
+
+    /// DWM1001: GPIO_23; nRF52: P0.23
+    pub GPIO_23: p0::P0_23<Input<Floating>>,
+
+    /// DWM1001: GPIO_27; nRF52: P0.27
+    pub GPIO_27: p0::P0_27<Input<Floating>>,
+
+    /// DWM1001: GPIO_14; nRF52: P0.14
     ///
     /// This field is only available, if the `dev` feature is disabled.
     /// Otherwise the pin is used for an LED on the DWM1001-Dev board.
     #[cfg(not(feature = "dev"))]
-    pub p0_14: p0::P0_14<Input<Floating>>,
+    pub GPIO_14: p0::P0_14<Input<Floating>>,
 
-    /// P0.22 - GPIO_22
+    /// DWM1001: GPIO_22; nRF52: P0.22
     ///
     /// This field is only available, if the `dev` feature is disabled.
     /// Otherwise the pin is used for an LED on the DWM1001-Dev board.
     #[cfg(not(feature = "dev"))]
-    pub p0_22: p0::P0_22<Input<Floating>>,
+    pub GPIO_22: p0::P0_22<Input<Floating>>,
 
-    /// P0.30 - GPIO_30
+    /// DWM1001: GPIO_30; nRF52: P0.30
     ///
     /// This field is only available, if the `dev` feature is disabled.
     /// Otherwise the pin is used for an LED on the DWM1001-Dev board.
     #[cfg(not(feature = "dev"))]
-    pub p0_30: p0::P0_30<Input<Floating>>,
+    pub GPIO_30: p0::P0_30<Input<Floating>>,
 
-    /// P0.31 - GPIO_31
+    /// DWM1001: GPIO_31; nRF52: P0.31
     ///
     /// This field is only available, if the `dev` feature is disabled.
     /// Otherwise the pin is used for an LED on the DWM1001-Dev board.
     #[cfg(not(feature = "dev"))]
-    pub p0_31: p0::P0_31<Input<Floating>>,
+    pub GPIO_31: p0::P0_31<Input<Floating>>,
 
     // Pins before this comment are available outside the DWM1001. Pins after
     // this comment are connected to components on the board, and should
     // eventually be subsumed by higher-level abstractions.
 
-    /// P0.19 - DW_IRQ
+    /// DWM1001: DW_IRQ; nRF52: P0.19
     ///
     /// Connected to the DW1000.
-    pub p0_19: p0::P0_19<Input<Floating>>,
+    pub DW_IRQ: p0::P0_19<Input<Floating>>,
 
-    /// P0.24 - DW_RST
+    /// DWM1001: DW_RST; nRF52: P0.24
     ///
     /// Connected to the DW1000.
-    pub p0_24: p0::P0_24<Input<Floating>>,
+    pub DW_RST: p0::P0_24<Input<Floating>>,
 
-    /// P0.25 - IRQ_ACC
+    /// DWM1001: IRQ_ACC; nRF52: P0.25
     ///
     /// Connected to the accelerometer.
-    pub p0_25: p0::P0_25<Input<Floating>>,
+    pub IRQ_ACC: p0::P0_25<Input<Floating>>,
 }
 
 
