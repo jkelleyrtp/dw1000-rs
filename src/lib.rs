@@ -321,20 +321,20 @@ impl DWM1001 {
 
         DWM1001 {
             pins: Pins {
-                BT_WAKE_UP: pins.p0_2,
-                SPIS_CSn  : pins.p0_3,
-                SPIS_CLK  : pins.p0_4,
-                UART_TX   : pins.p0_5,
-                SPIS_MOSI : pins.p0_6,
-                SPIS_MISO : pins.p0_7,
+                BT_WAKE_UP: pins.p0_02,
+                SPIS_CSn  : pins.p0_03,
+                SPIS_CLK  : pins.p0_04,
+                UART_TX   : pins.p0_05,
+                SPIS_MOSI : pins.p0_06,
+                SPIS_MISO : pins.p0_07,
                 UART_RX   : pins.p0_11,
                 RESETn    : pins.p0_21,
                 READY     : pins.p0_26,
                 I2C_SCL   : pins.p0_28,
                 I2C_SDA   : pins.p0_29,
 
-                GPIO_8 : pins.p0_8,
-                GPIO_9 : pins.p0_9,
+                GPIO_8 : pins.p0_08,
+                GPIO_9 : pins.p0_09,
                 GPIO_10: pins.p0_10,
                 GPIO_12: pins.p0_12,
                 GPIO_13: pins.p0_13,
