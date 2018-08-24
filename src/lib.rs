@@ -74,7 +74,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 }
 
 
-/// The device identifier (DEV_ID)
+/// Device identifier - includes device type and revision info
 #[allow(non_camel_case_types)]
 pub struct DEV_ID([u8; 5]);
 
