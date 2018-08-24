@@ -45,39 +45,80 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         }
     }
 
-    /// Read the device identifier (DEV_ID)
-    pub fn dev_id(&mut self) -> Result<DevId, spim::Error> {
-        // Set up the transmit buffer
-        //
-        // It consists of only one byte for the transaction header. Since this
-        // is a read operation, there is no transaction body.
-        //
-        // The transaction signals a read without a sub-index, which means it's
-        // one byte long. This byte consists of the following bits:
-        //   7: 0 for read
-        //   6: 0 for no sub-index
-        // 5-0: 0 for DEV_ID register
-        let tx_buffer = [0u8];
+    /// Read a register
+    pub fn read<R: Register>(&mut self) -> Result<R, spim::Error> {
+        let header =
+            (0     & 0x80) |  // read
+            (0     & 0x40) |  // no sub-index
+            (R::ID & 0x3f);   // index of the register
+        let tx_buffer = [header];
 
-        // Set up the receive buffer
-        //
-        // SPI is a synchronous interface, so we're going to receive a byte for
-        // every one we send. That means in addition to the 4 bytes we actually
-        // expect, we need an additional one that we receive while we send the
-        // header.
-        let mut rx_buffer = [0u8; 5];
+        let mut r = R::new();
 
-        self.spim.read(&mut self.chip_select, &tx_buffer, &mut rx_buffer)?;
+        self.spim.read(&mut self.chip_select, &tx_buffer, r.rx_buffer())?;
 
-        Ok(DevId(rx_buffer))
+        Ok(r)
     }
 }
 
 
-/// The device identifier (DEV_ID)
-pub struct DevId([u8; 5]);
+/// Implemented for all registers
+///
+/// This trait is for internal use only. Users of this library should never need
+/// to implement this trait, nor use its associated items.
+///
+/// The DW1000 user manual, section 7.1, specifies what the values of those
+/// constant should be for each register.
+pub trait Register {
+    /// The register ID
+    const ID:  u8;
 
-impl DevId {
+    /// The lenght of the register
+    const LEN: usize;
+
+    /// Creates an instance of the register
+    fn new() -> Self;
+
+    /// Returns a mutable reference to the register's internal buffer
+    ///
+    /// SPI is a synchronous interface, which means a bytes is received for
+    /// every byte that is sent, even though the bytes we receive while sending
+    /// something end up being ignored. Still, we need room for those bytes in
+    /// the buffer, so the length of the buffer must be equal to the length of
+    /// the register plus the length of the transaction header.
+    fn rx_buffer(&mut self) -> &mut [u8];
+}
+
+macro_rules! impl_register {
+    ($($id:expr, $len:expr, $name:ident; #[$doc:meta])*) => {
+        $(
+            #[$doc]
+            #[allow(non_camel_case_types)]
+            pub struct $name([u8; $len + 1]);
+
+            impl Register for $name {
+                const ID:  u8    = $id;
+                const LEN: usize = $len;
+
+                fn new() -> Self {
+                    $name([0; $len + 1])
+                }
+
+                fn rx_buffer(&mut self) -> &mut [u8] {
+                    &mut self.0
+                }
+            }
+        )*
+    }
+}
+
+impl_register! {
+    0x00, 4, DEV_ID; /// Device identifier
+    0x01, 8, EUI;    /// Extended Unique Identifier
+}
+
+
+impl DEV_ID {
     /// Register Identification Tag
     pub fn ridtag(&self) -> u16 {
         ((self.0[4] as u16) << 8) | self.0[3] as u16
@@ -99,19 +140,43 @@ impl DevId {
     }
 }
 
+impl EUI {
+    /// Extended Unique Identifier
+    pub fn eui(&self) -> u64 {
+        ((self.0[8] as u64) << 56) |
+            ((self.0[7] as u64) << 48) |
+            ((self.0[6] as u64) << 40) |
+            ((self.0[5] as u64) << 32) |
+            ((self.0[4] as u64) << 24) |
+            ((self.0[3] as u64) << 16) |
+            ((self.0[2] as u64) <<  8) |
+            self.0[1] as u64
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
-    use super::DevId;
+    use super::{
+        DEV_ID,
+        EUI,
+    };
 
 
     #[test]
     fn dev_id_should_provide_access_to_its_fields() {
-        let dev_id = DevId([0x00, 0x30, 0x01, 0xca, 0xde]);
+        let dev_id = DEV_ID([0x00, 0x30, 0x01, 0xca, 0xde]);
 
         assert_eq!(dev_id.rev()   , 0     );
         assert_eq!(dev_id.ver()   , 3     );
         assert_eq!(dev_id.model() , 1     );
         assert_eq!(dev_id.ridtag(), 0xDECA);
+    }
+
+    #[test]
+    fn eui_should_provide_access_to_its_field() {
+        let eui = EUI([0x00, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0]);
+
+        assert_eq!(eui.eui(), 0xf0debc9a78563412);
     }
 }
