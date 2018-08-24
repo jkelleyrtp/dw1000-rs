@@ -46,7 +46,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 
     /// Read the device identifier (DEV_ID)
-    pub fn dev_id(&mut self) -> Result<DevId, spim::Error> {
+    pub fn dev_id(&mut self) -> Result<DEV_ID, spim::Error> {
         // Set up the transmit buffer
         //
         // It consists of only one byte for the transaction header. Since this
@@ -69,15 +69,16 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 
         self.spim.read(&mut self.chip_select, &tx_buffer, &mut rx_buffer)?;
 
-        Ok(DevId(rx_buffer))
+        Ok(DEV_ID(rx_buffer))
     }
 }
 
 
 /// The device identifier (DEV_ID)
-pub struct DevId([u8; 5]);
+#[allow(non_camel_case_types)]
+pub struct DEV_ID([u8; 5]);
 
-impl DevId {
+impl DEV_ID {
     /// Register Identification Tag
     pub fn ridtag(&self) -> u16 {
         ((self.0[4] as u16) << 8) | self.0[3] as u16
@@ -102,12 +103,12 @@ impl DevId {
 
 #[cfg(test)]
 mod tests {
-    use super::DevId;
+    use super::DEV_ID;
 
 
     #[test]
     fn dev_id_should_provide_access_to_its_fields() {
-        let dev_id = DevId([0x00, 0x30, 0x01, 0xca, 0xde]);
+        let dev_id = DEV_ID([0x00, 0x30, 0x01, 0xca, 0xde]);
 
         assert_eq!(dev_id.rev()   , 0     );
         assert_eq!(dev_id.ver()   , 3     );
