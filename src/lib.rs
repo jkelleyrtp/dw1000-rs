@@ -45,15 +45,15 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         }
     }
 
-    /// Read the device identifier (DEV_ID)
-    pub fn dev_id(&mut self) -> Result<DEV_ID, spim::Error> {
+    /// Read a register
+    pub fn read<R: Register>(&mut self) -> Result<R, spim::Error> {
         let header =
-            (0          & 0x80) |  // read
-            (0          & 0x40) |  // no sub-index
-            (DEV_ID::ID & 0x3f);   // index of DEV_ID register
+            (0     & 0x80) |  // read
+            (0     & 0x40) |  // no sub-index
+            (R::ID & 0x3f);   // index of the register
         let tx_buffer = [header];
 
-        let mut r = DEV_ID::new();
+        let mut r = R::new();
 
         self.spim.read(&mut self.chip_select, &tx_buffer, r.rx_buffer())?;
 
