@@ -51,13 +51,11 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         //
         // It consists of only one byte for the transaction header. Since this
         // is a read operation, there is no transaction body.
-        //
-        // The transaction signals a read without a sub-index, which means it's
-        // one byte long. This byte consists of the following bits:
-        //   7: 0 for read
-        //   6: 0 for no sub-index
-        // 5-0: 0 for DEV_ID register
-        let tx_buffer = [0u8];
+        let header =
+            (0 & 0x80) |  // read
+            (0 & 0x40) |  // no sub-index
+            (0 & 0x3f);   // index of DEV_ID register
+        let tx_buffer = [header];
 
         // Set up the receive buffer
         //
