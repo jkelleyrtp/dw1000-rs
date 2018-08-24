@@ -89,23 +89,33 @@ pub trait Register {
     fn rx_buffer(&mut self) -> &mut [u8];
 }
 
+macro_rules! impl_register {
+    ($($id:expr, $len:expr, $name:ident; #[$doc:meta])*) => {
+        $(
+            #[$doc]
+            #[allow(non_camel_case_types)]
+            pub struct $name([u8; $len + 1]);
 
-/// Device identifier - includes device type and revision info
-#[allow(non_camel_case_types)]
-pub struct DEV_ID([u8; 5]);
+            impl Register for $name {
+                const ID:  u8    = $id;
+                const LEN: usize = $len;
 
-impl Register for DEV_ID {
-    const ID:  u8    = 0x00;
-    const LEN: usize = 4;
+                fn new() -> Self {
+                    $name([0; $len + 1])
+                }
 
-    fn new() -> Self {
-        DEV_ID([0; 5])
-    }
-
-    fn rx_buffer(&mut self) -> &mut [u8] {
-        &mut self.0
+                fn rx_buffer(&mut self) -> &mut [u8] {
+                    &mut self.0
+                }
+            }
+        )*
     }
 }
+
+impl_register! {
+    0x00, 4, DEV_ID; /// Device identifier
+}
+
 
 impl DEV_ID {
     /// Register Identification Tag
