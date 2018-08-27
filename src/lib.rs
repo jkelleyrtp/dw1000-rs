@@ -55,7 +55,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 
         let mut r = R::new();
 
-        self.spim.read(&mut self.chip_select, &tx_buffer, r.rx_buffer())?;
+        self.spim.read(&mut self.chip_select, &tx_buffer, r.buffer())?;
 
         Ok(r)
     }
@@ -80,13 +80,7 @@ pub trait Register {
     fn new() -> Self;
 
     /// Returns a mutable reference to the register's internal buffer
-    ///
-    /// SPI is a synchronous interface, which means a bytes is received for
-    /// every byte that is sent, even though the bytes we receive while sending
-    /// something end up being ignored. Still, we need room for those bytes in
-    /// the buffer, so the length of the buffer must be equal to the length of
-    /// the register plus the length of the transaction header.
-    fn rx_buffer(&mut self) -> &mut [u8];
+    fn buffer(&mut self) -> &mut [u8];
 }
 
 /// Marker trait for registers that can be read
@@ -110,7 +104,7 @@ macro_rules! impl_register {
                     $name([0; $len + 1])
                 }
 
-                fn rx_buffer(&mut self) -> &mut [u8] {
+                fn buffer(&mut self) -> &mut [u8] {
                     &mut self.0
                 }
             }
