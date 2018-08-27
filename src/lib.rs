@@ -183,12 +183,27 @@ impl EUI {
             ((self.0[2] as u64) <<  8) |
             self.0[1] as u64
     }
+
+    /// Extended Unique Identifier
+    pub fn set_eui(mut self, value: u64) -> Self {
+        self.0[8] = ((value & 0xff00000000000000) >> 56) as u8;
+        self.0[7] = ((value & 0x00ff000000000000) >> 48) as u8;
+        self.0[6] = ((value & 0x0000ff0000000000) >> 40) as u8;
+        self.0[5] = ((value & 0x000000ff00000000) >> 32) as u8;
+        self.0[4] = ((value & 0x00000000ff000000) >> 24) as u8;
+        self.0[3] = ((value & 0x0000000000ff0000) >> 16) as u8;
+        self.0[2] = ((value & 0x000000000000ff00) >>  8) as u8;
+        self.0[1] = (value & 0x00000000000000ff) as u8;
+
+        self
+    }
 }
 
 
 #[cfg(test)]
 mod tests {
     use super::{
+        Register,
         DEV_ID,
         EUI,
     };
@@ -208,6 +223,11 @@ mod tests {
     fn eui_should_provide_access_to_its_field() {
         let eui = EUI([0x00, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0]);
 
+        assert_eq!(eui.eui(), 0xf0debc9a78563412);
+
+        let eui = EUI::new();
+        assert_eq!(eui.eui(), 0);
+        let eui = eui.set_eui(0xf0debc9a78563412);
         assert_eq!(eui.eui(), 0xf0debc9a78563412);
     }
 }
