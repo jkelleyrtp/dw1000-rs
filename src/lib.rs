@@ -89,8 +89,14 @@ pub trait Register {
     fn rx_buffer(&mut self) -> &mut [u8];
 }
 
+/// Marker trait for registers that can be read
+pub trait CanBeRead {}
+
+/// Marker trait for registers that can be written
+pub trait CanBeWritten {}
+
 macro_rules! impl_register {
-    ($($id:expr, $len:expr, $name:ident; #[$doc:meta])*) => {
+    ($($id:expr, $len:expr, $rw:tt, $name:ident; #[$doc:meta])*) => {
         $(
             #[$doc]
             #[allow(non_camel_case_types)]
@@ -108,13 +114,32 @@ macro_rules! impl_register {
                     &mut self.0
                 }
             }
+
+            rw!($rw, $name);
         )*
     }
 }
 
+macro_rules! rw {
+    (RO, $name:ident) => {
+        rw!(@R, $name);
+    };
+    (RW, $name:ident) => {
+        rw!(@R, $name);
+        rw!(@W, $name);
+    };
+
+    (@R, $name:ident) => {
+        impl CanBeRead for $name {}
+    };
+    (@W, $name:ident) => {
+        impl CanBeWritten for $name {}
+    };
+}
+
 impl_register! {
-    0x00, 4, DEV_ID; /// Device identifier
-    0x01, 8, EUI;    /// Extended Unique Identifier
+    0x00, 4, RO, DEV_ID; /// Device identifier
+    0x01, 8, RW, EUI;    /// Extended Unique Identifier
 }
 
 
