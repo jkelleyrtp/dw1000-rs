@@ -55,6 +55,18 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 
         Ok(r)
     }
+
+    /// Write to a register
+    pub fn write<R: Register + CanBeWritten>(&mut self, mut r: R)
+        -> Result<(), spim::Error>
+    {
+        let tx_buffer = r.buffer();
+        tx_buffer[0] = make_header(true, R::ID);
+
+        self.spim.write(&mut self.chip_select, &tx_buffer)?;
+
+        Ok(())
+    }
 }
 
 
