@@ -64,10 +64,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 
 /// Implemented for all registers
 ///
-/// This trait is for internal use only. Users of this library should never need
-/// to implement this trait, nor use its associated items.
-///
-/// The DW1000 user manual, section 7.1, specifies what the values of those
+/// The DW1000 user manual, section 7.1, specifies what the values of the
 /// constant should be for each register.
 pub trait Register {
     /// The register ID
