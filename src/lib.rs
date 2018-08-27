@@ -45,7 +45,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         }
     }
 
-    /// Read a register
+    /// Read from a register
     pub fn read<R: Register + CanBeRead>(&mut self) -> Result<R, spim::Error> {
         let header =
             (0     & 0x80) |  // read
