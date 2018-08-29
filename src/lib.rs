@@ -47,7 +47,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 
     /// Read from a register
     pub fn read<R: Register + Readable>(&mut self) -> Result<R, spim::Error> {
-        let tx_buffer = [make_header(false, R::ID)];
+        let tx_buffer = [make_header::<R>(false)];
 
         let mut r = R::new();
 
@@ -61,7 +61,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         -> Result<(), spim::Error>
     {
         let tx_buffer = r.buffer();
-        tx_buffer[0] = make_header(true, R::ID);
+        tx_buffer[0] = make_header::<R>(true);
 
         self.spim.write(&mut self.chip_select, &tx_buffer)?;
 
@@ -70,10 +70,10 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 }
 
 
-fn make_header(write: bool, reg_index: u8) -> u8 {
+fn make_header<R: Register>(write: bool) -> u8 {
     ((write as u8) << 7 & 0x80) |
     (0             << 6 & 0x40) |  // no sub-index
-    (reg_index          & 0x3f)
+    (R::ID              & 0x3f)
 }
 
 
