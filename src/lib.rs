@@ -146,6 +146,7 @@ macro_rules! rw {
 impl_register! {
     0x00, 4, RO, DEV_ID; /// Device identifier
     0x01, 8, RW, EUI;    /// Extended Unique Identifier
+    0x03, 4, RW, PANADR; /// PAN Identifier and Short Address
 }
 
 
@@ -199,6 +200,34 @@ impl EUI {
     }
 }
 
+impl PANADR {
+     /// Short Address
+    pub fn short_addr(&self) -> u16 {
+        ((self.0[2] as u16) << 8) | self.0[1] as u16
+    }
+
+    /// PAN Identifier
+    pub fn pan_id(&self) -> u16 {
+        ((self.0[4] as u16) << 8) | self.0[3] as u16
+    }
+
+    /// Short Address
+    pub fn set_short_addr(mut self, value: u16) -> Self {
+        self.0[2] = ((value & 0xff00) >> 8) as u8;
+        self.0[1] = (value & 0x00ff) as u8;
+
+        self
+    }
+
+    /// PAN Identifier
+    pub fn set_pan_id(mut self, value: u16) -> Self {
+        self.0[4] = ((value & 0xff00) >> 8) as u8;
+        self.0[3] = (value & 0x00ff) as u8;
+
+        self
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -206,6 +235,7 @@ mod tests {
         Register,
         DEV_ID,
         EUI,
+        PANADR,
     };
 
 
@@ -229,5 +259,24 @@ mod tests {
         assert_eq!(eui.eui(), 0);
         let eui = eui.set_eui(0xf0debc9a78563412);
         assert_eq!(eui.eui(), 0xf0debc9a78563412);
+    }
+
+    #[test]
+    fn panadr_should_provide_access_to_its_fields() {
+        let panadr = PANADR([0x00, 0x01, 0x23, 0x45, 0x67]);
+
+        assert_eq!(panadr.short_addr(), 0x2301);
+        assert_eq!(panadr.pan_id(),     0x6745);
+
+        let panadr = PANADR::new();
+
+        assert_eq!(panadr.short_addr(), 0);
+        assert_eq!(panadr.pan_id(),     0);
+
+        let panadr = panadr.set_short_addr(0x2301);
+        assert_eq!(panadr.short_addr(), 0x2301);
+
+        let panadr = panadr.set_pan_id(0x6745);
+        assert_eq!(panadr.pan_id(), 0x6745);
     }
 }
