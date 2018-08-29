@@ -48,9 +48,9 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     /// Read from a register
     pub fn read<R: Register + CanBeRead>(&mut self) -> Result<R, spim::Error> {
         let header =
-            (0     & 0x80) |  // read
-            (0     & 0x40) |  // no sub-index
-            (R::ID & 0x3f);   // index of the register
+            (0 << 7 & 0x80) |  // read
+            (0 << 6 & 0x40) |  // no sub-index
+            (R::ID  & 0x3f);   // index of the register
         let tx_buffer = [header];
 
         let mut r = R::new();
