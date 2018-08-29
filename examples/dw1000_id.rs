@@ -23,6 +23,7 @@ use core::fmt::Write;
 
 use cortex_m_semihosting::hio;
 use dwm1001::{
+    dw1000,
     nrf52_hal::{
         prelude::*,
         timer::Timer,
@@ -40,7 +41,7 @@ fn main() -> ! {
 
     let mut dwm1001 = DWM1001::take().unwrap();
 
-    let dev_id = dwm1001.DW1000.dev_id()
+    let dev_id = dwm1001.DW1000.read::<dw1000::DEV_ID>()
         .expect("Failed to read DEV_ID register");
 
     let is_as_expected =
