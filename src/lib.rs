@@ -46,7 +46,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 
     /// Read from a register
-    pub fn read<R: Register + CanBeRead>(&mut self) -> Result<R, spim::Error> {
+    pub fn read<R: Register + Readable>(&mut self) -> Result<R, spim::Error> {
         let tx_buffer = [make_header(false, R::ID)];
 
         let mut r = R::new();
@@ -57,7 +57,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 
     /// Write to a register
-    pub fn write<R: Register + CanBeWritten>(&mut self, mut r: R)
+    pub fn write<R: Register + Writable>(&mut self, mut r: R)
         -> Result<(), spim::Error>
     {
         let tx_buffer = r.buffer();
@@ -96,10 +96,10 @@ pub trait Register {
 }
 
 /// Marker trait for registers that can be read
-pub trait CanBeRead {}
+pub trait Readable {}
 
 /// Marker trait for registers that can be written
-pub trait CanBeWritten {}
+pub trait Writable {}
 
 macro_rules! impl_register {
     ($($id:expr, $len:expr, $rw:tt, $name:ident; #[$doc:meta])*) => {
@@ -136,10 +136,10 @@ macro_rules! impl_rw {
     };
 
     (@R, $name:ident) => {
-        impl CanBeRead for $name {}
+        impl Readable for $name {}
     };
     (@W, $name:ident) => {
-        impl CanBeWritten for $name {}
+        impl Writable for $name {}
     };
 }
 
