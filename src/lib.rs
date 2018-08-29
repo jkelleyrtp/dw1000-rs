@@ -82,7 +82,7 @@ fn make_header<R: Register>(write: bool) -> u8 {
 /// The DW1000 user manual, section 7.1, specifies what the values of the
 /// constant should be for each register.
 pub trait Register {
-    /// The register ID
+    /// The register index
     const ID:  u8;
 
     /// The lenght of the register
