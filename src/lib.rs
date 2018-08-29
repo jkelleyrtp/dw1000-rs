@@ -121,18 +121,18 @@ macro_rules! impl_register {
                 }
             }
 
-            rw!($rw, $name);
+            impl_rw!($rw, $name);
         )*
     }
 }
 
-macro_rules! rw {
+macro_rules! impl_rw {
     (RO, $name:ident) => {
-        rw!(@R, $name);
+        impl_rw!(@R, $name);
     };
     (RW, $name:ident) => {
-        rw!(@R, $name);
-        rw!(@W, $name);
+        impl_rw!(@R, $name);
+        impl_rw!(@W, $name);
     };
 
     (@R, $name:ident) => {
