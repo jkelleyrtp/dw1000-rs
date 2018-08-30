@@ -46,15 +46,19 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 
     /// Read from a register
-    pub fn read<R>(&mut self) -> Result<R, spim::Error>
+    pub fn read<R>(&mut self) -> Result<R::Read, spim::Error>
         where
             R: Register + Readable,
     {
         let tx_buffer = [make_header::<R>(false)];
 
-        let mut r = R::new();
+        let mut r = R::read();
 
-        self.spim.read(&mut self.chip_select, &tx_buffer, r.buffer())?;
+        self.spim.read(
+            &mut self.chip_select,
+            &tx_buffer,
+            <R as Readable>::buffer(&mut r),
+        )?;
 
         Ok(r)
     }
@@ -103,13 +107,30 @@ pub trait Register {
 }
 
 /// Marker trait for registers that can be read
-pub trait Readable {}
+pub trait Readable {
+    /// The type that is used to read from the register
+    type Read;
+
+    /// Return the read type for this register
+    fn read() -> Self::Read;
+
+    /// Return the read type's internal buffer
+    fn buffer(r: &mut Self::Read) -> &mut [u8];
+}
 
 /// Marker trait for registers that can be written
 pub trait Writable {}
 
 macro_rules! impl_register {
-    ($($id:expr, $len:expr, $rw:tt, $name:ident; #[$doc:meta])*) => {
+    (
+        $(
+            $id:expr,
+            $len:expr,
+            $rw:tt,
+            $name:ident($name_lower:ident);
+            #[$doc:meta]
+        )*
+    ) => {
         $(
             #[$doc]
             #[allow(non_camel_case_types)]
@@ -128,22 +149,38 @@ macro_rules! impl_register {
                 }
             }
 
-            impl_rw!($rw, $name);
+            #[$doc]
+            pub mod $name_lower {
+                /// Used to read from the register
+                pub struct R(pub(crate) [u8; $len + 1]);
+            }
+
+            impl_rw!($rw, $name, $name_lower, $len);
         )*
     }
 }
 
 macro_rules! impl_rw {
-    (RO, $name:ident) => {
-        impl_rw!(@R, $name);
+    (RO, $name:ident, $name_lower:ident, $len:expr) => {
+        impl_rw!(@R, $name, $name_lower, $len);
     };
-    (RW, $name:ident) => {
-        impl_rw!(@R, $name);
+    (RW, $name:ident, $name_lower:ident, $len:expr) => {
+        impl_rw!(@R, $name, $name_lower, $len);
         impl_rw!(@W, $name);
     };
 
-    (@R, $name:ident) => {
-        impl Readable for $name {}
+    (@R, $name:ident, $name_lower:ident, $len:expr) => {
+        impl Readable for $name {
+            type Read = $name_lower::R;
+
+            fn read() -> Self::Read {
+                $name_lower::R([0; $len + 1])
+            }
+
+            fn buffer(r: &mut Self::Read) -> &mut [u8] {
+                &mut r.0
+            }
+        }
     };
     (@W, $name:ident) => {
         impl Writable for $name {}
@@ -151,13 +188,13 @@ macro_rules! impl_rw {
 }
 
 impl_register! {
-    0x00, 4, RO, DEV_ID; /// Device identifier
-    0x01, 8, RW, EUI;    /// Extended Unique Identifier
-    0x03, 4, RW, PANADR; /// PAN Identifier and Short Address
+    0x00, 4, RO, DEV_ID(dev_id); /// Device identifier
+    0x01, 8, RW, EUI(eui);       /// Extended Unique Identifier
+    0x03, 4, RW, PANADR(panadr); /// PAN Identifier and Short Address
 }
 
 
-impl DEV_ID {
+impl dev_id::R {
     /// Register Identification Tag
     pub fn ridtag(&self) -> u16 {
         ((self.0[4] as u16) << 8) | self.0[3] as u16
@@ -179,7 +216,7 @@ impl DEV_ID {
     }
 }
 
-impl EUI {
+impl eui::R {
     /// Extended Unique Identifier
     pub fn eui(&self) -> u64 {
         ((self.0[8] as u64) << 56) |
@@ -191,7 +228,9 @@ impl EUI {
             ((self.0[2] as u64) <<  8) |
             self.0[1] as u64
     }
+}
 
+impl EUI {
     /// Extended Unique Identifier
     pub fn set_eui(&mut self, value: u64) -> &mut Self {
         self.0[8] = ((value & 0xff00000000000000) >> 56) as u8;
@@ -207,8 +246,8 @@ impl EUI {
     }
 }
 
-impl PANADR {
-     /// Short Address
+impl panadr::R {
+    /// Short Address
     pub fn short_addr(&self) -> u16 {
         ((self.0[2] as u16) << 8) | self.0[1] as u16
     }
@@ -217,7 +256,9 @@ impl PANADR {
     pub fn pan_id(&self) -> u16 {
         ((self.0[4] as u16) << 8) | self.0[3] as u16
     }
+}
 
+impl PANADR {
     /// Short Address
     pub fn set_short_addr(mut self, value: u16) -> Self {
         self.0[2] = ((value & 0xff00) >> 8) as u8;
