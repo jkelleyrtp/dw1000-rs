@@ -46,7 +46,10 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 
     /// Read from a register
-    pub fn read<R: Register + Readable>(&mut self) -> Result<R, spim::Error> {
+    pub fn read<R>(&mut self) -> Result<R, spim::Error>
+        where
+            R: Register + Readable,
+    {
         let tx_buffer = [make_header::<R>(false)];
 
         let mut r = R::new();
