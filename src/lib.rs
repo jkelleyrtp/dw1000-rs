@@ -57,9 +57,13 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 
     /// Write to a register
-    pub fn write<R: Register + Writable>(&mut self, mut r: R)
-        -> Result<(), spim::Error>
+    pub fn write<R, F>(&mut self, f: F) -> Result<(), spim::Error>
+        where
+            R: Register + Writable,
+            F: FnOnce(&mut R) -> &mut R,
     {
+        let mut r = R::new();
+        f(&mut r);
         let tx_buffer = r.buffer();
         tx_buffer[0] = make_header::<R>(true);
 
@@ -186,7 +190,7 @@ impl EUI {
     }
 
     /// Extended Unique Identifier
-    pub fn set_eui(mut self, value: u64) -> Self {
+    pub fn set_eui(&mut self, value: u64) -> &mut Self {
         self.0[8] = ((value & 0xff00000000000000) >> 56) as u8;
         self.0[7] = ((value & 0x00ff000000000000) >> 48) as u8;
         self.0[6] = ((value & 0x0000ff0000000000) >> 40) as u8;
@@ -255,9 +259,9 @@ mod tests {
 
         assert_eq!(eui.eui(), 0xf0debc9a78563412);
 
-        let eui = EUI::new();
+        let mut eui = EUI::new();
         assert_eq!(eui.eui(), 0);
-        let eui = eui.set_eui(0xf0debc9a78563412);
+        eui.set_eui(0xf0debc9a78563412);
         assert_eq!(eui.eui(), 0xf0debc9a78563412);
     }
 
