@@ -46,8 +46,8 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 
     /// Read from a register
-    pub fn read<R: Register + CanBeRead>(&mut self) -> Result<R, spim::Error> {
-        let tx_buffer = [make_header(false, R::ID)];
+    pub fn read<R: Register + Readable>(&mut self) -> Result<R, spim::Error> {
+        let tx_buffer = [make_header::<R>(false)];
 
         let mut r = R::new();
 
@@ -57,11 +57,11 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 
     /// Write to a register
-    pub fn write<R: Register + CanBeWritten>(&mut self, mut r: R)
+    pub fn write<R: Register + Writable>(&mut self, mut r: R)
         -> Result<(), spim::Error>
     {
         let tx_buffer = r.buffer();
-        tx_buffer[0] = make_header(true, R::ID);
+        tx_buffer[0] = make_header::<R>(true);
 
         self.spim.write(&mut self.chip_select, &tx_buffer)?;
 
@@ -70,10 +70,10 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 }
 
 
-fn make_header(write: bool, reg_index: u8) -> u8 {
+fn make_header<R: Register>(write: bool) -> u8 {
     ((write as u8) << 7 & 0x80) |
     (0             << 6 & 0x40) |  // no sub-index
-    (reg_index          & 0x3f)
+    (R::ID              & 0x3f)
 }
 
 
@@ -82,7 +82,7 @@ fn make_header(write: bool, reg_index: u8) -> u8 {
 /// The DW1000 user manual, section 7.1, specifies what the values of the
 /// constant should be for each register.
 pub trait Register {
-    /// The register ID
+    /// The register index
     const ID:  u8;
 
     /// The lenght of the register
@@ -96,10 +96,10 @@ pub trait Register {
 }
 
 /// Marker trait for registers that can be read
-pub trait CanBeRead {}
+pub trait Readable {}
 
 /// Marker trait for registers that can be written
-pub trait CanBeWritten {}
+pub trait Writable {}
 
 macro_rules! impl_register {
     ($($id:expr, $len:expr, $rw:tt, $name:ident; #[$doc:meta])*) => {
@@ -121,25 +121,25 @@ macro_rules! impl_register {
                 }
             }
 
-            rw!($rw, $name);
+            impl_rw!($rw, $name);
         )*
     }
 }
 
-macro_rules! rw {
+macro_rules! impl_rw {
     (RO, $name:ident) => {
-        rw!(@R, $name);
+        impl_rw!(@R, $name);
     };
     (RW, $name:ident) => {
-        rw!(@R, $name);
-        rw!(@W, $name);
+        impl_rw!(@R, $name);
+        impl_rw!(@W, $name);
     };
 
     (@R, $name:ident) => {
-        impl CanBeRead for $name {}
+        impl Readable for $name {}
     };
     (@W, $name:ident) => {
-        impl CanBeWritten for $name {}
+        impl Writable for $name {}
     };
 }
 
