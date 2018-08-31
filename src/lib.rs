@@ -240,7 +240,7 @@ impl eui::R {
 
 impl eui::W {
     /// Extended Unique Identifier
-    pub fn set_eui(&mut self, value: u64) -> &mut Self {
+    pub fn eui(&mut self, value: u64) -> &mut Self {
         self.0[8] = ((value & 0xff00000000000000) >> 56) as u8;
         self.0[7] = ((value & 0x00ff000000000000) >> 48) as u8;
         self.0[6] = ((value & 0x0000ff0000000000) >> 40) as u8;
@@ -268,7 +268,7 @@ impl panadr::R {
 
 impl panadr::W {
     /// Short Address
-    pub fn set_short_addr(mut self, value: u16) -> Self {
+    pub fn short_addr(mut self, value: u16) -> Self {
         self.0[2] = ((value & 0xff00) >> 8) as u8;
         self.0[1] = (value & 0x00ff) as u8;
 
@@ -276,7 +276,7 @@ impl panadr::W {
     }
 
     /// PAN Identifier
-    pub fn set_pan_id(mut self, value: u16) -> Self {
+    pub fn pan_id(mut self, value: u16) -> Self {
         self.0[4] = ((value & 0xff00) >> 8) as u8;
         self.0[3] = (value & 0x00ff) as u8;
 
