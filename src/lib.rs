@@ -57,7 +57,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         self.spim.read(
             &mut self.chip_select,
             &tx_buffer,
-            <R as Readable>::buffer(&mut r),
+            R::buffer(&mut r),
         )?;
 
         Ok(r)
@@ -67,11 +67,11 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     pub fn write<R, F>(&mut self, f: F) -> Result<(), spim::Error>
         where
             R: Register + Writable,
-            F: FnOnce(&mut R) -> &mut R,
+            F: FnOnce(&mut R::Write) -> &mut R::Write,
     {
-        let mut r = R::new();
-        f(&mut r);
-        let tx_buffer = r.buffer();
+        let mut w = R::write();
+        f(&mut w);
+        let tx_buffer = R::buffer(&mut w);
         tx_buffer[0] = make_header::<R>(true);
 
         self.spim.write(&mut self.chip_select, &tx_buffer)?;
@@ -98,12 +98,6 @@ pub trait Register {
 
     /// The lenght of the register
     const LEN: usize;
-
-    /// Creates an instance of the register
-    fn new() -> Self;
-
-    /// Returns a mutable reference to the register's internal buffer
-    fn buffer(&mut self) -> &mut [u8];
 }
 
 /// Marker trait for registers that can be read
@@ -119,7 +113,16 @@ pub trait Readable {
 }
 
 /// Marker trait for registers that can be written
-pub trait Writable {}
+pub trait Writable {
+    /// The type that is used to write to the register
+    type Write;
+
+    /// Return the write type for this register
+    fn write() -> Self::Write;
+
+    /// Return the write type's internal buffer
+    fn buffer(w: &mut Self::Write) -> &mut [u8];
+}
 
 macro_rules! impl_register {
     (
@@ -134,25 +137,20 @@ macro_rules! impl_register {
         $(
             #[$doc]
             #[allow(non_camel_case_types)]
-            pub struct $name([u8; $len + 1]);
+            pub struct $name;
 
             impl Register for $name {
                 const ID:  u8    = $id;
                 const LEN: usize = $len;
-
-                fn new() -> Self {
-                    $name([0; $len + 1])
-                }
-
-                fn buffer(&mut self) -> &mut [u8] {
-                    &mut self.0
-                }
             }
 
             #[$doc]
             pub mod $name_lower {
                 /// Used to read from the register
                 pub struct R(pub(crate) [u8; $len + 1]);
+
+                /// Used to write to the register
+                pub struct W(pub(crate) [u8; $len + 1]);
             }
 
             impl_rw!($rw, $name, $name_lower, $len);
@@ -166,7 +164,7 @@ macro_rules! impl_rw {
     };
     (RW, $name:ident, $name_lower:ident, $len:expr) => {
         impl_rw!(@R, $name, $name_lower, $len);
-        impl_rw!(@W, $name);
+        impl_rw!(@W, $name, $name_lower, $len);
     };
 
     (@R, $name:ident, $name_lower:ident, $len:expr) => {
@@ -182,8 +180,18 @@ macro_rules! impl_rw {
             }
         }
     };
-    (@W, $name:ident) => {
-        impl Writable for $name {}
+    (@W, $name:ident, $name_lower:ident, $len:expr) => {
+        impl Writable for $name {
+            type Write = $name_lower::W;
+
+            fn write() -> Self::Write {
+                $name_lower::W([0; $len + 1])
+            }
+
+            fn buffer(w: &mut Self::Write) -> &mut [u8] {
+                &mut w.0
+            }
+        }
     };
 }
 
@@ -230,7 +238,7 @@ impl eui::R {
     }
 }
 
-impl EUI {
+impl eui::W {
     /// Extended Unique Identifier
     pub fn set_eui(&mut self, value: u64) -> &mut Self {
         self.0[8] = ((value & 0xff00000000000000) >> 56) as u8;
@@ -258,7 +266,7 @@ impl panadr::R {
     }
 }
 
-impl PANADR {
+impl panadr::W {
     /// Short Address
     pub fn set_short_addr(mut self, value: u16) -> Self {
         self.0[2] = ((value & 0xff00) >> 8) as u8;
