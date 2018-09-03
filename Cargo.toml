@@ -17,6 +17,7 @@ cortex-m-semihosting = "0.3.0"
 nb                   = "0.1.1"
 panic-semihosting    = "0.3.0"
 
+
 [features]
 # Activate this if you're using the DWM1001-Dev board, as opposed to a bare
 # DWM1001 module.
@@ -30,6 +31,10 @@ required-features = ["dev", "rt"]
 
 [[example]]
 name              = "dw1000_id"
+required-features = ["dev", "rt"]
+
+[[example]]
+name              = "dw1000_rw"
 required-features = ["dev", "rt"]
 
 
