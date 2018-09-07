@@ -2,7 +2,7 @@
 target = "thumbv7em-none-eabihf"
 
 [target.thumbv7em-none-eabihf]
-runner = "arm-none-eabi-gdb -tui"
+runner = "arm-none-eabi-gdb -tui -x debug.gdb"
 rustflags = [
     "-C", "linker=arm-none-eabi-gcc",
     "-C", "link-arg=-Wl,-Tlink.x",
