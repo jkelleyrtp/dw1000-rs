@@ -396,20 +396,30 @@ macro_rules! impl_rw {
 }
 
 impl_register! {
-    0x00, 4, RO, DEV_ID(dev_id) { /// Device identifier
-        rev,     0,  3, u8;       /// Revision
-        ver,     4,  7, u8;       /// Version
-        model,   8, 15, u8;       /// Model
-        ridtag, 16, 31, u16;      /// Register Identification Tag
+    0x00, 4, RO, DEV_ID(dev_id) {     /// Device identifier
+        rev,     0,  3, u8;           /// Revision
+        ver,     4,  7, u8;           /// Version
+        model,   8, 15, u8;           /// Model
+        ridtag, 16, 31, u16;          /// Register Identification Tag
     }
-    0x01, 8, RW, EUI(eui) {       /// Extended Unique Identifier
-        eui, 0, 63, u64;          /// Extended Unique Identifier
+    0x01, 8, RW, EUI(eui) {           /// Extended Unique Identifier
+        eui, 0, 63, u64;              /// Extended Unique Identifier
     }
-    0x03, 4, RW, PANADR(panadr) { /// PAN Identifier and Short Address
-        short_addr,  0, 15, u16;  /// Short Address
-        pan_id,     16, 31, u16;  /// PAN Identifier
+    0x03, 4, RW, PANADR(panadr) {     /// PAN Identifier and Short Address
+        short_addr,  0, 15, u16;      /// Short Address
+        pan_id,     16, 31, u16;      /// PAN Identifier
     }
-
+    0x08, 5, RW, TX_FCTRL(tx_fctrl) { /// Transmit Frame Control
+        tflen,     0,  6, u8;         /// Transmit Frame Length
+        tfle,      7,  9, u8;         /// Transmit Frame Length Extension
+        txbr,     13, 14, u8;         /// Transmit Bit Rate
+        tr,       15, 15, u8;         /// Transmit Ranging Enable
+        txprf,    16, 17, u8;         /// Transmit Pulse Repetition Frequency
+        txpsr,    18, 19, u8;         /// Transmit Preamble Symbol Repetitions
+        pe,       20, 21, u8;         /// Preamble Extension
+        txboffs,  22, 31, u16;        /// Transmit Buffer Index Offset
+        ifsdelay, 32, 39, u8;         /// Inter-Frame Spacing
+    }
 }
 
 
