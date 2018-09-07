@@ -457,6 +457,48 @@ impl_register! {
 }
 
 
+/// Transmit Data Buffer
+///
+/// Currently only the first 127 bytes of the buffer are supported, which is
+/// enough to support standard Standard IEEE 802.15.4 UWB frames.
+#[allow(non_camel_case_types)]
+pub struct TX_BUFFER;
+
+impl Register for TX_BUFFER {
+    const ID:  u8    = 0x09;
+    const LEN: usize = 127;
+}
+
+impl Writable for TX_BUFFER {
+    type Write = tx_buffer::W;
+
+    fn write() -> Self::Write {
+        tx_buffer::W([0; 127 + 1])
+    }
+
+    fn buffer(w: &mut Self::Write) -> &mut [u8] {
+        &mut w.0
+    }
+}
+
+
+/// Transmit Data Buffer
+pub mod tx_buffer {
+    /// Used to write to the register
+    pub struct W(pub(crate) [u8; 127 + 1]);
+
+    impl W {
+        /// Write data to the buffer
+        ///
+        /// `data` must at most be 127 bytes long.
+        pub fn data(&mut self, data: &[u8]) -> &mut Self {
+            self.0[1 .. data.len() + 1].copy_from_slice(data);
+            self
+        }
+    }
+}
+
+
 trait FromBytes {
     fn from_bytes(bytes: &[u8]) -> Self;
 }
