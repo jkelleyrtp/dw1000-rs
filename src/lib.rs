@@ -46,21 +46,32 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 
     /// Read from a register
-    pub fn read<R: Register + Readable>(&mut self) -> Result<R, spim::Error> {
+    pub fn read<R>(&mut self) -> Result<R::Read, spim::Error>
+        where
+            R: Register + Readable,
+    {
         let tx_buffer = [make_header::<R>(false)];
 
-        let mut r = R::new();
+        let mut r = R::read();
 
-        self.spim.read(&mut self.chip_select, &tx_buffer, r.buffer())?;
+        self.spim.read(
+            &mut self.chip_select,
+            &tx_buffer,
+            R::buffer(&mut r),
+        )?;
 
         Ok(r)
     }
 
     /// Write to a register
-    pub fn write<R: Register + Writable>(&mut self, mut r: R)
-        -> Result<(), spim::Error>
+    pub fn write<R, F>(&mut self, f: F) -> Result<(), spim::Error>
+        where
+            R: Register + Writable,
+            F: FnOnce(&mut R::Write) -> &mut R::Write,
     {
-        let tx_buffer = r.buffer();
+        let mut w = R::write();
+        f(&mut w);
+        let tx_buffer = R::buffer(&mut w);
         tx_buffer[0] = make_header::<R>(true);
 
         self.spim.write(&mut self.chip_select, &tx_buffer)?;
@@ -87,70 +98,111 @@ pub trait Register {
 
     /// The lenght of the register
     const LEN: usize;
-
-    /// Creates an instance of the register
-    fn new() -> Self;
-
-    /// Returns a mutable reference to the register's internal buffer
-    fn buffer(&mut self) -> &mut [u8];
 }
 
 /// Marker trait for registers that can be read
-pub trait Readable {}
+pub trait Readable {
+    /// The type that is used to read from the register
+    type Read;
+
+    /// Return the read type for this register
+    fn read() -> Self::Read;
+
+    /// Return the read type's internal buffer
+    fn buffer(r: &mut Self::Read) -> &mut [u8];
+}
 
 /// Marker trait for registers that can be written
-pub trait Writable {}
+pub trait Writable {
+    /// The type that is used to write to the register
+    type Write;
+
+    /// Return the write type for this register
+    fn write() -> Self::Write;
+
+    /// Return the write type's internal buffer
+    fn buffer(w: &mut Self::Write) -> &mut [u8];
+}
 
 macro_rules! impl_register {
-    ($($id:expr, $len:expr, $rw:tt, $name:ident; #[$doc:meta])*) => {
+    (
+        $(
+            $id:expr,
+            $len:expr,
+            $rw:tt,
+            $name:ident($name_lower:ident);
+            #[$doc:meta]
+        )*
+    ) => {
         $(
             #[$doc]
             #[allow(non_camel_case_types)]
-            pub struct $name([u8; $len + 1]);
+            pub struct $name;
 
             impl Register for $name {
                 const ID:  u8    = $id;
                 const LEN: usize = $len;
-
-                fn new() -> Self {
-                    $name([0; $len + 1])
-                }
-
-                fn buffer(&mut self) -> &mut [u8] {
-                    &mut self.0
-                }
             }
 
-            impl_rw!($rw, $name);
+            #[$doc]
+            pub mod $name_lower {
+                /// Used to read from the register
+                pub struct R(pub(crate) [u8; $len + 1]);
+
+                /// Used to write to the register
+                pub struct W(pub(crate) [u8; $len + 1]);
+            }
+
+            impl_rw!($rw, $name, $name_lower, $len);
         )*
     }
 }
 
 macro_rules! impl_rw {
-    (RO, $name:ident) => {
-        impl_rw!(@R, $name);
+    (RO, $name:ident, $name_lower:ident, $len:expr) => {
+        impl_rw!(@R, $name, $name_lower, $len);
     };
-    (RW, $name:ident) => {
-        impl_rw!(@R, $name);
-        impl_rw!(@W, $name);
+    (RW, $name:ident, $name_lower:ident, $len:expr) => {
+        impl_rw!(@R, $name, $name_lower, $len);
+        impl_rw!(@W, $name, $name_lower, $len);
     };
 
-    (@R, $name:ident) => {
-        impl Readable for $name {}
+    (@R, $name:ident, $name_lower:ident, $len:expr) => {
+        impl Readable for $name {
+            type Read = $name_lower::R;
+
+            fn read() -> Self::Read {
+                $name_lower::R([0; $len + 1])
+            }
+
+            fn buffer(r: &mut Self::Read) -> &mut [u8] {
+                &mut r.0
+            }
+        }
     };
-    (@W, $name:ident) => {
-        impl Writable for $name {}
+    (@W, $name:ident, $name_lower:ident, $len:expr) => {
+        impl Writable for $name {
+            type Write = $name_lower::W;
+
+            fn write() -> Self::Write {
+                $name_lower::W([0; $len + 1])
+            }
+
+            fn buffer(w: &mut Self::Write) -> &mut [u8] {
+                &mut w.0
+            }
+        }
     };
 }
 
 impl_register! {
-    0x00, 4, RO, DEV_ID; /// Device identifier
-    0x01, 8, RW, EUI;    /// Extended Unique Identifier
-    0x03, 4, RW, PANADR; /// PAN Identifier and Short Address
+    0x00, 4, RO, DEV_ID(dev_id); /// Device identifier
+    0x01, 8, RW, EUI(eui);       /// Extended Unique Identifier
+    0x03, 4, RW, PANADR(panadr); /// PAN Identifier and Short Address
 }
 
 
-impl DEV_ID {
+impl dev_id::R {
     /// Register Identification Tag
     pub fn ridtag(&self) -> u16 {
         ((self.0[4] as u16) << 8) | self.0[3] as u16
@@ -172,7 +224,7 @@ impl DEV_ID {
     }
 }
 
-impl EUI {
+impl eui::R {
     /// Extended Unique Identifier
     pub fn eui(&self) -> u64 {
         ((self.0[8] as u64) << 56) |
@@ -184,9 +236,11 @@ impl EUI {
             ((self.0[2] as u64) <<  8) |
             self.0[1] as u64
     }
+}
 
+impl eui::W {
     /// Extended Unique Identifier
-    pub fn set_eui(mut self, value: u64) -> Self {
+    pub fn eui(&mut self, value: u64) -> &mut Self {
         self.0[8] = ((value & 0xff00000000000000) >> 56) as u8;
         self.0[7] = ((value & 0x00ff000000000000) >> 48) as u8;
         self.0[6] = ((value & 0x0000ff0000000000) >> 40) as u8;
@@ -200,8 +254,8 @@ impl EUI {
     }
 }
 
-impl PANADR {
-     /// Short Address
+impl panadr::R {
+    /// Short Address
     pub fn short_addr(&self) -> u16 {
         ((self.0[2] as u16) << 8) | self.0[1] as u16
     }
@@ -210,9 +264,11 @@ impl PANADR {
     pub fn pan_id(&self) -> u16 {
         ((self.0[4] as u16) << 8) | self.0[3] as u16
     }
+}
 
+impl panadr::W {
     /// Short Address
-    pub fn set_short_addr(mut self, value: u16) -> Self {
+    pub fn short_addr(mut self, value: u16) -> Self {
         self.0[2] = ((value & 0xff00) >> 8) as u8;
         self.0[1] = (value & 0x00ff) as u8;
 
@@ -220,63 +276,10 @@ impl PANADR {
     }
 
     /// PAN Identifier
-    pub fn set_pan_id(mut self, value: u16) -> Self {
+    pub fn pan_id(mut self, value: u16) -> Self {
         self.0[4] = ((value & 0xff00) >> 8) as u8;
         self.0[3] = (value & 0x00ff) as u8;
 
         self
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        Register,
-        DEV_ID,
-        EUI,
-        PANADR,
-    };
-
-
-    #[test]
-    fn dev_id_should_provide_access_to_its_fields() {
-        let dev_id = DEV_ID([0x00, 0x30, 0x01, 0xca, 0xde]);
-
-        assert_eq!(dev_id.rev()   , 0     );
-        assert_eq!(dev_id.ver()   , 3     );
-        assert_eq!(dev_id.model() , 1     );
-        assert_eq!(dev_id.ridtag(), 0xDECA);
-    }
-
-    #[test]
-    fn eui_should_provide_access_to_its_field() {
-        let eui = EUI([0x00, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0]);
-
-        assert_eq!(eui.eui(), 0xf0debc9a78563412);
-
-        let eui = EUI::new();
-        assert_eq!(eui.eui(), 0);
-        let eui = eui.set_eui(0xf0debc9a78563412);
-        assert_eq!(eui.eui(), 0xf0debc9a78563412);
-    }
-
-    #[test]
-    fn panadr_should_provide_access_to_its_fields() {
-        let panadr = PANADR([0x00, 0x01, 0x23, 0x45, 0x67]);
-
-        assert_eq!(panadr.short_addr(), 0x2301);
-        assert_eq!(panadr.pan_id(),     0x6745);
-
-        let panadr = PANADR::new();
-
-        assert_eq!(panadr.short_addr(), 0);
-        assert_eq!(panadr.pan_id(),     0);
-
-        let panadr = panadr.set_short_addr(0x2301);
-        assert_eq!(panadr.short_addr(), 0x2301);
-
-        let panadr = panadr.set_pan_id(0x6745);
-        assert_eq!(panadr.pan_id(), 0x6745);
     }
 }
