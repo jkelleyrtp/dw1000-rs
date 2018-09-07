@@ -78,6 +78,29 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 
         Ok(())
     }
+
+    /// Modify a register
+    pub fn modify<R, F>(&mut self, f: F) -> Result<(), spim::Error>
+        where
+            R: Register + Readable + Writable,
+            F: for<'r>
+                FnOnce(&mut R::Read, &'r mut R::Write) -> &'r mut R::Write,
+    {
+        let mut r = self.read::<R>()?;
+        let mut w = R::write();
+
+        <R as Writable>::buffer(&mut w)
+            .copy_from_slice(<R as Readable>::buffer(&mut r));
+
+        f(&mut r, &mut w);
+
+        let tx_buffer = <R as Writable>::buffer(&mut w);
+        tx_buffer[0] = make_header::<R>(true);
+
+        self.spim.write(&mut self.chip_select, &tx_buffer)?;
+
+        Ok(())
+    }
 }
 
 
