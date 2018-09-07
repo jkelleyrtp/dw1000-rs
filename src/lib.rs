@@ -443,6 +443,17 @@ impl_register! {
         txboffs,  22, 31, u16;        /// Transmit Buffer Index Offset
         ifsdelay, 32, 39, u8;         /// Inter-Frame Spacing
     }
+    0x0D, 4, RW, SYS_CTRL(sys_ctrl) { /// System Control Register
+        sfcst,      0,  0, u8;        /// Suppress Auto-FCS Transmission
+        txstrt,     1,  1, u8;        /// Transmit Start
+        txdlys,     2,  2, u8;        /// Transmitter Delayed Sending
+        cansfcs,    3,  3, u8;        /// Cancel Auto-FCS Suppression
+        trxoff,     6,  6, u8;        /// Transceiver Off
+        wait4resp,  7,  7, u8;        /// Wait for Response
+        rxenab,     8,  8, u8;        /// Enable Receiver
+        rxdlye,     9,  9, u8;        /// Receiver Delayed Enable
+        hrbpt,     24, 24, u8;        /// Host Side RX Buffer Pointer Toggle
+    }
 }
 
 
