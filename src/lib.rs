@@ -419,29 +419,118 @@ macro_rules! impl_rw {
 }
 
 impl_register! {
-    0x00, 4, RO, DEV_ID(dev_id) {     /// Device identifier
-        rev,     0,  3, u8;           /// Revision
-        ver,     4,  7, u8;           /// Version
-        model,   8, 15, u8;           /// Model
-        ridtag, 16, 31, u16;          /// Register Identification Tag
+    0x00, 4, RO, DEV_ID(dev_id) {         /// Device identifier
+        rev,     0,  3, u8;               /// Revision
+        ver,     4,  7, u8;               /// Version
+        model,   8, 15, u8;               /// Model
+        ridtag, 16, 31, u16;              /// Register Identification Tag
     }
-    0x01, 8, RW, EUI(eui) {           /// Extended Unique Identifier
-        eui, 0, 63, u64;              /// Extended Unique Identifier
+    0x01, 8, RW, EUI(eui) {               /// Extended Unique Identifier
+        eui, 0, 63, u64;                  /// Extended Unique Identifier
     }
-    0x03, 4, RW, PANADR(panadr) {     /// PAN Identifier and Short Address
-        short_addr,  0, 15, u16;      /// Short Address
-        pan_id,     16, 31, u16;      /// PAN Identifier
+    0x03, 4, RW, PANADR(panadr) {         /// PAN Identifier and Short Address
+        short_addr,  0, 15, u16;          /// Short Address
+        pan_id,     16, 31, u16;          /// PAN Identifier
     }
-    0x08, 5, RW, TX_FCTRL(tx_fctrl) { /// Transmit Frame Control
-        tflen,     0,  6, u8;         /// Transmit Frame Length
-        tfle,      7,  9, u8;         /// Transmit Frame Length Extension
-        txbr,     13, 14, u8;         /// Transmit Bit Rate
-        tr,       15, 15, u8;         /// Transmit Ranging Enable
-        txprf,    16, 17, u8;         /// Transmit Pulse Repetition Frequency
-        txpsr,    18, 19, u8;         /// Transmit Preamble Symbol Repetitions
-        pe,       20, 21, u8;         /// Preamble Extension
-        txboffs,  22, 31, u16;        /// Transmit Buffer Index Offset
-        ifsdelay, 32, 39, u8;         /// Inter-Frame Spacing
+    0x08, 5, RW, TX_FCTRL(tx_fctrl) {     /// TX Frame Control
+        tflen,     0,  6, u8;             /// TX Frame Length
+        tfle,      7,  9, u8;             /// TX Frame Length Extension
+        txbr,     13, 14, u8;             /// TX Bit Rate
+        tr,       15, 15, u8;             /// TX Ranging Enable
+        txprf,    16, 17, u8;             /// TX Pulse Repetition Frequency
+        txpsr,    18, 19, u8;             /// TX Preamble Symbol Repetitions
+        pe,       20, 21, u8;             /// Preamble Extension
+        txboffs,  22, 31, u16;            /// TX Buffer Index Offset
+        ifsdelay, 32, 39, u8;             /// Inter-Frame Spacing
+    }
+    0x0D, 4, RW, SYS_CTRL(sys_ctrl) {     /// System Control Register
+        sfcst,      0,  0, u8;            /// Suppress Auto-FCS Transmission
+        txstrt,     1,  1, u8;            /// Transmit Start
+        txdlys,     2,  2, u8;            /// Transmitter Delayed Sending
+        cansfcs,    3,  3, u8;            /// Cancel Auto-FCS Suppression
+        trxoff,     6,  6, u8;            /// Transceiver Off
+        wait4resp,  7,  7, u8;            /// Wait for Response
+        rxenab,     8,  8, u8;            /// Enable Receiver
+        rxdlye,     9,  9, u8;            /// Receiver Delayed Enable
+        hrbpt,     24, 24, u8;            /// Host Side RX Buffer Pointer Toggle
+    }
+    0x0F, 5, RW, SYS_STATUS(sys_status) { /// System Event Status Register
+        irqs,       0,  0, u8;            /// Interrupt Request Status
+        cplock,     1,  1, u8;            /// Clock PLL Lock
+        esyncr,     2,  2, u8;            /// External Sync Clock Reset
+        aat,        3,  3, u8;            /// Automatic Acknowledge Trigger
+        txfrb,      4,  4, u8;            /// TX Frame Begins
+        txprs,      5,  5, u8;            /// TX Preamble Sent
+        txphs,      6,  6, u8;            /// TX PHY Header Sent
+        txfrs,      7,  7, u8;            /// TX Frame Sent
+        rxprd,      8,  8, u8;            /// RX Preamble Detected
+        rxsfdd,     9,  9, u8;            /// RX SFD Detected
+        ldedone,   10, 10, u8;            /// LDE Processing Done
+        rxphd,     11, 11, u8;            /// RX PHY Header Detect
+        rxphe,     12, 12, u8;            /// RX PHY Header Error
+        rxdfr,     13, 13, u8;            /// RX Data Frame Ready
+        rxfcg,     14, 14, u8;            /// RX FCS Good
+        rxfce,     15, 15, u8;            /// RX FCS Error
+        rxrfsl,    16, 16, u8;            /// RX Reed-Solomon Frame Sync Loss
+        rxrfto,    17, 17, u8;            /// RX Frame Wait Timeout
+        ldeerr,    18, 18, u8;            /// Leading Edge Detection Error
+        rxovrr,    20, 20, u8;            /// RX Overrun
+        rxpto,     21, 21, u8;            /// Preamble Detection Timeout
+        gpioirq,   22, 22, u8;            /// GPIO Interrupt
+        slp2init,  23, 23, u8;            /// SLEEP to INIT
+        rfpll_ll,  24, 24, u8;            /// RF PLL Losing Lock
+        clkpll_ll, 25, 25, u8;            /// Clock PLL Losing Lock
+        rxsfdto,   26, 26, u8;            /// Receive SFD Timeout
+        hpdwarn,   27, 27, u8;            /// Half Period Delay Warning
+        txberr,    28, 28, u8;            /// TX Buffer Error
+        affrej,    29, 29, u8;            /// Auto Frame Filtering Rejection
+        hsrbp,     30, 30, u8;            /// Host Side RX Buffer Pointer
+        icrbp,     31, 31, u8;            /// IC Side RX Buffer Pointer
+        rxrscs,    32, 32, u8;            /// RX Reed-Solomon Correction Status
+        rxprej,    33, 33, u8;            /// RX Preamble Rejection
+        txpute,    34, 34, u8;            /// TX Power Up Time Error
+    }
+}
+
+
+/// Transmit Data Buffer
+///
+/// Currently only the first 127 bytes of the buffer are supported, which is
+/// enough to support standard Standard IEEE 802.15.4 UWB frames.
+#[allow(non_camel_case_types)]
+pub struct TX_BUFFER;
+
+impl Register for TX_BUFFER {
+    const ID:  u8    = 0x09;
+    const LEN: usize = 127;
+}
+
+impl Writable for TX_BUFFER {
+    type Write = tx_buffer::W;
+
+    fn write() -> Self::Write {
+        tx_buffer::W([0; 127 + 1])
+    }
+
+    fn buffer(w: &mut Self::Write) -> &mut [u8] {
+        &mut w.0
+    }
+}
+
+
+/// Transmit Data Buffer
+pub mod tx_buffer {
+    /// Used to write to the register
+    pub struct W(pub(crate) [u8; 127 + 1]);
+
+    impl W {
+        /// Write data to the buffer
+        ///
+        /// `data` must at most be 127 bytes long.
+        pub fn data(&mut self, data: &[u8]) -> &mut Self {
+            self.0[1 .. data.len() + 1].copy_from_slice(data);
+            self
+        }
     }
 }
 
