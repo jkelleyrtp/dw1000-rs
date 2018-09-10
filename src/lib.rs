@@ -432,15 +432,15 @@ impl_register! {
         short_addr,  0, 15, u16;      /// Short Address
         pan_id,     16, 31, u16;      /// PAN Identifier
     }
-    0x08, 5, RW, TX_FCTRL(tx_fctrl) { /// Transmit Frame Control
-        tflen,     0,  6, u8;         /// Transmit Frame Length
-        tfle,      7,  9, u8;         /// Transmit Frame Length Extension
-        txbr,     13, 14, u8;         /// Transmit Bit Rate
-        tr,       15, 15, u8;         /// Transmit Ranging Enable
-        txprf,    16, 17, u8;         /// Transmit Pulse Repetition Frequency
-        txpsr,    18, 19, u8;         /// Transmit Preamble Symbol Repetitions
+    0x08, 5, RW, TX_FCTRL(tx_fctrl) { /// TX Frame Control
+        tflen,     0,  6, u8;         /// TX Frame Length
+        tfle,      7,  9, u8;         /// TX Frame Length Extension
+        txbr,     13, 14, u8;         /// TX Bit Rate
+        tr,       15, 15, u8;         /// TX Ranging Enable
+        txprf,    16, 17, u8;         /// TX Pulse Repetition Frequency
+        txpsr,    18, 19, u8;         /// TX Preamble Symbol Repetitions
         pe,       20, 21, u8;         /// Preamble Extension
-        txboffs,  22, 31, u16;        /// Transmit Buffer Index Offset
+        txboffs,  22, 31, u16;        /// TX Buffer Index Offset
         ifsdelay, 32, 39, u8;         /// Inter-Frame Spacing
     }
     0x0D, 4, RW, SYS_CTRL(sys_ctrl) { /// System Control Register
