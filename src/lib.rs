@@ -50,14 +50,14 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         where
             R: Register + Readable,
     {
-        let mut tx_buffer = [0; 1];
-        init_header::<R>(false, &mut tx_buffer);
+        let mut tx_buffer = [0; 3]; // 3 is the maximum header length
+        let header_len = init_header::<R>(false, &mut tx_buffer);
 
         let mut r = R::read();
 
         self.spim.read(
             &mut self.chip_select,
-            &tx_buffer,
+            &tx_buffer[0 .. header_len],
             R::buffer(&mut r),
         )?;
 
@@ -106,11 +106,15 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 
 
 /// Initializes the header for a register in the given buffer
-fn init_header<R: Register>(write: bool, buffer: &mut [u8]) {
+///
+/// Returns the length of the header.
+fn init_header<R: Register>(write: bool, buffer: &mut [u8]) -> usize {
     buffer[0] =
         ((write as u8) << 7 & 0x80) |
         (0             << 6 & 0x40) |  // no sub-index
         (R::ID              & 0x3f);
+
+    1
 }
 
 
