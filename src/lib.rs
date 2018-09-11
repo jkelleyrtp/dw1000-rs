@@ -109,12 +109,30 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 ///
 /// Returns the length of the header.
 fn init_header<R: Register>(write: bool, buffer: &mut [u8]) -> usize {
-    buffer[0] =
-        ((write as u8) << 7 & 0x80) |
-        (0             << 6 & 0x40) |  // no sub-index
-        (R::ID              & 0x3f);
+    let sub_id = R::SUB_ID > 0;
 
-    1
+    buffer[0] =
+        (((write as u8)  << 7) & 0x80) |
+        (((sub_id as u8) << 6) & 0x40) |
+        (R::ID                 & 0x3f);
+
+    if !sub_id {
+        return 1;
+    }
+
+    let ext_addr = R::SUB_ID > 127;
+
+    buffer[1] =
+        (((ext_addr as u8) << 7) & 0x80) |
+        (R::SUB_ID as u8         & 0x7f); // lower 7 bits (of 15)
+
+    if !ext_addr {
+        return 2;
+    }
+
+    buffer[2] = ((R::SUB_ID & 0x7f80) >> 7) as u8; // higher 8 bits (of 15)
+
+    3
 }
 
 
