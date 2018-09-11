@@ -50,13 +50,14 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         where
             R: Register + Readable,
     {
-        let tx_buffer = [make_header::<R>(false)];
+        let mut tx_buffer = [0; 3]; // 3 is the maximum header length
+        let header_len = init_header::<R>(false, &mut tx_buffer);
 
         let mut r = R::read();
 
         self.spim.read(
             &mut self.chip_select,
-            &tx_buffer,
+            &tx_buffer[0 .. header_len],
             R::buffer(&mut r),
         )?;
 
@@ -72,7 +73,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         let mut w = R::write();
         f(&mut w);
         let tx_buffer = R::buffer(&mut w);
-        tx_buffer[0] = make_header::<R>(true);
+        init_header::<R>(true, tx_buffer);
 
         self.spim.write(&mut self.chip_select, &tx_buffer)?;
 
@@ -95,7 +96,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         f(&mut r, &mut w);
 
         let tx_buffer = <R as Writable>::buffer(&mut w);
-        tx_buffer[0] = make_header::<R>(true);
+        init_header::<R>(true, tx_buffer);
 
         self.spim.write(&mut self.chip_select, &tx_buffer)?;
 
@@ -104,10 +105,34 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 }
 
 
-fn make_header<R: Register>(write: bool) -> u8 {
-    ((write as u8) << 7 & 0x80) |
-    (0             << 6 & 0x40) |  // no sub-index
-    (R::ID              & 0x3f)
+/// Initializes the header for a register in the given buffer
+///
+/// Returns the length of the header.
+fn init_header<R: Register>(write: bool, buffer: &mut [u8]) -> usize {
+    let sub_id = R::SUB_ID > 0;
+
+    buffer[0] =
+        (((write as u8)  << 7) & 0x80) |
+        (((sub_id as u8) << 6) & 0x40) |
+        (R::ID                 & 0x3f);
+
+    if !sub_id {
+        return 1;
+    }
+
+    let ext_addr = R::SUB_ID > 127;
+
+    buffer[1] =
+        (((ext_addr as u8) << 7) & 0x80) |
+        (R::SUB_ID as u8         & 0x7f); // lower 7 bits (of 15)
+
+    if !ext_addr {
+        return 2;
+    }
+
+    buffer[2] = ((R::SUB_ID & 0x7f80) >> 7) as u8; // higher 8 bits (of 15)
+
+    3
 }
 
 
@@ -117,7 +142,10 @@ fn make_header<R: Register>(write: bool) -> u8 {
 /// constant should be for each register.
 pub trait Register {
     /// The register index
-    const ID:  u8;
+    const ID: u8;
+
+    /// The registers's sub-index
+    const SUB_ID: u16;
 
     /// The lenght of the register
     const LEN: usize;
@@ -151,6 +179,7 @@ macro_rules! impl_register {
     (
         $(
             $id:expr,
+            $sub_id:expr,
             $len:expr,
             $rw:tt,
             $name:ident($name_lower:ident) {
@@ -171,14 +200,31 @@ macro_rules! impl_register {
             pub struct $name;
 
             impl Register for $name {
-                const ID:  u8    = $id;
-                const LEN: usize = $len;
+                const ID:     u8    = $id;
+                const SUB_ID: u16   = $sub_id;
+                const LEN:    usize = $len;
+            }
+
+            impl $name {
+                // You know what would be neat? Using `if` in constant
+                // expressions! But that's not possible, so we're left with the
+                // following hack.
+                const SUB_INDEX_IS_NONZERO: usize =
+                    (Self::SUB_ID > 0) as usize;
+                const SUB_INDEX_NEEDS_SECOND_BYTE: usize =
+                    (Self::SUB_ID > 127) as usize;
+                const HEADER_LEN: usize =
+                    1
+                    + Self::SUB_INDEX_IS_NONZERO
+                    + Self::SUB_INDEX_NEEDS_SECOND_BYTE;
             }
 
             #[$doc]
             pub mod $name_lower {
+                const HEADER_LEN: usize = super::$name::HEADER_LEN;
+
                 /// Used to read from the register
-                pub struct R(pub(crate) [u8; $len + 1]);
+                pub struct R(pub(crate) [u8; HEADER_LEN + $len]);
 
                 impl R {
                     $(
@@ -193,7 +239,9 @@ macro_rules! impl_register {
                             const START: usize = $first_bit / 8;
                             const END:   usize = $last_bit  / 8 + 1;
                             let mut bytes = [0; END - START];
-                            bytes.copy_from_slice(&self.0[START+1 .. END+1]);
+                            bytes.copy_from_slice(
+                                &self.0[START+HEADER_LEN .. END+HEADER_LEN]
+                            );
 
                             // Before we can convert the field into a number and
                             // return it, we need to shift it, to make sure
@@ -255,7 +303,7 @@ macro_rules! impl_register {
                 }
 
                 /// Used to write to the register
-                pub struct W(pub(crate) [u8; $len + 1]);
+                pub struct W(pub(crate) [u8; HEADER_LEN + $len]);
 
                 impl W {
                     $(
@@ -334,8 +382,8 @@ macro_rules! impl_register {
 
                                 // Zero the target bits in the slice, then write
                                 // the value.
-                                self.0[target_i + 1] &= !mask;
-                                self.0[target_i + 1] |= value & mask;
+                                self.0[HEADER_LEN + target_i] &= !mask;
+                                self.0[HEADER_LEN + target_i] |= value & mask;
 
                                 // The number of bits that were expected to be
                                 // written to the target byte.
@@ -395,7 +443,7 @@ macro_rules! impl_rw {
             type Read = $name_lower::R;
 
             fn read() -> Self::Read {
-                $name_lower::R([0; $len + 1])
+                $name_lower::R([0; Self::HEADER_LEN + $len])
             }
 
             fn buffer(r: &mut Self::Read) -> &mut [u8] {
@@ -408,7 +456,7 @@ macro_rules! impl_rw {
             type Write = $name_lower::W;
 
             fn write() -> Self::Write {
-                $name_lower::W([0; $len + 1])
+                $name_lower::W([0; Self::HEADER_LEN + $len])
             }
 
             fn buffer(w: &mut Self::Write) -> &mut [u8] {
@@ -419,76 +467,76 @@ macro_rules! impl_rw {
 }
 
 impl_register! {
-    0x00, 4, RO, DEV_ID(dev_id) {         /// Device identifier
-        rev,     0,  3, u8;               /// Revision
-        ver,     4,  7, u8;               /// Version
-        model,   8, 15, u8;               /// Model
-        ridtag, 16, 31, u16;              /// Register Identification Tag
+    0x00, 0x00, 4, RO, DEV_ID(dev_id) { /// Device identifier
+        rev,     0,  3, u8;  /// Revision
+        ver,     4,  7, u8;  /// Version
+        model,   8, 15, u8;  /// Model
+        ridtag, 16, 31, u16; /// Register Identification Tag
     }
-    0x01, 8, RW, EUI(eui) {               /// Extended Unique Identifier
-        eui, 0, 63, u64;                  /// Extended Unique Identifier
+    0x01, 0x00, 8, RW, EUI(eui) { /// Extended Unique Identifier
+        eui, 0, 63, u64; /// Extended Unique Identifier
     }
-    0x03, 4, RW, PANADR(panadr) {         /// PAN Identifier and Short Address
-        short_addr,  0, 15, u16;          /// Short Address
-        pan_id,     16, 31, u16;          /// PAN Identifier
+    0x03, 0x00, 4, RW, PANADR(panadr) { /// PAN Identifier and Short Address
+        short_addr,  0, 15, u16; /// Short Address
+        pan_id,     16, 31, u16; /// PAN Identifier
     }
-    0x08, 5, RW, TX_FCTRL(tx_fctrl) {     /// TX Frame Control
-        tflen,     0,  6, u8;             /// TX Frame Length
-        tfle,      7,  9, u8;             /// TX Frame Length Extension
-        txbr,     13, 14, u8;             /// TX Bit Rate
-        tr,       15, 15, u8;             /// TX Ranging Enable
-        txprf,    16, 17, u8;             /// TX Pulse Repetition Frequency
-        txpsr,    18, 19, u8;             /// TX Preamble Symbol Repetitions
-        pe,       20, 21, u8;             /// Preamble Extension
-        txboffs,  22, 31, u16;            /// TX Buffer Index Offset
-        ifsdelay, 32, 39, u8;             /// Inter-Frame Spacing
+    0x08, 0x00, 5, RW, TX_FCTRL(tx_fctrl) { /// TX Frame Control
+        tflen,     0,  6, u8;  /// TX Frame Length
+        tfle,      7,  9, u8;  /// TX Frame Length Extension
+        txbr,     13, 14, u8;  /// TX Bit Rate
+        tr,       15, 15, u8;  /// TX Ranging Enable
+        txprf,    16, 17, u8;  /// TX Pulse Repetition Frequency
+        txpsr,    18, 19, u8;  /// TX Preamble Symbol Repetitions
+        pe,       20, 21, u8;  /// Preamble Extension
+        txboffs,  22, 31, u16; /// TX Buffer Index Offset
+        ifsdelay, 32, 39, u8;  /// Inter-Frame Spacing
     }
-    0x0D, 4, RW, SYS_CTRL(sys_ctrl) {     /// System Control Register
-        sfcst,      0,  0, u8;            /// Suppress Auto-FCS Transmission
-        txstrt,     1,  1, u8;            /// Transmit Start
-        txdlys,     2,  2, u8;            /// Transmitter Delayed Sending
-        cansfcs,    3,  3, u8;            /// Cancel Auto-FCS Suppression
-        trxoff,     6,  6, u8;            /// Transceiver Off
-        wait4resp,  7,  7, u8;            /// Wait for Response
-        rxenab,     8,  8, u8;            /// Enable Receiver
-        rxdlye,     9,  9, u8;            /// Receiver Delayed Enable
-        hrbpt,     24, 24, u8;            /// Host Side RX Buffer Pointer Toggle
+    0x0D, 0x00, 4, RW, SYS_CTRL(sys_ctrl) { /// System Control Register
+        sfcst,      0,  0, u8; /// Suppress Auto-FCS Transmission
+        txstrt,     1,  1, u8; /// Transmit Start
+        txdlys,     2,  2, u8; /// Transmitter Delayed Sending
+        cansfcs,    3,  3, u8; /// Cancel Auto-FCS Suppression
+        trxoff,     6,  6, u8; /// Transceiver Off
+        wait4resp,  7,  7, u8; /// Wait for Response
+        rxenab,     8,  8, u8; /// Enable Receiver
+        rxdlye,     9,  9, u8; /// Receiver Delayed Enable
+        hrbpt,     24, 24, u8; /// Host Side RX Buffer Pointer Toggle
     }
-    0x0F, 5, RW, SYS_STATUS(sys_status) { /// System Event Status Register
-        irqs,       0,  0, u8;            /// Interrupt Request Status
-        cplock,     1,  1, u8;            /// Clock PLL Lock
-        esyncr,     2,  2, u8;            /// External Sync Clock Reset
-        aat,        3,  3, u8;            /// Automatic Acknowledge Trigger
-        txfrb,      4,  4, u8;            /// TX Frame Begins
-        txprs,      5,  5, u8;            /// TX Preamble Sent
-        txphs,      6,  6, u8;            /// TX PHY Header Sent
-        txfrs,      7,  7, u8;            /// TX Frame Sent
-        rxprd,      8,  8, u8;            /// RX Preamble Detected
-        rxsfdd,     9,  9, u8;            /// RX SFD Detected
-        ldedone,   10, 10, u8;            /// LDE Processing Done
-        rxphd,     11, 11, u8;            /// RX PHY Header Detect
-        rxphe,     12, 12, u8;            /// RX PHY Header Error
-        rxdfr,     13, 13, u8;            /// RX Data Frame Ready
-        rxfcg,     14, 14, u8;            /// RX FCS Good
-        rxfce,     15, 15, u8;            /// RX FCS Error
-        rxrfsl,    16, 16, u8;            /// RX Reed-Solomon Frame Sync Loss
-        rxrfto,    17, 17, u8;            /// RX Frame Wait Timeout
-        ldeerr,    18, 18, u8;            /// Leading Edge Detection Error
-        rxovrr,    20, 20, u8;            /// RX Overrun
-        rxpto,     21, 21, u8;            /// Preamble Detection Timeout
-        gpioirq,   22, 22, u8;            /// GPIO Interrupt
-        slp2init,  23, 23, u8;            /// SLEEP to INIT
-        rfpll_ll,  24, 24, u8;            /// RF PLL Losing Lock
-        clkpll_ll, 25, 25, u8;            /// Clock PLL Losing Lock
-        rxsfdto,   26, 26, u8;            /// Receive SFD Timeout
-        hpdwarn,   27, 27, u8;            /// Half Period Delay Warning
-        txberr,    28, 28, u8;            /// TX Buffer Error
-        affrej,    29, 29, u8;            /// Auto Frame Filtering Rejection
-        hsrbp,     30, 30, u8;            /// Host Side RX Buffer Pointer
-        icrbp,     31, 31, u8;            /// IC Side RX Buffer Pointer
-        rxrscs,    32, 32, u8;            /// RX Reed-Solomon Correction Status
-        rxprej,    33, 33, u8;            /// RX Preamble Rejection
-        txpute,    34, 34, u8;            /// TX Power Up Time Error
+    0x0F, 0x00, 5, RW, SYS_STATUS(sys_status) { /// System Event Status Register
+        irqs,       0,  0, u8; /// Interrupt Request Status
+        cplock,     1,  1, u8; /// Clock PLL Lock
+        esyncr,     2,  2, u8; /// External Sync Clock Reset
+        aat,        3,  3, u8; /// Automatic Acknowledge Trigger
+        txfrb,      4,  4, u8; /// TX Frame Begins
+        txprs,      5,  5, u8; /// TX Preamble Sent
+        txphs,      6,  6, u8; /// TX PHY Header Sent
+        txfrs,      7,  7, u8; /// TX Frame Sent
+        rxprd,      8,  8, u8; /// RX Preamble Detected
+        rxsfdd,     9,  9, u8; /// RX SFD Detected
+        ldedone,   10, 10, u8; /// LDE Processing Done
+        rxphd,     11, 11, u8; /// RX PHY Header Detect
+        rxphe,     12, 12, u8; /// RX PHY Header Error
+        rxdfr,     13, 13, u8; /// RX Data Frame Ready
+        rxfcg,     14, 14, u8; /// RX FCS Good
+        rxfce,     15, 15, u8; /// RX FCS Error
+        rxrfsl,    16, 16, u8; /// RX Reed-Solomon Frame Sync Loss
+        rxrfto,    17, 17, u8; /// RX Frame Wait Timeout
+        ldeerr,    18, 18, u8; /// Leading Edge Detection Error
+        rxovrr,    20, 20, u8; /// RX Overrun
+        rxpto,     21, 21, u8; /// Preamble Detection Timeout
+        gpioirq,   22, 22, u8; /// GPIO Interrupt
+        slp2init,  23, 23, u8; /// SLEEP to INIT
+        rfpll_ll,  24, 24, u8; /// RF PLL Losing Lock
+        clkpll_ll, 25, 25, u8; /// Clock PLL Losing Lock
+        rxsfdto,   26, 26, u8; /// Receive SFD Timeout
+        hpdwarn,   27, 27, u8; /// Half Period Delay Warning
+        txberr,    28, 28, u8; /// TX Buffer Error
+        affrej,    29, 29, u8; /// Auto Frame Filtering Rejection
+        hsrbp,     30, 30, u8; /// Host Side RX Buffer Pointer
+        icrbp,     31, 31, u8; /// IC Side RX Buffer Pointer
+        rxrscs,    32, 32, u8; /// RX Reed-Solomon Correction Status
+        rxprej,    33, 33, u8; /// RX Preamble Rejection
+        txpute,    34, 34, u8; /// TX Power Up Time Error
     }
 }
 
@@ -501,8 +549,9 @@ impl_register! {
 pub struct TX_BUFFER;
 
 impl Register for TX_BUFFER {
-    const ID:  u8    = 0x09;
-    const LEN: usize = 127;
+    const ID:     u8    = 0x09;
+    const SUB_ID: u16   = 0x00;
+    const LEN:    usize = 127;
 }
 
 impl Writable for TX_BUFFER {
