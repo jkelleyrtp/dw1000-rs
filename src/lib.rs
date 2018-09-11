@@ -124,7 +124,10 @@ fn init_header<R: Register>(write: bool, buffer: &mut [u8]) -> usize {
 /// constant should be for each register.
 pub trait Register {
     /// The register index
-    const ID:  u8;
+    const ID: u8;
+
+    /// The registers's sub-index
+    const SUB_ID: u16;
 
     /// The lenght of the register
     const LEN: usize;
@@ -158,6 +161,7 @@ macro_rules! impl_register {
     (
         $(
             $id:expr,
+            $sub_id:expr,
             $len:expr,
             $rw:tt,
             $name:ident($name_lower:ident) {
@@ -178,8 +182,9 @@ macro_rules! impl_register {
             pub struct $name;
 
             impl Register for $name {
-                const ID:  u8    = $id;
-                const LEN: usize = $len;
+                const ID:     u8    = $id;
+                const SUB_ID: u16   = $sub_id;
+                const LEN:    usize = $len;
             }
 
             #[$doc]
@@ -426,20 +431,20 @@ macro_rules! impl_rw {
 }
 
 impl_register! {
-    0x00, 4, RO, DEV_ID(dev_id) { /// Device identifier
+    0x00, 0x00, 4, RO, DEV_ID(dev_id) { /// Device identifier
         rev,     0,  3, u8;  /// Revision
         ver,     4,  7, u8;  /// Version
         model,   8, 15, u8;  /// Model
         ridtag, 16, 31, u16; /// Register Identification Tag
     }
-    0x01, 8, RW, EUI(eui) { /// Extended Unique Identifier
+    0x01, 0x00, 8, RW, EUI(eui) { /// Extended Unique Identifier
         eui, 0, 63, u64; /// Extended Unique Identifier
     }
-    0x03, 4, RW, PANADR(panadr) { /// PAN Identifier and Short Address
+    0x03, 0x00, 4, RW, PANADR(panadr) { /// PAN Identifier and Short Address
         short_addr,  0, 15, u16; /// Short Address
         pan_id,     16, 31, u16; /// PAN Identifier
     }
-    0x08, 5, RW, TX_FCTRL(tx_fctrl) { /// TX Frame Control
+    0x08, 0x00, 5, RW, TX_FCTRL(tx_fctrl) { /// TX Frame Control
         tflen,     0,  6, u8;  /// TX Frame Length
         tfle,      7,  9, u8;  /// TX Frame Length Extension
         txbr,     13, 14, u8;  /// TX Bit Rate
@@ -450,7 +455,7 @@ impl_register! {
         txboffs,  22, 31, u16; /// TX Buffer Index Offset
         ifsdelay, 32, 39, u8;  /// Inter-Frame Spacing
     }
-    0x0D, 4, RW, SYS_CTRL(sys_ctrl) { /// System Control Register
+    0x0D, 0x00, 4, RW, SYS_CTRL(sys_ctrl) { /// System Control Register
         sfcst,      0,  0, u8; /// Suppress Auto-FCS Transmission
         txstrt,     1,  1, u8; /// Transmit Start
         txdlys,     2,  2, u8; /// Transmitter Delayed Sending
@@ -461,7 +466,7 @@ impl_register! {
         rxdlye,     9,  9, u8; /// Receiver Delayed Enable
         hrbpt,     24, 24, u8; /// Host Side RX Buffer Pointer Toggle
     }
-    0x0F, 5, RW, SYS_STATUS(sys_status) { /// System Event Status Register
+    0x0F, 0x00, 5, RW, SYS_STATUS(sys_status) { /// System Event Status Register
         irqs,       0,  0, u8; /// Interrupt Request Status
         cplock,     1,  1, u8; /// Clock PLL Lock
         esyncr,     2,  2, u8; /// External Sync Clock Reset
@@ -508,8 +513,9 @@ impl_register! {
 pub struct TX_BUFFER;
 
 impl Register for TX_BUFFER {
-    const ID:  u8    = 0x09;
-    const LEN: usize = 127;
+    const ID:     u8    = 0x09;
+    const SUB_ID: u16   = 0x00;
+    const LEN:    usize = 127;
 }
 
 impl Writable for TX_BUFFER {
