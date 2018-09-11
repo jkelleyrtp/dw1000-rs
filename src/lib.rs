@@ -541,6 +541,9 @@ impl_register! {
     0x27, 0x08, 4, RW, DRX_TUNE2(drx_tune2) { /// Digital Tuning Register 2
         value, 0, 31, u32; /// DRX_TUNE2 tuning value
     }
+    0x2E, 0x1806, 2, RW, LDE_CFG2(lde_cfg2) { /// LDE Configuration Register 2
+        value, 0, 15, u16; /// The LDE_CFG2 configuration value
+    }
 }
 
 
