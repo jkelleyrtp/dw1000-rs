@@ -538,6 +538,15 @@ impl_register! {
         rxprej,    33, 33, u8; /// RX Preamble Rejection
         txpute,    34, 34, u8; /// TX Power Up Time Error
     }
+    0x10, 0x00, 4, RO, RX_FINFO(rx_finfo) { /// RX Frame Information
+        rxflen,  0,  6, u8; /// Receive Frame Length
+        rxfle,   7,  9, u8; /// Receive Frame Length Extension
+        rxnspl, 11, 12, u8; /// Receive Non-Standard Preamble Length
+        rxbr,   13, 14, u8; /// Receive Bit Rate Report
+        rng,    15, 15, u8; /// Receiver Ranging
+        rxprfr, 16, 17, u8; /// RX Pulse Repetition Rate Report
+        rxpsr,  18, 19, u8; /// RX Preamble Repetition
+    }
     0x27, 0x08, 4, RW, DRX_TUNE2(drx_tune2) { /// Digital Tuning Register 2
         value, 0, 31, u32; /// DRX_TUNE2 tuning value
     }
