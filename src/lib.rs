@@ -599,6 +599,46 @@ pub mod tx_buffer {
 }
 
 
+/// Receive Data Buffer
+///
+/// Currently only the first 127 bytes of the buffer are supported, which is
+/// enough to support standard Standard IEEE 802.15.4 UWB frames.
+#[allow(non_camel_case_types)]
+pub struct RX_BUFFER;
+
+impl Register for RX_BUFFER {
+    const ID:     u8    = 0x11;
+    const SUB_ID: u16   = 0x00;
+    const LEN:    usize = 127;
+}
+
+impl Readable for RX_BUFFER {
+    type Read = rx_buffer::R;
+
+    fn read() -> Self::Read {
+        rx_buffer::R([0; 127 + 1])
+    }
+
+    fn buffer(w: &mut Self::Read) -> &mut [u8] {
+        &mut w.0
+    }
+}
+
+
+/// Receive Data Buffer
+pub mod rx_buffer {
+    /// Used to read from the register
+    pub struct R(pub(crate) [u8; 127 + 1]);
+
+    impl R {
+        /// Read data from the buffer
+        pub fn data(&self) -> &[u8] {
+            &self.0[1 .. self.0.len() + 1]
+        }
+    }
+}
+
+
 trait FromBytes {
     fn from_bytes(bytes: &[u8]) -> Self;
 }
