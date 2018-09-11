@@ -50,7 +50,8 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         where
             R: Register + Readable,
     {
-        let tx_buffer = [make_header::<R>(false)];
+        let mut tx_buffer = [0; 1];
+        make_header::<R>(false, &mut tx_buffer);
 
         let mut r = R::read();
 
@@ -72,7 +73,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         let mut w = R::write();
         f(&mut w);
         let tx_buffer = R::buffer(&mut w);
-        tx_buffer[0] = make_header::<R>(true);
+        make_header::<R>(true, tx_buffer);
 
         self.spim.write(&mut self.chip_select, &tx_buffer)?;
 
@@ -95,7 +96,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         f(&mut r, &mut w);
 
         let tx_buffer = <R as Writable>::buffer(&mut w);
-        tx_buffer[0] = make_header::<R>(true);
+        make_header::<R>(true, tx_buffer);
 
         self.spim.write(&mut self.chip_select, &tx_buffer)?;
 
@@ -104,10 +105,12 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 }
 
 
-fn make_header<R: Register>(write: bool) -> u8 {
-    ((write as u8) << 7 & 0x80) |
-    (0             << 6 & 0x40) |  // no sub-index
-    (R::ID              & 0x3f)
+/// Initializes the header for a register in the given buffer
+fn make_header<R: Register>(write: bool, buffer: &mut [u8]) {
+    buffer[0] =
+        ((write as u8) << 7 & 0x80) |
+        (0             << 6 & 0x40) |  // no sub-index
+        (R::ID              & 0x3f);
 }
 
 
