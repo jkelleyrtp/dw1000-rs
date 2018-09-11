@@ -41,6 +41,9 @@ required-features = ["dev", "rt"]
 name              = "dw1000_rw"
 required-features = ["dev", "rt"]
 
+[[example]]
+name              = "dw1000_subreg"
+required-features = ["dev", "rt"]
 
 
 [profile.release]
