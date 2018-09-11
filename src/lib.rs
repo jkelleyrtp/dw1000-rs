@@ -538,6 +538,9 @@ impl_register! {
         rxprej,    33, 33, u8; /// RX Preamble Rejection
         txpute,    34, 34, u8; /// TX Power Up Time Error
     }
+    0x27, 0x08, 4, RW, DRX_TUNE2(drx_tune2) { /// Digital Tuning Register 2
+        value, 0, 31, u32; /// DRX_TUNE2 tuning value
+    }
 }
 
 
