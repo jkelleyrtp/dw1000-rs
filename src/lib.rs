@@ -187,10 +187,26 @@ macro_rules! impl_register {
                 const LEN:    usize = $len;
             }
 
+            impl $name {
+                // You know what would be neat? Using `if` in constant
+                // expressions! But that's not possible, so we're left with the
+                // following hack.
+                const SUB_INDEX_IS_NONZERO: usize =
+                    (Self::SUB_ID > 0) as usize;
+                const SUB_INDEX_NEEDS_SECOND_BYTE: usize =
+                    (Self::SUB_ID > 127) as usize;
+                const HEADER_LEN: usize =
+                    1
+                    + Self::SUB_INDEX_IS_NONZERO
+                    + Self::SUB_INDEX_NEEDS_SECOND_BYTE;
+            }
+
             #[$doc]
             pub mod $name_lower {
+                const HEADER_LEN: usize = super::$name::HEADER_LEN;
+
                 /// Used to read from the register
-                pub struct R(pub(crate) [u8; $len + 1]);
+                pub struct R(pub(crate) [u8; HEADER_LEN + $len]);
 
                 impl R {
                     $(
@@ -205,7 +221,9 @@ macro_rules! impl_register {
                             const START: usize = $first_bit / 8;
                             const END:   usize = $last_bit  / 8 + 1;
                             let mut bytes = [0; END - START];
-                            bytes.copy_from_slice(&self.0[START+1 .. END+1]);
+                            bytes.copy_from_slice(
+                                &self.0[START+HEADER_LEN .. END+HEADER_LEN]
+                            );
 
                             // Before we can convert the field into a number and
                             // return it, we need to shift it, to make sure
@@ -267,7 +285,7 @@ macro_rules! impl_register {
                 }
 
                 /// Used to write to the register
-                pub struct W(pub(crate) [u8; $len + 1]);
+                pub struct W(pub(crate) [u8; HEADER_LEN + $len]);
 
                 impl W {
                     $(
@@ -346,8 +364,8 @@ macro_rules! impl_register {
 
                                 // Zero the target bits in the slice, then write
                                 // the value.
-                                self.0[target_i + 1] &= !mask;
-                                self.0[target_i + 1] |= value & mask;
+                                self.0[HEADER_LEN + target_i] &= !mask;
+                                self.0[HEADER_LEN + target_i] |= value & mask;
 
                                 // The number of bits that were expected to be
                                 // written to the target byte.
@@ -407,7 +425,7 @@ macro_rules! impl_rw {
             type Read = $name_lower::R;
 
             fn read() -> Self::Read {
-                $name_lower::R([0; $len + 1])
+                $name_lower::R([0; Self::HEADER_LEN + $len])
             }
 
             fn buffer(r: &mut Self::Read) -> &mut [u8] {
@@ -420,7 +438,7 @@ macro_rules! impl_rw {
             type Write = $name_lower::W;
 
             fn write() -> Self::Write {
-                $name_lower::W([0; $len + 1])
+                $name_lower::W([0; Self::HEADER_LEN + $len])
             }
 
             fn buffer(w: &mut Self::Write) -> &mut [u8] {
