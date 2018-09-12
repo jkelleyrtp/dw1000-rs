@@ -474,7 +474,7 @@ impl_register! {
         ridtag, 16, 31, u16; /// Register Identification Tag
     }
     0x01, 0x00, 8, RW, EUI(eui) { /// Extended Unique Identifier
-        eui, 0, 63, u64; /// Extended Unique Identifier
+        value, 0, 63, u64; /// Extended Unique Identifier
     }
     0x03, 0x00, 4, RW, PANADR(panadr) { /// PAN Identifier and Short Address
         short_addr,  0, 15, u16; /// Short Address
