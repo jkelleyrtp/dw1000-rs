@@ -5,24 +5,23 @@ authors = ["Hanno Braun <hanno@braun-robotics.com>"]
 
 
 [dependencies]
-cortex-m    = "0.5.4"
-cortex-m-rt = "0.5.2"
-dw1000      = { git = "https://github.com/braun-robotics/rust-dw1000.git" }
+cortex-m             = { version = "0.5.4", features = [ "const-fn" ] }
+cortex-m-rt          = "0.5.2"
+cortex-m-semihosting = "0.3.0"
+dw1000               = { git = "https://github.com/braun-robotics/rust-dw1000.git" }
 # This is my fork of nrf52-hal. I'm depending on it for the time being, until
 # work on it has settled down a bit.
-nrf52-hal   = { git = "https://github.com/braun-robotics/nrf52-hal.git" }
+nrf52-hal            = { git = "https://github.com/braun-robotics/nrf52-hal.git" }
 
 [dev-dependencies]
-cortex-m-semihosting = "0.3.0"
-nb                   = "0.1.1"
-panic-semihosting    = "0.3.0"
+nb                = "0.1.1"
+panic-semihosting = "0.3.0"
 
 
 [features]
-# Activate this if you're using the DWM1001-Dev board, as opposed to a bare
-# DWM1001 module.
-dev = []
-rt  = ["nrf52-hal/rt"]
+dev         = []               # expose features of DWM1001-Dev board
+rt          = ["nrf52-hal/rt"]
+semihosting = []               # enable debug output in some examples
 
 
 [[example]]

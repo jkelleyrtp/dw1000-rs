@@ -14,12 +14,16 @@ pub extern crate cortex_m_rt;
 pub extern crate dw1000;
 pub extern crate nrf52_hal;
 
+extern crate cortex_m_semihosting;
+
 
 /// Exports traits that are usually needed when using this crate
 pub mod prelude {
     pub use dw1000::Register as __dwm1001__prelude__register;
     pub use nrf52_hal::prelude::*;
 }
+
+pub mod debug;
 
 
 use dw1000::DW1000;
