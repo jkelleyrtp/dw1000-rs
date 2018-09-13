@@ -474,7 +474,7 @@ impl_register! {
         ridtag, 16, 31, u16; /// Register Identification Tag
     }
     0x01, 0x00, 8, RW, EUI(eui) { /// Extended Unique Identifier
-        eui, 0, 63, u64; /// Extended Unique Identifier
+        value, 0, 63, u64; /// Extended Unique Identifier
     }
     0x03, 0x00, 4, RW, PANADR(panadr) { /// PAN Identifier and Short Address
         short_addr,  0, 15, u16; /// Short Address
@@ -538,6 +538,15 @@ impl_register! {
         rxprej,    33, 33, u8; /// RX Preamble Rejection
         txpute,    34, 34, u8; /// TX Power Up Time Error
     }
+    0x10, 0x00, 4, RO, RX_FINFO(rx_finfo) { /// RX Frame Information
+        rxflen,  0,  6, u8; /// Receive Frame Length
+        rxfle,   7,  9, u8; /// Receive Frame Length Extension
+        rxnspl, 11, 12, u8; /// Receive Non-Standard Preamble Length
+        rxbr,   13, 14, u8; /// Receive Bit Rate Report
+        rng,    15, 15, u8; /// Receiver Ranging
+        rxprfr, 16, 17, u8; /// RX Pulse Repetition Rate Report
+        rxpsr,  18, 19, u8; /// RX Preamble Repetition
+    }
     0x27, 0x08, 4, RW, DRX_TUNE2(drx_tune2) { /// Digital Tuning Register 2
         value, 0, 31, u32; /// DRX_TUNE2 tuning value
     }
@@ -585,6 +594,46 @@ pub mod tx_buffer {
         pub fn data(&mut self, data: &[u8]) -> &mut Self {
             self.0[1 .. data.len() + 1].copy_from_slice(data);
             self
+        }
+    }
+}
+
+
+/// Receive Data Buffer
+///
+/// Currently only the first 127 bytes of the buffer are supported, which is
+/// enough to support standard Standard IEEE 802.15.4 UWB frames.
+#[allow(non_camel_case_types)]
+pub struct RX_BUFFER;
+
+impl Register for RX_BUFFER {
+    const ID:     u8    = 0x11;
+    const SUB_ID: u16   = 0x00;
+    const LEN:    usize = 127;
+}
+
+impl Readable for RX_BUFFER {
+    type Read = rx_buffer::R;
+
+    fn read() -> Self::Read {
+        rx_buffer::R([0; 127 + 1])
+    }
+
+    fn buffer(w: &mut Self::Read) -> &mut [u8] {
+        &mut w.0
+    }
+}
+
+
+/// Receive Data Buffer
+pub mod rx_buffer {
+    /// Used to read from the register
+    pub struct R(pub(crate) [u8; 127 + 1]);
+
+    impl R {
+        /// Read data from the buffer
+        pub fn data(&self) -> &[u8] {
+            &self.0[1 .. self.0.len() + 1]
         }
     }
 }
