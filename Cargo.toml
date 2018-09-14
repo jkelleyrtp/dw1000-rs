@@ -10,4 +10,4 @@ authors = ["Hanno Braun <hanno@braun-robotics.com>"]
 # embedded-hal instead. Unfortunately nrf52-hal doesn't implement the SPI traits
 # of embedded-hal yet, and we need nRF52 support because it's used on the
 # DWM1001 board.
-nrf52832-hal = { git = "https://github.com/hannobraun/nrf52-hal.git", default-features = false }
+nrf52832-hal = { git = "https://github.com/braun-robotics/nrf52-hal.git", default-features = false }
