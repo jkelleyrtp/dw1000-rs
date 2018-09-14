@@ -7,7 +7,7 @@
 #![deny(warnings)]
 
 
-extern crate nrf52_hal as hal;
+extern crate nrf52832_hal as hal;
 
 
 use hal::{
