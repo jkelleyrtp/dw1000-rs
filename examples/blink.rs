@@ -10,7 +10,7 @@ extern crate panic_semihosting;
 
 
 use dwm1001::{
-    nrf52_hal::{
+    nrf52832_hal::{
         prelude::*,
         timer::Timer,
     },

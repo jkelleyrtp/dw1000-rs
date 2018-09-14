@@ -12,7 +12,7 @@
 pub extern crate cortex_m;
 pub extern crate cortex_m_rt;
 pub extern crate dw1000;
-pub extern crate nrf52_hal;
+pub extern crate nrf52832_hal;
 
 extern crate cortex_m_semihosting;
 
@@ -20,14 +20,14 @@ extern crate cortex_m_semihosting;
 /// Exports traits that are usually needed when using this crate
 pub mod prelude {
     pub use dw1000::Register as __dwm1001__prelude__register;
-    pub use nrf52_hal::prelude::*;
+    pub use nrf52832_hal::prelude::*;
 }
 
 pub mod debug;
 
 
 use dw1000::DW1000;
-use nrf52_hal::{
+use nrf52832_hal::{
     prelude::*,
     gpio::{
         p0,
@@ -43,7 +43,7 @@ use nrf52_hal::{
 };
 
 #[cfg(feature = "dev")]
-use nrf52_hal::gpio::{
+use nrf52832_hal::gpio::{
     p0::P0_Pin,
     Output,
     PushPull,
@@ -460,22 +460,22 @@ impl DWM1001 {
 #[allow(non_snake_case)]
 pub struct Pins {
     /// DWM1001: BT_WAKE_UP; nRF52: P0.02
-    pub BT_WAKE_UP: p0::P0_2<Input<Floating>>,
+    pub BT_WAKE_UP: p0::P0_02<Input<Floating>>,
 
     /// DWM1001: SPIS_CSn; nRF52: P0.03
-    pub SPIS_CSn: p0::P0_3<Input<Floating>>,
+    pub SPIS_CSn: p0::P0_03<Input<Floating>>,
 
     /// DWM1001: SPIS_CLK; nRF52: P0.04
-    pub SPIS_CLK: p0::P0_4<Input<Floating>>,
+    pub SPIS_CLK: p0::P0_04<Input<Floating>>,
 
     /// DWM1001: UART_TX; nRF52: P0.05
-    pub UART_TX: p0::P0_5<Input<Floating>>,
+    pub UART_TX: p0::P0_05<Input<Floating>>,
 
     /// DWM1001: SPIS_MOSI; nRF52: P0.06
-    pub SPIS_MOSI: p0::P0_6<Input<Floating>>,
+    pub SPIS_MOSI: p0::P0_06<Input<Floating>>,
 
     /// DWM1001: SPIS_MISO; nRF52: P0.07
-    pub SPIS_MISO: p0::P0_7<Input<Floating>>,
+    pub SPIS_MISO: p0::P0_07<Input<Floating>>,
 
     /// DWM1001: UART_RX; nRF52: P0.11
     pub UART_RX: p0::P0_11<Input<Floating>>,
@@ -497,10 +497,10 @@ pub struct Pins {
     pub I2C_SDA: p0::P0_29<Input<Floating>>,
 
     /// DWM1001: GPIO_8; nRF52: P0.08
-    pub GPIO_8: p0::P0_8<Input<Floating>>,
+    pub GPIO_8: p0::P0_08<Input<Floating>>,
 
     /// DWM1001: GPIO_9; nRF52: P0.09
-    pub GPIO_9: p0::P0_9<Input<Floating>>,
+    pub GPIO_9: p0::P0_09<Input<Floating>>,
 
     /// DWM1001: GPIO_10; nRF52: P0.10
     pub GPIO_10: p0::P0_10<Input<Floating>>,
