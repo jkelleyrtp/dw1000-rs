@@ -12,6 +12,7 @@
 pub extern crate cortex_m;
 pub extern crate cortex_m_rt;
 pub extern crate dw1000;
+pub extern crate embedded_hal;
 pub extern crate nrf52832_hal;
 
 extern crate cortex_m_semihosting;
