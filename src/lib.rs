@@ -7,10 +7,10 @@
 #![deny(warnings)]
 
 
-extern crate nrf52_hal;
+extern crate nrf52_hal as hal;
 
 
-use nrf52_hal::{
+use hal::{
     prelude::*,
     gpio::{
         p0,
