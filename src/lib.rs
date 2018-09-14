@@ -33,6 +33,7 @@ use nrf52832_hal::{
         p0,
         Floating,
         Input,
+        Level,
     },
     nrf52::{
         self,
@@ -323,12 +324,12 @@ impl DWM1001 {
         // - The frequency is set to a moderate value that the DW1000 can easily
         //   handle.
         let spim2 = p.SPIM2.constrain(spim::Pins {
-            sck : pins.p0_16.into_push_pull_output().degrade(),
-            mosi: pins.p0_20.into_push_pull_output().degrade(),
+            sck : pins.p0_16.into_push_pull_output(Level::Low).degrade(),
+            mosi: pins.p0_20.into_push_pull_output(Level::Low).degrade(),
             miso: pins.p0_18.into_floating_input().degrade(),
         });
 
-        let dw_cs = pins.p0_17.into_push_pull_output().degrade();
+        let dw_cs = pins.p0_17.into_push_pull_output(Level::High).degrade();
 
         DWM1001 {
             pins: Pins {
@@ -601,9 +602,7 @@ pub struct Led(p0::P0_Pin<Output<PushPull>>);
 #[cfg(feature = "dev")]
 impl Led {
     fn new<Mode>(pin: P0_Pin<Mode>) -> Self {
-        let mut led = Led(pin.into_push_pull_output());
-        led.disable();
-        led
+        Led(pin.into_push_pull_output(Level::High))
     }
 
     /// Enable the LED
