@@ -28,10 +28,14 @@ pub mod debug;
 
 
 use dw1000::DW1000;
+use embedded_hal::blocking::delay::DelayMs;
 use nrf52832_hal::{
     prelude::*,
     gpio::{
-        p0,
+        p0::{
+            self,
+            OpenDrainConfig,
+        },
         Floating,
         Input,
         Level,
@@ -63,6 +67,11 @@ pub struct DWM1001 {
     /// This is only available if the `dev` feature is enabled.
     #[cfg(feature = "dev")]
     pub leds: Leds,
+
+    /// The DW_RST pin (P0.24 on the nRF52)
+    ///
+    /// Can be used to reset the DW1000 externally.
+    pub DW_RST: DW_RST,
 
     /// DW1000 UWB transceiver
     pub DW1000: DW1000<nrf52::SPIM2>,
@@ -361,7 +370,6 @@ impl DWM1001 {
                 #[cfg(not(feature = "dev"))] GPIO_31: pins.p0_31,
 
                 DW_IRQ : pins.p0_19,
-                DW_RST : pins.p0_24,
                 IRQ_ACC: pins.p0_25,
             },
 
@@ -372,6 +380,8 @@ impl DWM1001 {
                 D11: Led::new(pins.p0_22.degrade()),
                 D12: Led::new(pins.p0_14.degrade()),
             },
+
+            DW_RST: DW_RST::new(pins.p0_24),
 
             DW1000: DW1000::new(spim2, dw_cs),
 
@@ -559,11 +569,6 @@ pub struct Pins {
     /// Connected to the DW1000.
     pub DW_IRQ: p0::P0_19<Input<Floating>>,
 
-    /// DWM1001: DW_RST; nRF52: P0.24
-    ///
-    /// Connected to the DW1000.
-    pub DW_RST: p0::P0_24<Input<Floating>>,
-
     /// DWM1001: IRQ_ACC; nRF52: P0.25
     ///
     /// Connected to the accelerometer.
@@ -614,5 +619,50 @@ impl Led {
     /// Disable the LED
     pub fn disable(&mut self) {
         self.0.set_high()
+    }
+}
+
+
+/// The DW_RST pin (P0.24 on the nRF52)
+///
+/// Can be used to externally reset the DW1000.
+#[allow(non_camel_case_types)]
+pub struct DW_RST(Option<p0::P0_24<Input<Floating>>>);
+
+impl DW_RST {
+    fn new<Mode>(p0_24: p0::P0_24<Mode>) -> Self {
+        DW_RST(Some(p0_24.into_floating_input()))
+    }
+
+    /// Externally reset the DW1000 using its RSTn pin
+    pub fn reset_dw1000<D>(&mut self, delay: &mut D) where D: DelayMs<u32> {
+        // This whole `Option` thing is a bit of a hack. What we actually need
+        // here is the ability to put the pin into a tri-state mode that allows
+        // us to switch input/output on the fly.
+        let dw_rst = self.0
+            .take()
+            .unwrap()
+            // According the the DW1000 datasheet (section 5.6.3.1), the reset
+            // pin should be pulled low using open-drain, and must never be
+            // pulled high.
+            .into_open_drain_output(
+                OpenDrainConfig::Standard0Disconnect1,
+                Level::Low
+            );
+
+        // We're supposed to keep the signal low for at least 10-50 nanoseconds
+        // (see DW1000 datasheet, sections 5.6.3.1 and 5.6.1), so this will be
+        // plenty.
+        // Section 5.6.3.1 in the data sheet talks about keeping this low for
+        // T-RST_OK, which would be 10-50 nanos. But table 15 makes it sound
+        // like that should actually be T-DIG_ON (1.5-2 millis), which lines up
+        // with the example code I looked at.
+        delay.delay_ms(2);
+
+        self.0 = Some(dw_rst.into_floating_input());
+
+        // There must be some better way to determine whether the DW1000 is
+        // ready, but I guess waiting for some time will do.
+        delay.delay_ms(5);
     }
 }
