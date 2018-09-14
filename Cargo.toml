@@ -11,7 +11,7 @@ cortex-m-semihosting = "0.3.0"
 dw1000               = { git = "https://github.com/braun-robotics/rust-dw1000.git" }
 # This is my fork of nrf52-hal. I'm depending on it for the time being, until
 # work on it has settled down a bit.
-nrf52832-hal         = { git = "https://github.com/hannobraun/nrf52-hal.git" }
+nrf52832-hal         = { git = "https://github.com/braun-robotics/nrf52-hal.git" }
 
 [dev-dependencies]
 nb                = "0.1.1"
