@@ -11,7 +11,7 @@ cortex-m-semihosting = "0.3.0"
 dw1000               = { git = "https://github.com/braun-robotics/rust-dw1000.git" }
 # This is my fork of nrf52-hal. I'm depending on it for the time being, until
 # work on it has settled down a bit.
-nrf52-hal            = { git = "https://github.com/braun-robotics/nrf52-hal.git" }
+nrf52832-hal         = { git = "https://github.com/hannobraun/nrf52-hal.git" }
 
 [dev-dependencies]
 nb                = "0.1.1"
@@ -19,9 +19,9 @@ panic-semihosting = "0.3.0"
 
 
 [features]
-dev         = []               # expose features of DWM1001-Dev board
-rt          = ["nrf52-hal/rt"]
-semihosting = []               # enable debug output in some examples
+dev         = []                  # expose features of DWM1001-Dev board
+rt          = ["nrf52832-hal/rt"]
+semihosting = []                  # enable debug output in some examples
 
 
 [[example]]
