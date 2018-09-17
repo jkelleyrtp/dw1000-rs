@@ -563,6 +563,13 @@ impl_register! {
         rxprfr, 16, 17, u8; /// RX Pulse Repetition Rate Report
         rxpsr,  18, 19, u8; /// RX Preamble Repetition
     }
+    0x24, 0x00, 4, RW, EC_CTRL(ec_ctrl) { /// External Clock Sync Counter Config
+        ostsm,   0,  0, u8; /// External Transmit Synchronization Mode Enable
+        osrsm,   1,  1, u8; /// External Receive Synchronization Mode Enable
+        pllldt,  2,  2, u8; /// Clock PLL Lock Detect Tune
+        wait,    3, 10, u8; /// Wait Counter
+        ostrm,  11, 11, u8; /// External Timebase Reset Mode Enable
+    }
     0x27, 0x08, 4, RW, DRX_TUNE2(drx_tune2) { /// Digital Tuning Register 2
         value, 0, 31, u32; /// DRX_TUNE2 tuning value
     }
