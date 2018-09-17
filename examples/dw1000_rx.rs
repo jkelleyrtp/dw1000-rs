@@ -28,8 +28,7 @@ use dwm1001::{
 
 
 
-entry!(main);
-
+#[entry]
 fn main() -> ! {
     debug::init();
 

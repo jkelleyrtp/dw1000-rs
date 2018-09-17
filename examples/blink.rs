@@ -18,8 +18,7 @@ use dwm1001::{
 };
 
 
-entry!(main);
-
+#[entry]
 fn main() -> ! {
     let mut dwm1001 = DWM1001::take().unwrap();
 
