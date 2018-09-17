@@ -26,8 +26,7 @@ use dwm1001::{
 };
 
 
-entry!(main);
-
+#[entry]
 fn main() -> ! {
     // Initialize debug output
     let mut stdout = hio::hstdout()
