@@ -627,13 +627,17 @@ impl Readable for RX_BUFFER {
 
 /// Receive Data Buffer
 pub mod rx_buffer {
+    const HEADER_LEN: usize = 1;
+    const LEN:        usize = 127;
+
+
     /// Used to read from the register
-    pub struct R(pub(crate) [u8; 127 + 1]);
+    pub struct R(pub(crate) [u8; HEADER_LEN + LEN]);
 
     impl R {
         /// Read data from the buffer
         pub fn data(&self) -> &[u8] {
-            &self.0[1 .. self.0.len()]
+            &self.0[HEADER_LEN .. HEADER_LEN + LEN]
         }
     }
 }
