@@ -633,7 +633,7 @@ pub mod rx_buffer {
     impl R {
         /// Read data from the buffer
         pub fn data(&self) -> &[u8] {
-            &self.0[1 .. self.0.len() + 1]
+            &self.0[1 .. self.0.len()]
         }
     }
 }
