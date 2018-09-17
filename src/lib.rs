@@ -643,6 +643,9 @@ impl Readable for RX_BUFFER {
 
 /// Receive Data Buffer
 pub mod rx_buffer {
+    use core::fmt;
+
+
     const HEADER_LEN: usize = 1;
     const LEN:        usize = 127;
 
@@ -654,6 +657,17 @@ pub mod rx_buffer {
         /// Read data from the buffer
         pub fn data(&self) -> &[u8] {
             &self.0[HEADER_LEN .. HEADER_LEN + LEN]
+        }
+    }
+
+    impl fmt::Debug for R {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "0x");
+            for i in (0 .. LEN).rev() {
+                write!(f, "{:02x}", self.0[HEADER_LEN + i]);
+            }
+
+            Ok(())
         }
     }
 }
