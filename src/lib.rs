@@ -221,7 +221,11 @@ macro_rules! impl_register {
 
             #[$doc]
             pub mod $name_lower {
+                use core::fmt;
+
+
                 const HEADER_LEN: usize = super::$name::HEADER_LEN;
+
 
                 /// Used to read from the register
                 pub struct R(pub(crate) [u8; HEADER_LEN + $len]);
@@ -301,6 +305,18 @@ macro_rules! impl_register {
                         }
                     )*
                 }
+
+                impl fmt::Debug for R {
+                    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        write!(f, "0x");
+                        for i in (0 .. $len).rev() {
+                            write!(f, "{:02x}", self.0[HEADER_LEN + i]);
+                        }
+
+                        Ok(())
+                    }
+                }
+
 
                 /// Used to write to the register
                 pub struct W(pub(crate) [u8; HEADER_LEN + $len]);
