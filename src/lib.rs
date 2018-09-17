@@ -650,9 +650,6 @@ impl DW_RST {
                 Level::Low
             );
 
-        // We're supposed to keep the signal low for at least 10-50 nanoseconds
-        // (see DW1000 datasheet, sections 5.6.3.1 and 5.6.1), so this will be
-        // plenty.
         // Section 5.6.3.1 in the data sheet talks about keeping this low for
         // T-RST_OK, which would be 10-50 nanos. But table 15 makes it sound
         // like that should actually be T-DIG_ON (1.5-2 millis), which lines up
