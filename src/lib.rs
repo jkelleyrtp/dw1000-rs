@@ -11,3 +11,7 @@ extern crate nrf52832_hal as hal;
 
 
 pub mod ll;
+pub mod hl;
+
+
+pub use hl::DW1000;
