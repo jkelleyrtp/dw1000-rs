@@ -148,9 +148,6 @@ fn main() -> ! {
                     continue 'outer;
                 }
 
-                assert_eq!(sys_status.rxfcg(), 0b1);
-                assert_eq!(sys_status.rxfce(), 0b0);
-
                 break;
             }
 
