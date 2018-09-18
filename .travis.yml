@@ -8,6 +8,8 @@ addons:
     packages:
       - gcc-arm-none-eabi
 
-script:
+install:
   - rustup target add thumbv7em-none-eabihf
-  - cargo build --verbose --examples --all-features
+
+script:
+  - ./ci/build.sh
