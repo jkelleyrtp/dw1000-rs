@@ -4,3 +4,6 @@ rust:
   - stable
   - beta
   - nightly
+
+script:
+  - ./ci/build.sh
