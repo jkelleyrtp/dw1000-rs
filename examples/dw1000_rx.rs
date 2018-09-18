@@ -152,6 +152,20 @@ fn main() -> ! {
             }
 
             // Check errors
+            if sys_status.ldeerr() == 0b1 {
+                dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.ldeerr(0b1))
+                    .expect("Failed to reset flag");
+                print!("Leading edge detection error\n");
+
+                continue 'outer;
+            }
+            if sys_status.rxprej() == 0b1 {
+                dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.rxprej(0b1))
+                    .expect("Failed to reset flag");
+                print!("Preamble rejection\n");
+
+                continue 'outer;
+            }
             if sys_status.rxphe() == 0b1 {
                 dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.rxphe(0b1))
                     .expect("Failed to reset flag");
