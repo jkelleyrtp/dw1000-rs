@@ -45,6 +45,21 @@ fn main() -> ! {
     'outer: loop {
         print!("Configure...\n");
 
+        // For unknown reasons, the DW1000 get stuck in RX mode without ever
+        // receiving anything, after receiving one good frame. Reset the
+        // receiver to make sure its in a valid state before attempting to
+        // receive anything.
+        dwm1001.DW1000
+            .modify::<dw1000::PMSC_CTRL0, _>(|_, w|
+                w.softreset(0b1110) // reset receiver
+            )
+            .expect("Failed to modify register");
+        dwm1001.DW1000
+            .modify::<dw1000::PMSC_CTRL0, _>(|_, w|
+                w.softreset(0b1111) // clear reset
+            )
+            .expect("Failed to modify register");
+
         // Set PLLLDT bit in EC_CTRL. According to the documentation of the
         // CLKPLL_LL bit in SYS_STATUS, this bit needs to be set to ensure the
         // reliable operation of the CLKPLL_LL bit. Since I've seen that bit
@@ -133,13 +148,24 @@ fn main() -> ! {
                     continue 'outer;
                 }
 
-                assert_eq!(sys_status.rxfcg(), 0b1);
-                assert_eq!(sys_status.rxfce(), 0b0);
-
                 break;
             }
 
             // Check errors
+            if sys_status.ldeerr() == 0b1 {
+                dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.ldeerr(0b1))
+                    .expect("Failed to reset flag");
+                print!("Leading edge detection error\n");
+
+                continue 'outer;
+            }
+            if sys_status.rxprej() == 0b1 {
+                dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.rxprej(0b1))
+                    .expect("Failed to reset flag");
+                print!("Preamble rejection\n");
+
+                continue 'outer;
+            }
             if sys_status.rxphe() == 0b1 {
                 dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.rxphe(0b1))
                     .expect("Failed to reset flag");
