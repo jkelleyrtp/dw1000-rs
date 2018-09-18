@@ -18,10 +18,7 @@ use core::fmt::Write;
 
 use cortex_m_semihosting::hio;
 
-use dwm1001::{
-    dw1000,
-    DWM1001,
-};
+use dwm1001::DWM1001;
 
 
 #[entry]
@@ -35,7 +32,8 @@ fn main() -> ! {
     write!(stdout, "Writing...\n");
 
     dwm1001.DW1000
-        .write::<dw1000::TX_FCTRL, _>(|w|
+        .tx_fctrl()
+        .write(|w|
             w
                 .tflen(0b100_1001)
                 .tfle(0b10_1)
@@ -51,7 +49,9 @@ fn main() -> ! {
 
     write!(stdout, "Reading...\n");
 
-    let tx_fctrl = dwm1001.DW1000.read::<dw1000::TX_FCTRL>()
+    let tx_fctrl = dwm1001.DW1000
+        .tx_fctrl()
+        .read()
         .expect("Failed to read from register");
 
     assert_eq!(tx_fctrl.tflen(),    0b1001001);

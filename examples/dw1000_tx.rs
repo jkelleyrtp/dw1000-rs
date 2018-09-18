@@ -14,7 +14,6 @@ extern crate panic_semihosting;
 
 use dwm1001::{
     debug,
-    dw1000,
     DWM1001,
 };
 
@@ -33,12 +32,14 @@ fn main() -> ! {
 
         // Prepare transmitter
         dwm1001.DW1000
-            .write::<dw1000::TX_BUFFER, _>(|w|
+            .tx_buffer()
+            .write(|w|
                 w.data(tx_data)
             )
             .expect("Failed to write to register");
         dwm1001.DW1000
-            .write::<dw1000::TX_FCTRL, _>(|w| {
+            .tx_fctrl()
+            .write(|w| {
                 let tflen = tx_data.len() as u8 + 2;
                 w
                     .tflen(tflen) // data length + two-octet CRC
@@ -59,7 +60,8 @@ fn main() -> ! {
 
         // Start transmission
         dwm1001.DW1000
-            .modify::<dw1000::SYS_CTRL, _>(|_, w|
+            .sys_ctrl()
+            .modify(|_, w|
                 w
                     .txstrt(1)
             )
@@ -67,26 +69,36 @@ fn main() -> ! {
 
         // Wait until frame is sent
         loop {
-            let sys_status = dwm1001.DW1000.read::<dw1000::SYS_STATUS>()
+            let sys_status = dwm1001.DW1000
+                .sys_status()
+                .read()
                 .expect("Failed to read from register");
 
             if sys_status.txfrb() == 0b1 {
-                dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.txfrb(0b1))
+                dwm1001.DW1000
+                    .sys_status()
+                    .write(|w| w.txfrb(0b1))
                     .expect("Failed to reset flag");
                 print!("Transmit Frame Begins\n");
             }
             if sys_status.txprs() == 0b1 {
-                dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.txprs(0b1))
+                dwm1001.DW1000
+                    .sys_status()
+                    .write(|w| w.txprs(0b1))
                     .expect("Failed to reset flag");
                 print!("Transmit Preamble Sent\n");
             }
             if sys_status.txphs() == 0b1 {
-                dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.txphs(0b1))
+                dwm1001.DW1000
+                    .sys_status()
+                    .write(|w| w.txphs(0b1))
                     .expect("Failed to reset flag");
                 print!("Transmit PHY Header Sent\n");
             }
             if sys_status.txfrs() == 0b1 {
-                dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.txfrs(0b1))
+                dwm1001.DW1000
+                    .sys_status()
+                    .write(|w| w.txfrs(0b1))
                     .expect("Failed to reset flag");
                 print!("Transmit Frame Sent\n");
                 break;
