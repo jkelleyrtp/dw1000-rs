@@ -563,6 +563,12 @@ impl_register! {
         rxprfr, 16, 17, u8; /// RX Pulse Repetition Rate Report
         rxpsr,  18, 19, u8; /// RX Preamble Repetition
     }
+    0x19, 0x00, 5, RO, SYS_STATE(sys_state) { /// System State information
+        // This register is explicitely named in the user manual, but its
+        // documentation states that it is reserved, and no info about fields is
+        // given. I still found it helpful to have it, to print raw bytes during
+        // debugging.
+    }
     0x24, 0x00, 4, RW, EC_CTRL(ec_ctrl) { /// External Clock Sync Counter Config
         ostsm,   0,  0, u8; /// External Transmit Synchronization Mode Enable
         osrsm,   1,  1, u8; /// External Receive Synchronization Mode Enable
