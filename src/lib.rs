@@ -563,6 +563,12 @@ impl_register! {
         rxprfr, 16, 17, u8; /// RX Pulse Repetition Rate Report
         rxpsr,  18, 19, u8; /// RX Preamble Repetition
     }
+    0x19, 0x00, 5, RO, SYS_STATE(sys_state) { /// System State information
+        // This register is explicitely named in the user manual, but its
+        // documentation states that it is reserved, and no info about fields is
+        // given. I still found it helpful to have it, to print raw bytes during
+        // debugging.
+    }
     0x24, 0x00, 4, RW, EC_CTRL(ec_ctrl) { /// External Clock Sync Counter Config
         ostsm,   0,  0, u8; /// External Transmit Synchronization Mode Enable
         osrsm,   1,  1, u8; /// External Receive Synchronization Mode Enable
@@ -575,6 +581,31 @@ impl_register! {
     }
     0x2E, 0x1806, 2, RW, LDE_CFG2(lde_cfg2) { /// LDE Configuration Register 2
         value, 0, 15, u16; /// The LDE_CFG2 configuration value
+    }
+    0x36, 0x00, 4, RW, PMSC_CTRL0(pmsc_ctrl0) { /// PMSC Control Register 0
+        sysclks,    0,  1, u8; /// System Clock Selection
+        rxclks,     2,  3, u8; /// Receiver Clock Selection
+        txclks,     4,  5, u8; /// Transmitter Clock Selection
+        face,       6,  6, u8; /// Force Accumulator Clock Enable
+        adcce,     10, 10, u8; /// ADC Clock Enable
+        amce,      15, 15, u8; /// Accumulator Memory Clock Enable
+        gpce,      16, 16, u8; /// GPIO Clock Enable
+        gprn,      17, 17, u8; /// GPIO Reset (Not), active low
+        gpdce,     18, 18, u8; /// GPIO De-bounce Clock Enable
+        gpdrn,     19, 19, u8; /// GPIO De-bounce Reset (Not), active low
+        khzclken,  23, 23, u8; /// Kilohertz Clock Enable
+        softreset, 28, 31, u8; /// Soft Reset
+    }
+    0x36, 0x04, 4, RW, PMSC_CTRL1(pmsc_ctrl1) { /// PMSC Control Register 1
+        arx2init,   1,  1, u8; /// Automatic transition from receive to init
+        pktseq,     3, 10, u8; /// Control PMSC control of analog RF subsystem
+        atxslp,    11, 11, u8; /// After TX automatically sleep
+        arxslp,    12, 12, u8; /// After RX automatically sleep
+        snoze,     13, 13, u8; /// Snooze Enable
+        snozr,     14, 14, u8; /// Snooze Repeat
+        pllsyn,    15, 15, u8; /// Enable clock used for external sync modes
+        lderune,   17, 17, u8; /// LDE Run Enable
+        khzclkdiv, 26, 31, u8; /// Kilohertz Clock Divisor
     }
 }
 
