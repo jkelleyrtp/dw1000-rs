@@ -45,6 +45,21 @@ fn main() -> ! {
     'outer: loop {
         print!("Configure...\n");
 
+        // For unknown reasons, the DW1000 get stuck in RX mode without ever
+        // receiving anything, after receiving one good frame. Reset the
+        // receiver to make sure its in a valid state before attempting to
+        // receive anything.
+        dwm1001.DW1000
+            .modify::<dw1000::PMSC_CTRL0, _>(|_, w|
+                w.softreset(0b1110) // reset receiver
+            )
+            .expect("Failed to modify register");
+        dwm1001.DW1000
+            .modify::<dw1000::PMSC_CTRL0, _>(|_, w|
+                w.softreset(0b1111) // clear reset
+            )
+            .expect("Failed to modify register");
+
         // Set PLLLDT bit in EC_CTRL. According to the documentation of the
         // CLKPLL_LL bit in SYS_STATUS, this bit needs to be set to ensure the
         // reliable operation of the CLKPLL_LL bit. Since I've seen that bit
