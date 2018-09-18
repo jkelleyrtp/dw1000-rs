@@ -596,6 +596,17 @@ impl_register! {
         khzclken,  23, 23, u8; /// Kilohertz Clock Enable
         softreset, 28, 31, u8; /// Soft Reset
     }
+    0x36, 0x04, 4, RW, PMSC_CTRL1(pmsc_ctrl1) { /// PMSC Control Register 1
+        arx2init,   1,  1, u8; /// Automatic transition from receive to init
+        pktseq,     3, 10, u8; /// Control PMSC control of analog RF subsystem
+        atxslp,    11, 11, u8; /// After TX automatically sleep
+        arxslp,    12, 12, u8; /// After RX automatically sleep
+        snoze,     13, 13, u8; /// Snooze Enable
+        snozr,     14, 14, u8; /// Snooze Repeat
+        pllsyn,    15, 15, u8; /// Enable clock used for external sync modes
+        lderune,   17, 17, u8; /// LDE Run Enable
+        khzclkdiv, 26, 31, u8; /// Kilohertz Clock Divisor
+    }
 }
 
 
