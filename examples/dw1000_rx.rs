@@ -46,113 +46,35 @@ fn main() -> ! {
             .start_receiver()
             .expect("Failed to start receiver");
 
+        let mut buffer = [0; 1024];
+
         // Set timer for timeout
         timer.start(5_000_000);
 
         // Wait until frame has been received
-        loop {
-            let sys_status = dwm1001.DW1000
-                .ll()
-                .sys_status()
-                .read()
-                .expect("Failed to read from register");
+        let len = loop {
+            match dwm1001.DW1000.receive(&mut buffer) {
+                Ok(len) =>
+                    break len,
+                Err(nb::Error::WouldBlock) =>
+                    (),
+                Err(error) =>
+                    panic!("Failed to receive data: {:?}", error),
+            }
 
-            // Check progress
-            if sys_status.rxprd() == 0b1 {
-                dwm1001.DW1000
-                    .ll()
-                    .sys_status()
-                    .write(|w| w.rxprd(0b1))
-                    .expect("Failed to reset flag");
-                print!("Preamble detected\n");
-            }
-            if sys_status.rxsfdd() == 0b1 {
-                dwm1001.DW1000
-                    .ll()
-                    .sys_status()
-                    .write(|w| w.rxsfdd(0b1))
-                    .expect("Failed to reset flag");
-                print!("SFD detected\n");
-            }
-            if sys_status.rxphd() == 0b1 {
-                dwm1001.DW1000
-                    .ll()
-                    .sys_status()
-                    .write(|w| w.rxphd(0b1))
-                    .expect("Failed to reset flag");
-                print!("PHY header detected\n");
-            }
-            if sys_status.rxdfr() == 0b1 {
-                dwm1001.DW1000
-                    .ll()
-                    .sys_status()
-                    .write(|w| w.rxdfr(0b1))
-                    .expect("Failed to reset flag");
-                print!("Data frame ready\n");
-
-                // Check for errors
-                if sys_status.rxfce() == 0b1 {
-                    print!("FCS error\n");
+            match timer.wait() {
+                Ok(()) => {
+                    print!("Timeout\n");
                     continue 'outer;
                 }
-                if sys_status.rxfcg() != 0b1 {
-                    print!("FCS not good\n");
-                    continue 'outer;
-                }
-
-                break;
+                Err(nb::Error::WouldBlock) =>
+                    (),
+                Err(error) =>
+                    panic!("Failed to wait for timer: {:?}", error),
             }
+        };
 
-            // Check errors
-            if sys_status.ldeerr() == 0b1 {
-                dwm1001.DW1000
-                    .ll()
-                    .sys_status()
-                    .write(|w| w.ldeerr(0b1))
-                    .expect("Failed to reset flag");
-                print!("Leading edge detection error\n");
-            }
-            if sys_status.rxprej() == 0b1 {
-                dwm1001.DW1000
-                    .ll()
-                    .sys_status()
-                    .write(|w| w.rxprej(0b1))
-                    .expect("Failed to reset flag");
-                print!("Preamble rejection\n");
-            }
-            if sys_status.rxphe() == 0b1 {
-                dwm1001.DW1000
-                    .ll()
-                    .sys_status()
-                    .write(|w| w.rxphe(0b1))
-                    .expect("Failed to reset flag");
-                print!("PHY header error\n");
-
-                continue 'outer;
-            }
-
-            if timer.wait() != Err(nb::Error::WouldBlock) {
-                print!("Timeout\n");
-                continue 'outer;
-            }
-        }
-
-        print!("Process...\n");
-
-        // Read received frame
-        let rx_finfo = dwm1001.DW1000
-            .ll()
-            .rx_finfo()
-            .read()
-            .expect("Failed to read from register");
-        let rx_buffer = dwm1001.DW1000
-            .ll()
-            .rx_buffer()
-            .read()
-            .expect("Failed to read from register");
-
-        let len  = rx_finfo.rxflen() as usize;
-        let data = &rx_buffer.data()[0 .. len];
+        let data = &buffer[..len];
 
         print!("Received data: {:?}\n", data);
 
@@ -160,12 +82,12 @@ fn main() -> ! {
 
         // Received data should have length of expected data, plus 2-byte CRC
         // checksum.
-        if len != expected_data.len() + 2 {
-            print!("Unexpected length: {}\n", len);
+        if data.len() != expected_data.len() + 2 {
+            print!("Unexpected length: {}\n", data.len());
             continue;
         }
 
-        if data[0 .. len - 2] != expected_data[..] {
+        if data[0 .. data.len() - 2] != expected_data[..] {
             print!("Unexpected data");
             continue;
         }
