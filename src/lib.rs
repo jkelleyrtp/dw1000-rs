@@ -7,6 +7,7 @@
 #![deny(warnings)]
 
 
+extern crate nb;
 extern crate nrf52832_hal as hal;
 
 
