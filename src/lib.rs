@@ -10,6 +10,8 @@
 extern crate nrf52832_hal as hal;
 
 
+use core::marker::PhantomData;
+
 use hal::{
     prelude::*,
     gpio::{
@@ -44,9 +46,17 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
             chip_select,
         }
     }
+}
 
+
+/// Provides access to a register
+///
+/// Please refer to [`DW1000`] for more information.
+pub struct RegAccessor<'s, R, SPI: 's>(&'s mut DW1000<SPI>, PhantomData<R>);
+
+impl<'s, R, SPI> RegAccessor<'s, R, SPI> where SPI: SpimExt {
     /// Read from a register
-    pub fn read<R>(&mut self) -> Result<R::Read, spim::Error>
+    pub fn read(&mut self) -> Result<R::Read, spim::Error>
         where
             R: Register + Readable,
     {
@@ -55,8 +65,8 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 
         let mut r = R::read();
 
-        self.spim.read(
-            &mut self.chip_select,
+        self.0.spim.read(
+            &mut self.0.chip_select,
             &tx_buffer[0 .. header_len],
             R::buffer(&mut r),
         )?;
@@ -65,7 +75,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 
     /// Write to a register
-    pub fn write<R, F>(&mut self, f: F) -> Result<(), spim::Error>
+    pub fn write<F>(&mut self, f: F) -> Result<(), spim::Error>
         where
             R: Register + Writable,
             F: FnOnce(&mut R::Write) -> &mut R::Write,
@@ -75,19 +85,19 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         let tx_buffer = R::buffer(&mut w);
         init_header::<R>(true, tx_buffer);
 
-        self.spim.write(&mut self.chip_select, &tx_buffer)?;
+        self.0.spim.write(&mut self.0.chip_select, &tx_buffer)?;
 
         Ok(())
     }
 
     /// Modify a register
-    pub fn modify<R, F>(&mut self, f: F) -> Result<(), spim::Error>
+    pub fn modify<F>(&mut self, f: F) -> Result<(), spim::Error>
         where
             R: Register + Readable + Writable,
             F: for<'r>
                 FnOnce(&mut R::Read, &'r mut R::Write) -> &'r mut R::Write,
     {
-        let mut r = self.read::<R>()?;
+        let mut r = self.read()?;
         let mut w = R::write();
 
         <R as Writable>::buffer(&mut w)
@@ -98,7 +108,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         let tx_buffer = <R as Writable>::buffer(&mut w);
         init_header::<R>(true, tx_buffer);
 
-        self.spim.write(&mut self.chip_select, &tx_buffer)?;
+        self.0.spim.write(&mut self.0.chip_select, &tx_buffer)?;
 
         Ok(())
     }
@@ -442,6 +452,16 @@ macro_rules! impl_register {
 
             impl_rw!($rw, $name, $name_lower, $len);
         )*
+
+
+        impl<SPI> DW1000<SPI> {
+            $(
+                #[$doc]
+                pub fn $name_lower(&mut self) -> RegAccessor<$name, SPI> {
+                    RegAccessor(self, PhantomData)
+                }
+            )*
+        }
     }
 }
 
@@ -635,6 +655,13 @@ impl Writable for TX_BUFFER {
     }
 }
 
+impl<SPI> DW1000<SPI> {
+    /// Transmit Data Buffer
+    pub fn tx_buffer(&mut self) -> RegAccessor<TX_BUFFER, SPI> {
+        RegAccessor(self, PhantomData)
+    }
+}
+
 
 /// Transmit Data Buffer
 pub mod tx_buffer {
@@ -675,6 +702,13 @@ impl Readable for RX_BUFFER {
 
     fn buffer(w: &mut Self::Read) -> &mut [u8] {
         &mut w.0
+    }
+}
+
+impl<SPI> DW1000<SPI> {
+    /// Receive Data Buffer
+    pub fn rx_buffer(&mut self) -> RegAccessor<RX_BUFFER, SPI> {
+        RegAccessor(self, PhantomData)
     }
 }
 
