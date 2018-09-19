@@ -105,9 +105,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 
     /// Starts the receiver
-    ///
-    /// This method must always be called before attempting to receive data.
-    pub fn start_receiver(&mut self) -> Result<(), Error> {
+    pub fn start_receiver(&mut self) -> Result<Receiver<SPI>, Error> {
         // For unknown reasons, the DW1000 get stuck in RX mode without ever
         // receiving anything, after receiving one good frame. Reset the
         // receiver to make sure its in a valid state before attempting to
@@ -170,16 +168,21 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
                 w.rxenab(0b1)
             )?;
 
-        Ok(())
+        Ok(Receiver(&mut self.0))
     }
+}
 
+
+/// Receives data
+///
+/// Call [`DW1000::start_receiver`] to get an instance of `Receiver`.
+pub struct Receiver<'r, SPI: 'r>(&'r mut ll::DW1000<SPI>);
+
+impl<'r, SPI> Receiver<'r, SPI> where SPI: SpimExt {
     /// Receive data
     ///
     /// On success, it writes the received data into the buffer and returns the
     /// length of the received data.
-    ///
-    /// [`start_receiver`] must have been called before attempting to receive
-    /// data.
     pub fn receive(&mut self, buffer: &mut [u8]) -> nb::Result<usize, Error> {
         let sys_status = self.0
             .sys_status()
