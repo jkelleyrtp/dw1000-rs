@@ -6,4 +6,4 @@ rust:
   - nightly
 
 script:
-  - ./ci/build.sh
+  - ./scripts/build.sh
