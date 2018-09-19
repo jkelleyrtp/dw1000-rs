@@ -12,4 +12,4 @@ install:
   - rustup target add thumbv7em-none-eabihf
 
 script:
-  - ./ci/build.sh
+  - ./scripts/build.sh
