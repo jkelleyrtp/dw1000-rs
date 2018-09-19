@@ -42,7 +42,7 @@ fn main() -> ! {
     let mut timer = dwm1001.TIMER0.constrain();
 
     'outer: loop {
-        dwm1001.DW1000
+        let mut receiver = dwm1001.DW1000
             .start_receiver()
             .expect("Failed to start receiver");
 
@@ -53,7 +53,7 @@ fn main() -> ! {
 
         // Wait until frame has been received
         let len = loop {
-            match dwm1001.DW1000.receive(&mut buffer) {
+            match receiver.receive(&mut buffer) {
                 Ok(len) =>
                     break len,
                 Err(nb::Error::WouldBlock) =>
