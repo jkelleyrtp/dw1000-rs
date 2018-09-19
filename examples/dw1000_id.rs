@@ -23,6 +23,7 @@ fn main() -> ! {
     let mut dwm1001 = DWM1001::take().unwrap();
 
     let dev_id = dwm1001.DW1000
+        .ll()
         .dev_id()
         .read()
         .expect("Failed to read DEV_ID register");

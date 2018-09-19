@@ -31,6 +31,7 @@ fn main() -> ! {
 
     // Initialize PANADR, so we can test `modify` in a controlled environment
     dwm1001.DW1000
+        .ll()
         .panadr()
         .write(|w|
             w
@@ -42,6 +43,7 @@ fn main() -> ! {
     write!(stdout, "Modifying...\n");
 
     dwm1001.DW1000
+        .ll()
         .panadr()
         .modify(|r, w| {
             assert_eq!(r.short_addr(), 0x1234);
@@ -54,6 +56,7 @@ fn main() -> ! {
     write!(stdout, "Reading...\n");
 
     let panadr = dwm1001.DW1000
+        .ll()
         .panadr()
         .read()
         .expect("Failed to read from register");

@@ -30,6 +30,7 @@ fn main() -> ! {
     write!(stdout, "Writing...\n");
 
     dwm1001.DW1000
+        .ll()
         .drx_tune2()
         .write(|w|
             // Careful, only specific values are allowed here.
@@ -40,6 +41,7 @@ fn main() -> ! {
     write!(stdout, "Reading...\n");
 
     let drx_tune2 = dwm1001.DW1000
+        .ll()
         .drx_tune2()
         .read()
         .expect("Failed to read from register");
@@ -49,6 +51,7 @@ fn main() -> ! {
     write!(stdout, "Writing...\n");
 
     dwm1001.DW1000
+        .ll()
         .drx_tune2()
         .write(|w|
             // Careful, only specific values are allowed here.
@@ -59,6 +62,7 @@ fn main() -> ! {
     write!(stdout, "Reading...\n");
 
     let drx_tune2 = dwm1001.DW1000
+        .ll()
         .drx_tune2()
         .read()
         .expect("Failed to read from register");

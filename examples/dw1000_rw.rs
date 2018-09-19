@@ -32,6 +32,7 @@ fn main() -> ! {
     write!(stdout, "Writing...\n");
 
     dwm1001.DW1000
+        .ll()
         .tx_fctrl()
         .write(|w|
             w
@@ -50,6 +51,7 @@ fn main() -> ! {
     write!(stdout, "Reading...\n");
 
     let tx_fctrl = dwm1001.DW1000
+        .ll()
         .tx_fctrl()
         .read()
         .expect("Failed to read from register");

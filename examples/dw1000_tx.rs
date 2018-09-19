@@ -32,12 +32,14 @@ fn main() -> ! {
 
         // Prepare transmitter
         dwm1001.DW1000
+            .ll()
             .tx_buffer()
             .write(|w|
                 w.data(tx_data)
             )
             .expect("Failed to write to register");
         dwm1001.DW1000
+            .ll()
             .tx_fctrl()
             .write(|w| {
                 let tflen = tx_data.len() as u8 + 2;
@@ -60,6 +62,7 @@ fn main() -> ! {
 
         // Start transmission
         dwm1001.DW1000
+            .ll()
             .sys_ctrl()
             .modify(|_, w|
                 w
@@ -70,12 +73,14 @@ fn main() -> ! {
         // Wait until frame is sent
         loop {
             let sys_status = dwm1001.DW1000
+                .ll()
                 .sys_status()
                 .read()
                 .expect("Failed to read from register");
 
             if sys_status.txfrb() == 0b1 {
                 dwm1001.DW1000
+                    .ll()
                     .sys_status()
                     .write(|w| w.txfrb(0b1))
                     .expect("Failed to reset flag");
@@ -83,6 +88,7 @@ fn main() -> ! {
             }
             if sys_status.txprs() == 0b1 {
                 dwm1001.DW1000
+                    .ll()
                     .sys_status()
                     .write(|w| w.txprs(0b1))
                     .expect("Failed to reset flag");
@@ -90,6 +96,7 @@ fn main() -> ! {
             }
             if sys_status.txphs() == 0b1 {
                 dwm1001.DW1000
+                    .ll()
                     .sys_status()
                     .write(|w| w.txphs(0b1))
                     .expect("Failed to reset flag");
@@ -97,6 +104,7 @@ fn main() -> ! {
             }
             if sys_status.txfrs() == 0b1 {
                 dwm1001.DW1000
+                    .ll()
                     .sys_status()
                     .write(|w| w.txfrs(0b1))
                     .expect("Failed to reset flag");
