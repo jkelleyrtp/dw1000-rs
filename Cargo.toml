@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Hanno Braun <hanno@braun-robotics.com>"]
 
 [dependencies]
+nb           = "0.1.1"
 # This is my fork of nrf52-hal. I'm depending on it for the time being, until
 # work on it has settled down a bit.
 # Ideally we wouldn't need a dependency on nrf52-hal at all, and would depend on
