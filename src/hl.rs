@@ -15,6 +15,7 @@ use hal::{
     spim,
     Spim,
 };
+use nb;
 
 use ll;
 
@@ -171,6 +172,56 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 
         Ok(())
     }
+
+    /// Receive data
+    ///
+    /// On success, it writes the received data into the buffer and returns the
+    /// length of the received data.
+    ///
+    /// [`start_receiver`] must have been called before attempting to receive
+    /// data.
+    pub fn receive(&mut self, buffer: &mut [u8]) -> nb::Result<usize, Error> {
+        let sys_status = self.0
+            .sys_status()
+            .read()
+            .map_err(|error| Error::Spi(error))?;
+
+        // Is a frame ready?
+        if sys_status.rxdfr() == 0b0 {
+            // No frame ready
+            return Err(nb::Error::WouldBlock);
+        }
+
+        // Check for errors
+        if sys_status.rxfce() == 0b1 || sys_status.rxfcg() == 0b0 {
+            return Err(nb::Error::Other(Error::Fcs));
+        }
+        if sys_status.rxphe() == 0b1 {
+            return Err(nb::Error::Other(Error::Phy));
+        }
+
+        // Read received frame
+        let rx_finfo = self.0
+            .rx_finfo()
+            .read()
+            .map_err(|error| Error::Spi(error))?;
+        let rx_buffer = self.0
+            .rx_buffer()
+            .read()
+            .map_err(|error| Error::Spi(error))?;
+
+        let len = rx_finfo.rxflen() as usize;
+
+        if buffer.len() < len {
+            return Err(nb::Error::Other(
+                Error::BufferTooSmall { required_len: len }
+            ))
+        }
+
+        buffer[..len].copy_from_slice(&rx_buffer.data()[..len]);
+
+        Ok(len)
+    }
 }
 
 
@@ -179,10 +230,28 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 pub enum Error {
     /// Error occured while using SPI bus
     Spi(spim::Error),
+
+    /// Receiver FCS error
+    Fcs,
+
+    /// PHY header error
+    Phy,
+
+    /// Buffer too small
+    BufferTooSmall {
+        /// Indicates how large a buffer would have been required
+        required_len: usize,
+    }
 }
 
 impl From<spim::Error> for Error {
     fn from(error: spim::Error) -> Self {
         Error::Spi(error)
+    }
+}
+
+impl From<Error> for nb::Error<Error> {
+    fn from(error: Error) -> Self {
+        nb::Error::Other(error.into())
     }
 }
