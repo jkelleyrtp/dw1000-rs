@@ -20,10 +20,7 @@ use core::fmt::Write;
 
 use cortex_m_semihosting::hio;
 
-use dwm1001::{
-    dw1000,
-    DWM1001,
-};
+use dwm1001::DWM1001;
 
 
 #[entry]
@@ -37,7 +34,9 @@ fn main() -> ! {
     write!(stdout, "Writing...\n");
 
     dwm1001.DW1000
-        .write::<dw1000::LDE_CFG2, _>(|w|
+        .ll()
+        .lde_cfg2()
+        .write(|w|
             // Careful, only specific values are allowed here.
             w.value(0x1607)
         )
@@ -45,7 +44,10 @@ fn main() -> ! {
 
     write!(stdout, "Reading...\n");
 
-    let lde_cfg2 = dwm1001.DW1000.read::<dw1000::LDE_CFG2>()
+    let lde_cfg2 = dwm1001.DW1000
+        .ll()
+        .lde_cfg2()
+        .read()
         .expect("Failed to read from register");
 
     assert_eq!(lde_cfg2.value(), 0x1607);
@@ -53,7 +55,9 @@ fn main() -> ! {
     write!(stdout, "Writing...\n");
 
     dwm1001.DW1000
-        .write::<dw1000::LDE_CFG2, _>(|w|
+        .ll()
+        .lde_cfg2()
+        .write(|w|
             // Careful, only specific values are allowed here.
             w.value(0x0607)
         )
@@ -61,7 +65,10 @@ fn main() -> ! {
 
     write!(stdout, "Reading...\n");
 
-    let lde_cfg2 = dwm1001.DW1000.read::<dw1000::LDE_CFG2>()
+    let lde_cfg2 = dwm1001.DW1000
+        .ll()
+        .lde_cfg2()
+        .read()
         .expect("Failed to read from register");
 
     assert_eq!(lde_cfg2.value(), 0x0607);

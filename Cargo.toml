@@ -34,11 +34,11 @@ name              = "dw1000_id"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "dw1000_modify"
+name              = "dw1000_reg_modify"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "dw1000_rw"
+name              = "dw1000_reg_rw"
 required-features = ["dev", "rt"]
 
 [[example]]

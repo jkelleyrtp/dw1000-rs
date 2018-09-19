@@ -15,17 +15,17 @@ extern crate dwm1001;
 extern crate panic_semihosting;
 
 
-use dwm1001::{
-    dw1000,
-    DWM1001,
-};
+use dwm1001::DWM1001;
 
 
 #[entry]
 fn main() -> ! {
     let mut dwm1001 = DWM1001::take().unwrap();
 
-    let dev_id = dwm1001.DW1000.read::<dw1000::DEV_ID>()
+    let dev_id = dwm1001.DW1000
+        .ll()
+        .dev_id()
+        .read()
         .expect("Failed to read DEV_ID register");
 
     assert_eq!(dev_id.ridtag(), 0xDECA);

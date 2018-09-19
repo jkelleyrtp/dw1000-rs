@@ -19,7 +19,6 @@ extern crate panic_semihosting;
 use dwm1001::{
     prelude::*,
     debug,
-    dw1000,
     nrf52832_hal::Delay,
     DWM1001,
 };
@@ -43,153 +42,39 @@ fn main() -> ! {
     let mut timer = dwm1001.TIMER0.constrain();
 
     'outer: loop {
-        print!("Configure...\n");
+        let mut receiver = dwm1001.DW1000
+            .start_receiver()
+            .expect("Failed to start receiver");
 
-        // For unknown reasons, the DW1000 get stuck in RX mode without ever
-        // receiving anything, after receiving one good frame. Reset the
-        // receiver to make sure its in a valid state before attempting to
-        // receive anything.
-        dwm1001.DW1000
-            .modify::<dw1000::PMSC_CTRL0, _>(|_, w|
-                w.softreset(0b1110) // reset receiver
-            )
-            .expect("Failed to modify register");
-        dwm1001.DW1000
-            .modify::<dw1000::PMSC_CTRL0, _>(|_, w|
-                w.softreset(0b1111) // clear reset
-            )
-            .expect("Failed to modify register");
-
-        // Set PLLLDT bit in EC_CTRL. According to the documentation of the
-        // CLKPLL_LL bit in SYS_STATUS, this bit needs to be set to ensure the
-        // reliable operation of the CLKPLL_LL bit. Since I've seen that bit
-        // being set, I want to make sure I'm not just seeing crap.
-        dwm1001.DW1000
-            .modify::<dw1000::EC_CTRL, _>(|_, w|
-                w.pllldt(0b1)
-            )
-            .expect("Failed to modify register");
-
-        // Now that PLLLDT is set, clear all bits in SYS_STATUS that depend on
-        // it for reliable operation. After that is done, these bits should work
-        // reliably.
-        dwm1001.DW1000
-            .write::<dw1000::SYS_STATUS, _>(|w|
-                w
-                    .cplock(0b1)
-                    .clkpll_ll(0b1)
-            )
-            .expect("Failed to write to register");
-
-        // If we cared about MAC addresses, which we don't in this example, we'd
-        // have to enable frame filtering at this point. By default it's off,
-        // meaning we'll receive everything, no matter who it is addressed to.
-
-        // We're expecting a preamble length of `64`. Set PAC size to the
-        // recommended value for that preamble length, according to section
-        // 4.1.1. The value we're writing to DRX_TUNE2 here also depends on the
-        // PRF, which we expect to be 16 MHz.
-        dwm1001.DW1000
-            .write::<dw1000::DRX_TUNE2, _>(|w|
-                // PAC size 8, with 16 MHz PRF
-                w.value(0x311A002D)
-            )
-            .expect("Failed to write to register");
-
-        // If we were going to receive at 110 kbps, we'd need to set the RXM110K
-        // bit in the System Configuration register. We're expecting to receive
-        // at 850 kbps though, so the default is fine. See section 4.1.3 for a
-        // detailed explanation.
-
-        print!("Receive...\n");
-
-        dwm1001.DW1000
-            .modify::<dw1000::SYS_CTRL, _>(|_, w|
-                w.rxenab(0b1)
-            )
-            .expect("Failed to modify register");
+        let mut buffer = [0; 1024];
 
         // Set timer for timeout
         timer.start(5_000_000);
 
         // Wait until frame has been received
-        loop {
-            let sys_status = dwm1001.DW1000.read::<dw1000::SYS_STATUS>()
-                .expect("Failed to read from register");
+        let len = loop {
+            match receiver.receive(&mut buffer) {
+                Ok(len) =>
+                    break len,
+                Err(nb::Error::WouldBlock) =>
+                    (),
+                Err(error) =>
+                    panic!("Failed to receive data: {:?}", error),
+            }
 
-            // Check progress
-            if sys_status.rxprd() == 0b1 {
-                dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.rxprd(0b1))
-                    .expect("Failed to reset flag");
-                print!("Preamble detected\n");
-            }
-            if sys_status.rxsfdd() == 0b1 {
-                dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.rxsfdd(0b1))
-                    .expect("Failed to reset flag");
-                print!("SFD detected\n");
-            }
-            if sys_status.rxphd() == 0b1 {
-                dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.rxphd(0b1))
-                    .expect("Failed to reset flag");
-                print!("PHY header detected\n");
-            }
-            if sys_status.rxdfr() == 0b1 {
-                dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.rxdfr(0b1))
-                    .expect("Failed to reset flag");
-                print!("Data frame ready\n");
-
-                // Check for errors
-                if sys_status.rxfce() == 0b1 {
-                    print!("FCS error\n");
+            match timer.wait() {
+                Ok(()) => {
+                    print!("Timeout\n");
                     continue 'outer;
                 }
-                if sys_status.rxfcg() != 0b1 {
-                    print!("FCS not good\n");
-                    continue 'outer;
-                }
-
-                break;
+                Err(nb::Error::WouldBlock) =>
+                    (),
+                Err(error) =>
+                    panic!("Failed to wait for timer: {:?}", error),
             }
+        };
 
-            // Check errors
-            if sys_status.ldeerr() == 0b1 {
-                dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.ldeerr(0b1))
-                    .expect("Failed to reset flag");
-                print!("Leading edge detection error\n");
-
-                continue 'outer;
-            }
-            if sys_status.rxprej() == 0b1 {
-                dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.rxprej(0b1))
-                    .expect("Failed to reset flag");
-                print!("Preamble rejection\n");
-
-                continue 'outer;
-            }
-            if sys_status.rxphe() == 0b1 {
-                dwm1001.DW1000.write::<dw1000::SYS_STATUS, _>(|w| w.rxphe(0b1))
-                    .expect("Failed to reset flag");
-                print!("PHY header error\n");
-
-                continue 'outer;
-            }
-
-            if timer.wait() != Err(nb::Error::WouldBlock) {
-                print!("Timeout\n");
-                continue 'outer;
-            }
-        }
-
-        print!("Process...\n");
-
-        // Read received frame
-        let rx_finfo = dwm1001.DW1000.read::<dw1000::RX_FINFO>()
-            .expect("Failed to read from register");
-        let rx_buffer = dwm1001.DW1000.read::<dw1000::RX_BUFFER>()
-            .expect("Failed to read from register");
-
-        let len  = rx_finfo.rxflen() as usize;
-        let data = &rx_buffer.data()[0 .. len];
+        let data = &buffer[..len];
 
         print!("Received data: {:?}\n", data);
 
@@ -197,12 +82,12 @@ fn main() -> ! {
 
         // Received data should have length of expected data, plus 2-byte CRC
         // checksum.
-        if len != expected_data.len() + 2 {
-            print!("Unexpected length: {}\n", len);
+        if data.len() != expected_data.len() + 2 {
+            print!("Unexpected length: {}\n", data.len());
             continue;
         }
 
-        if data[0 .. len - 2] != expected_data[..] {
+        if data[0 .. data.len() - 2] != expected_data[..] {
             print!("Unexpected data");
             continue;
         }

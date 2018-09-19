@@ -16,10 +16,7 @@ use core::fmt::Write;
 
 use cortex_m_semihosting::hio;
 
-use dwm1001::{
-    dw1000,
-    DWM1001,
-};
+use dwm1001::DWM1001;
 
 
 #[entry]
@@ -34,7 +31,9 @@ fn main() -> ! {
 
     // Initialize PANADR, so we can test `modify` in a controlled environment
     dwm1001.DW1000
-        .write::<dw1000::PANADR, _>(|w|
+        .ll()
+        .panadr()
+        .write(|w|
             w
                 .short_addr(0x1234)
                 .pan_id(0xabcd)
@@ -44,7 +43,9 @@ fn main() -> ! {
     write!(stdout, "Modifying...\n");
 
     dwm1001.DW1000
-        .modify::<dw1000::PANADR, _>(|r, w| {
+        .ll()
+        .panadr()
+        .modify(|r, w| {
             assert_eq!(r.short_addr(), 0x1234);
             assert_eq!(r.pan_id(),     0xabcd);
 
@@ -54,7 +55,10 @@ fn main() -> ! {
 
     write!(stdout, "Reading...\n");
 
-    let panadr = dwm1001.DW1000.read::<dw1000::PANADR>()
+    let panadr = dwm1001.DW1000
+        .ll()
+        .panadr()
+        .read()
         .expect("Failed to read from register");
 
     assert_eq!(panadr.short_addr(), 0x1234);

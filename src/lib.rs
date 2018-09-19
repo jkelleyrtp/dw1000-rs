@@ -20,7 +20,6 @@ extern crate cortex_m_semihosting;
 
 /// Exports traits that are usually needed when using this crate
 pub mod prelude {
-    pub use dw1000::Register as __dwm1001__prelude__register;
     pub use nrf52832_hal::prelude::*;
 }
 
