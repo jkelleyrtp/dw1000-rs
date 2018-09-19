@@ -185,8 +185,6 @@ fn main() -> ! {
                     .write(|w| w.ldeerr(0b1))
                     .expect("Failed to reset flag");
                 print!("Leading edge detection error\n");
-
-                continue 'outer;
             }
             if sys_status.rxprej() == 0b1 {
                 dwm1001.DW1000
@@ -195,8 +193,6 @@ fn main() -> ! {
                     .write(|w| w.rxprej(0b1))
                     .expect("Failed to reset flag");
                 print!("Preamble rejection\n");
-
-                continue 'outer;
             }
             if sys_status.rxphe() == 0b1 {
                 dwm1001.DW1000
