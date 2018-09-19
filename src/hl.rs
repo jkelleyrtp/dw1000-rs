@@ -102,4 +102,73 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 
         Ok(())
     }
+
+    /// Starts the receiver
+    ///
+    /// This method must always be called before attempting to receive data.
+    pub fn start_receiver(&mut self) -> Result<(), spim::Error> {
+        // For unknown reasons, the DW1000 get stuck in RX mode without ever
+        // receiving anything, after receiving one good frame. Reset the
+        // receiver to make sure its in a valid state before attempting to
+        // receive anything.
+        self.0
+            .pmsc_ctrl0()
+            .modify(|_, w|
+                w.softreset(0b1110) // reset receiver
+            )?;
+        self.0
+            .pmsc_ctrl0()
+            .modify(|_, w|
+                w.softreset(0b1111) // clear reset
+            )?;
+
+        // Set PLLLDT bit in EC_CTRL. According to the documentation of the
+        // CLKPLL_LL bit in SYS_STATUS, this bit needs to be set to ensure the
+        // reliable operation of the CLKPLL_LL bit. Since I've seen that bit
+        // being set, I want to make sure I'm not just seeing crap.
+        self.0
+            .ec_ctrl()
+            .modify(|_, w|
+                w.pllldt(0b1)
+            )?;
+
+        // Now that PLLLDT is set, clear all bits in SYS_STATUS that depend on
+        // it for reliable operation. After that is done, these bits should work
+        // reliably.
+        self.0
+            .sys_status()
+            .write(|w|
+                w
+                    .cplock(0b1)
+                    .clkpll_ll(0b1)
+            )?;
+
+        // If we cared about MAC addresses, which we don't in this example, we'd
+        // have to enable frame filtering at this point. By default it's off,
+        // meaning we'll receive everything, no matter who it is addressed to.
+
+        // We're expecting a preamble length of `64`. Set PAC size to the
+        // recommended value for that preamble length, according to section
+        // 4.1.1. The value we're writing to DRX_TUNE2 here also depends on the
+        // PRF, which we expect to be 16 MHz.
+        self.0
+            .drx_tune2()
+            .write(|w|
+                // PAC size 8, with 16 MHz PRF
+                w.value(0x311A002D)
+            )?;
+
+        // If we were going to receive at 110 kbps, we'd need to set the RXM110K
+        // bit in the System Configuration register. We're expecting to receive
+        // at 850 kbps though, so the default is fine. See section 4.1.3 for a
+        // detailed explanation.
+
+        self.0
+            .sys_ctrl()
+            .modify(|_, w|
+                w.rxenab(0b1)
+            )?;
+
+        Ok(())
+    }
 }
