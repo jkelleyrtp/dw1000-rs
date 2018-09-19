@@ -42,83 +42,9 @@ fn main() -> ! {
     let mut timer = dwm1001.TIMER0.constrain();
 
     'outer: loop {
-        print!("Configure...\n");
-
-        // For unknown reasons, the DW1000 get stuck in RX mode without ever
-        // receiving anything, after receiving one good frame. Reset the
-        // receiver to make sure its in a valid state before attempting to
-        // receive anything.
         dwm1001.DW1000
-            .ll()
-            .pmsc_ctrl0()
-            .modify(|_, w|
-                w.softreset(0b1110) // reset receiver
-            )
-            .expect("Failed to modify register");
-        dwm1001.DW1000
-            .ll()
-            .pmsc_ctrl0()
-            .modify(|_, w|
-                w.softreset(0b1111) // clear reset
-            )
-            .expect("Failed to modify register");
-
-        // Set PLLLDT bit in EC_CTRL. According to the documentation of the
-        // CLKPLL_LL bit in SYS_STATUS, this bit needs to be set to ensure the
-        // reliable operation of the CLKPLL_LL bit. Since I've seen that bit
-        // being set, I want to make sure I'm not just seeing crap.
-        dwm1001.DW1000
-            .ll()
-            .ec_ctrl()
-            .modify(|_, w|
-                w.pllldt(0b1)
-            )
-            .expect("Failed to modify register");
-
-        // Now that PLLLDT is set, clear all bits in SYS_STATUS that depend on
-        // it for reliable operation. After that is done, these bits should work
-        // reliably.
-        dwm1001.DW1000
-            .ll()
-            .sys_status()
-            .write(|w|
-                w
-                    .cplock(0b1)
-                    .clkpll_ll(0b1)
-            )
-            .expect("Failed to write to register");
-
-        // If we cared about MAC addresses, which we don't in this example, we'd
-        // have to enable frame filtering at this point. By default it's off,
-        // meaning we'll receive everything, no matter who it is addressed to.
-
-        // We're expecting a preamble length of `64`. Set PAC size to the
-        // recommended value for that preamble length, according to section
-        // 4.1.1. The value we're writing to DRX_TUNE2 here also depends on the
-        // PRF, which we expect to be 16 MHz.
-        dwm1001.DW1000
-            .ll()
-            .drx_tune2()
-            .write(|w|
-                // PAC size 8, with 16 MHz PRF
-                w.value(0x311A002D)
-            )
-            .expect("Failed to write to register");
-
-        // If we were going to receive at 110 kbps, we'd need to set the RXM110K
-        // bit in the System Configuration register. We're expecting to receive
-        // at 850 kbps though, so the default is fine. See section 4.1.3 for a
-        // detailed explanation.
-
-        print!("Receive...\n");
-
-        dwm1001.DW1000
-            .ll()
-            .sys_ctrl()
-            .modify(|_, w|
-                w.rxenab(0b1)
-            )
-            .expect("Failed to modify register");
+            .start_receiver()
+            .expect("Failed to start receiver");
 
         // Set timer for timeout
         timer.start(5_000_000);
