@@ -46,7 +46,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     /// Broadcast raw data
     ///
     /// Broadcasts data without any MAC header.
-    pub fn send_raw(&mut self, data: &[u8]) -> Result<(), spim::Error> {
+    pub fn send_raw(&mut self, data: &[u8]) -> Result<(), Error> {
         // Prepare transmitter
         self.0
             .tx_buffer()
@@ -106,7 +106,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     /// Starts the receiver
     ///
     /// This method must always be called before attempting to receive data.
-    pub fn start_receiver(&mut self) -> Result<(), spim::Error> {
+    pub fn start_receiver(&mut self) -> Result<(), Error> {
         // For unknown reasons, the DW1000 get stuck in RX mode without ever
         // receiving anything, after receiving one good frame. Reset the
         // receiver to make sure its in a valid state before attempting to
@@ -170,5 +170,19 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
             )?;
 
         Ok(())
+    }
+}
+
+
+/// An error that can occur when sending or receiving data
+#[derive(Debug)]
+pub enum Error {
+    /// Error occured while using SPI bus
+    Spi(spim::Error),
+}
+
+impl From<spim::Error> for Error {
+    fn from(error: spim::Error) -> Self {
+        Error::Spi(error)
     }
 }

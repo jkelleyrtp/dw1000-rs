@@ -14,4 +14,7 @@ pub mod ll;
 pub mod hl;
 
 
-pub use hl::DW1000;
+pub use hl::{
+    DW1000,
+    Error,
+};
