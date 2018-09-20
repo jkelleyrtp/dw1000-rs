@@ -50,6 +50,10 @@ name              = "dw1000_reg_rw"
 required-features = ["dev", "rt"]
 
 [[example]]
+name              = "dw1000_rx_tx"
+required-features = ["dev", "rt"]
+
+[[example]]
 name              = "dw1000_subreg"
 required-features = ["dev", "rt"]
 
