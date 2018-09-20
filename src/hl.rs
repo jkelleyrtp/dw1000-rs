@@ -196,6 +196,26 @@ impl<'r, SPI> Receiver<'r, SPI> where SPI: SpimExt {
         if sys_status.rxphe() == 0b1 {
             return Err(nb::Error::Other(Error::Phy));
         }
+        if sys_status.rxrfsl() == 0b1 {
+            return Err(nb::Error::Other(Error::ReedSolomon));
+        }
+        if sys_status.rxrfto() == 0b1 {
+            return Err(nb::Error::Other(Error::FrameWaitTimeout));
+        }
+        if sys_status.rxovrr() == 0b1 {
+            return Err(nb::Error::Other(Error::Overrun));
+        }
+        if sys_status.rxpto() == 0b1 {
+            return Err(nb::Error::Other(Error::PreambleDetectionTimeout));
+        }
+        if sys_status.rxsfdto() == 0b1 {
+            return Err(nb::Error::Other(Error::SfdTimeout));
+        }
+        // Some error flags that sound like valid errors aren't checked here,
+        // because experience has shown that they seem to occur spuriously
+        // without preventing a good frame from being received. Those are:
+        // - LDEERR: Leading Edge Detection Processing Error
+        // - RXPREJ: Receiver Preamble Rejection
 
         // Is a frame ready?
         if sys_status.rxdfr() == 0b0 {
@@ -244,7 +264,22 @@ pub enum Error {
     BufferTooSmall {
         /// Indicates how large a buffer would have been required
         required_len: usize,
-    }
+    },
+
+    /// Receiver Reed Solomon Frame Sync Loss
+    ReedSolomon,
+
+    /// Receiver Frame Wait Timeout
+    FrameWaitTimeout,
+
+    /// Receiver Overrun
+    Overrun,
+
+    /// Preamble Detection Timeout
+    PreambleDetectionTimeout,
+
+    /// Receiver SFD Timeout
+    SfdTimeout,
 }
 
 impl From<spim::Error> for Error {
