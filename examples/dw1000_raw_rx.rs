@@ -58,8 +58,10 @@ fn main() -> ! {
                     break len,
                 Err(nb::Error::WouldBlock) =>
                     (),
-                Err(error) =>
-                    panic!("Failed to receive data: {:?}", error),
+                Err(error) => {
+                    print!("Error: {:?}\n", error);
+                    continue 'outer;
+                }
             }
 
             match timer.wait() {

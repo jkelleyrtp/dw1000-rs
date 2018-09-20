@@ -34,6 +34,14 @@ name              = "dw1000_id"
 required-features = ["dev", "rt"]
 
 [[example]]
+name              = "dw1000_raw_rx"
+required-features = ["dev", "rt"]
+
+[[example]]
+name              = "dw1000_raw_tx"
+required-features = ["dev", "rt"]
+
+[[example]]
 name              = "dw1000_reg_modify"
 required-features = ["dev", "rt"]
 
@@ -42,19 +50,11 @@ name              = "dw1000_reg_rw"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "dw1000_rx"
-required-features = ["dev", "rt"]
-
-[[example]]
 name              = "dw1000_subreg"
 required-features = ["dev", "rt"]
 
 [[example]]
 name              = "dw1000_subreg_ext_addr"
-required-features = ["dev", "rt"]
-
-[[example]]
-name              = "dw1000_tx"
 required-features = ["dev", "rt"]
 
 
