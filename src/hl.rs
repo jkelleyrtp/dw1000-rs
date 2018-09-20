@@ -223,6 +223,31 @@ impl<'r, SPI> Receiver<'r, SPI> where SPI: SpimExt {
             return Err(nb::Error::WouldBlock);
         }
 
+        // Reset status bits. This is not strictly necessary, but it helps, if
+        // you have to inspect SYS_STATUS manually during debugging.
+        self.0
+            .sys_status()
+            .write(|w|
+                w
+                    .rxprd(0b1)   // Receiver Preamble Detected
+                    .rxsfdd(0b1)  // Receiver SFD Detected
+                    .ldedone(0b1) // LDE Processing Done
+                    .rxphd(0b1)   // Receiver PHY Header Detected
+                    .rxphe(0b1)   // Receiver PHY Header Error
+                    .rxdfr(0b1)   // Receiver Data Frame Ready
+                    .rxfcg(0b1)   // Receiver FCS Good
+                    .rxfce(0b1)   // Receiver FCS Error
+                    .rxrfsl(0b1)  // Receiver Reed Solomon Frame Sync Loss
+                    .rxrfto(0b1)  // Receiver Frame Wait Timeout
+                    .ldeerr(0b1)  // Leading Edge Detection Processing Error
+                    .rxovrr(0b1)  // Receiver Overrun
+                    .rxpto(0b1)   // Preamble Detection Timeout
+                    .rxsfdto(0b1) // Receiver SFD Timeout
+                    .rxrscs(0b1)  // Receiver Reed-Solomon Correction Status
+                    .rxprej(0b1)  // Receiver Preamble Rejection
+            )
+            .map_err(|error| Error::Spi(error))?;
+
         // Read received frame
         let rx_finfo = self.0
             .rx_finfo()
