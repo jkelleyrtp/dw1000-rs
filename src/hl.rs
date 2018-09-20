@@ -189,18 +189,18 @@ impl<'r, SPI> Receiver<'r, SPI> where SPI: SpimExt {
             .read()
             .map_err(|error| Error::Spi(error))?;
 
-        // Is a frame ready?
-        if sys_status.rxdfr() == 0b0 {
-            // No frame ready
-            return Err(nb::Error::WouldBlock);
-        }
-
         // Check for errors
-        if sys_status.rxfce() == 0b1 || sys_status.rxfcg() == 0b0 {
+        if sys_status.rxfce() == 0b1 {
             return Err(nb::Error::Other(Error::Fcs));
         }
         if sys_status.rxphe() == 0b1 {
             return Err(nb::Error::Other(Error::Phy));
+        }
+
+        // Is a frame ready?
+        if sys_status.rxdfr() == 0b0 {
+            // No frame ready
+            return Err(nb::Error::WouldBlock);
         }
 
         // Read received frame
