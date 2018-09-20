@@ -189,19 +189,64 @@ impl<'r, SPI> Receiver<'r, SPI> where SPI: SpimExt {
             .read()
             .map_err(|error| Error::Spi(error))?;
 
+        // Check for errors
+        if sys_status.rxfce() == 0b1 {
+            return Err(nb::Error::Other(Error::Fcs));
+        }
+        if sys_status.rxphe() == 0b1 {
+            return Err(nb::Error::Other(Error::Phy));
+        }
+        if sys_status.rxrfsl() == 0b1 {
+            return Err(nb::Error::Other(Error::ReedSolomon));
+        }
+        if sys_status.rxrfto() == 0b1 {
+            return Err(nb::Error::Other(Error::FrameWaitTimeout));
+        }
+        if sys_status.rxovrr() == 0b1 {
+            return Err(nb::Error::Other(Error::Overrun));
+        }
+        if sys_status.rxpto() == 0b1 {
+            return Err(nb::Error::Other(Error::PreambleDetectionTimeout));
+        }
+        if sys_status.rxsfdto() == 0b1 {
+            return Err(nb::Error::Other(Error::SfdTimeout));
+        }
+        // Some error flags that sound like valid errors aren't checked here,
+        // because experience has shown that they seem to occur spuriously
+        // without preventing a good frame from being received. Those are:
+        // - LDEERR: Leading Edge Detection Processing Error
+        // - RXPREJ: Receiver Preamble Rejection
+
         // Is a frame ready?
         if sys_status.rxdfr() == 0b0 {
             // No frame ready
             return Err(nb::Error::WouldBlock);
         }
 
-        // Check for errors
-        if sys_status.rxfce() == 0b1 || sys_status.rxfcg() == 0b0 {
-            return Err(nb::Error::Other(Error::Fcs));
-        }
-        if sys_status.rxphe() == 0b1 {
-            return Err(nb::Error::Other(Error::Phy));
-        }
+        // Reset status bits. This is not strictly necessary, but it helps, if
+        // you have to inspect SYS_STATUS manually during debugging.
+        self.0
+            .sys_status()
+            .write(|w|
+                w
+                    .rxprd(0b1)   // Receiver Preamble Detected
+                    .rxsfdd(0b1)  // Receiver SFD Detected
+                    .ldedone(0b1) // LDE Processing Done
+                    .rxphd(0b1)   // Receiver PHY Header Detected
+                    .rxphe(0b1)   // Receiver PHY Header Error
+                    .rxdfr(0b1)   // Receiver Data Frame Ready
+                    .rxfcg(0b1)   // Receiver FCS Good
+                    .rxfce(0b1)   // Receiver FCS Error
+                    .rxrfsl(0b1)  // Receiver Reed Solomon Frame Sync Loss
+                    .rxrfto(0b1)  // Receiver Frame Wait Timeout
+                    .ldeerr(0b1)  // Leading Edge Detection Processing Error
+                    .rxovrr(0b1)  // Receiver Overrun
+                    .rxpto(0b1)   // Preamble Detection Timeout
+                    .rxsfdto(0b1) // Receiver SFD Timeout
+                    .rxrscs(0b1)  // Receiver Reed-Solomon Correction Status
+                    .rxprej(0b1)  // Receiver Preamble Rejection
+            )
+            .map_err(|error| Error::Spi(error))?;
 
         // Read received frame
         let rx_finfo = self.0
@@ -244,7 +289,22 @@ pub enum Error {
     BufferTooSmall {
         /// Indicates how large a buffer would have been required
         required_len: usize,
-    }
+    },
+
+    /// Receiver Reed Solomon Frame Sync Loss
+    ReedSolomon,
+
+    /// Receiver Frame Wait Timeout
+    FrameWaitTimeout,
+
+    /// Receiver Overrun
+    Overrun,
+
+    /// Preamble Detection Timeout
+    PreambleDetectionTimeout,
+
+    /// Receiver SFD Timeout
+    SfdTimeout,
 }
 
 impl From<spim::Error> for Error {
