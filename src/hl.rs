@@ -105,7 +105,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 
     /// Starts the receiver
-    pub fn start_receiver(&mut self) -> Result<Receiver<SPI>, Error> {
+    pub fn start_receiver(&mut self) -> Result<RxFuture<SPI>, Error> {
         // For unknown reasons, the DW1000 gets stuck in RX mode without ever
         // receiving anything, after receiving one good frame. Reset the
         // receiver to make sure its in a valid state before attempting to
@@ -168,22 +168,17 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
                 w.rxenab(0b1)
             )?;
 
-        Ok(Receiver(&mut self.0))
+        Ok(RxFuture(&mut self.0))
     }
 }
 
 
-/// Receives data
-///
-/// Call [`DW1000::start_receiver`] to get an instance of `Receiver`.
-pub struct Receiver<'r, SPI: 'r>(&'r mut ll::DW1000<SPI>);
+/// Represents an RX operation that might not have finished
+pub struct RxFuture<'r, SPI: 'r>(&'r mut ll::DW1000<SPI>);
 
-impl<'r, SPI> Receiver<'r, SPI> where SPI: SpimExt {
-    /// Receive data
-    ///
-    /// On success, it writes the received data into the buffer and returns the
-    /// length of the received data.
-    pub fn receive(&mut self, buffer: &mut [u8]) -> nb::Result<usize, Error> {
+impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
+    /// Wait for data to be available
+    pub fn wait(&mut self, buffer: &mut [u8]) -> nb::Result<usize, Error> {
         let sys_status = self.0
             .sys_status()
             .read()
