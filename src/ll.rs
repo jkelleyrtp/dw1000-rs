@@ -509,6 +509,31 @@ impl_register! {
         short_addr,  0, 15, u16; /// Short Address
         pan_id,     16, 31, u16; /// PAN Identifier
     }
+    0x04, 0x00, 4, RW, SYS_CFG(sys_cfg) { /// System Configuration
+        ffen,        0,  0, u8; /// Frame Filtering Enable
+        ffbc,        1,  1, u8; /// Frame Filtering Behave As Coordinator
+        ffab,        2,  2, u8; /// Frame Filtering Allow Beacon
+        ffad,        3,  3, u8; /// Frame Filtering Allow Data
+        ffaa,        4,  4, u8; /// Frame Filtering Allow Acknowledgement
+        ffam,        5,  5, u8; /// Frame Filtering Allow MAC Command Frame
+        ffar,        6,  6, u8; /// Frame Filtering Allow Reserved
+        ffa4,        7,  7, u8; /// Frame Filtering Allow Frame Type 4
+        ffa5,        8,  8, u8; /// Frame Filtering Allow Frame Type 5
+        hirq_pol,    9,  9, u8; /// Host Interrupt Polarity
+        spi_edge,   10, 10, u8; /// SPI Data Launch Edge
+        dis_fce,    11, 11, u8; /// Disable Frame Check Error Handling
+        dis_drxb,   12, 12, u8; /// Disable Double RX Buffer
+        dis_phe,    13, 13, u8; /// Disable Receiver Abort on PHR Error
+        dis_rsde,   14, 14, u8; /// Disable Receiver Abort on RSD Error
+        fcs_init2f, 15, 15, u8; /// FCS Seed Selection
+        phr_mode,   16, 17, u8; /// PHR Mode
+        dis_stxp,   18, 18, u8; /// Disable Smart TX Power Control
+        rxm110k,    22, 22, u8; /// Receiver Mode 110kpbs Data Rate
+        rxwtoe,     28, 28, u8; /// Receiver Wait Timeout Enable
+        rxautr,     29, 29, u8; /// Receiver Auto-Re-Enable
+        autoack,    30, 30, u8; /// Automatic Acknowledgement Enable
+        aackpend,   31, 31, u8; /// Automatic Acknowledgement Pending
+    }
     0x08, 0x00, 5, RW, TX_FCTRL(tx_fctrl) { /// TX Frame Control
         tflen,     0,  6, u8;  /// TX Frame Length
         tfle,      7,  9, u8;  /// TX Frame Length Extension
