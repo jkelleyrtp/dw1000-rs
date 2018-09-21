@@ -106,7 +106,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 
     /// Starts the receiver
     pub fn start_receiver(&mut self) -> Result<Receiver<SPI>, Error> {
-        // For unknown reasons, the DW1000 get stuck in RX mode without ever
+        // For unknown reasons, the DW1000 gets stuck in RX mode without ever
         // receiving anything, after receiving one good frame. Reset the
         // receiver to make sure its in a valid state before attempting to
         // receive anything.
