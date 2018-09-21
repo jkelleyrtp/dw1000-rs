@@ -213,37 +213,38 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
             .read()
             .map_err(|error| Error::Spi(error))?;
 
-        // Check for errors
-        if sys_status.rxfce() == 0b1 {
-            return Err(nb::Error::Other(Error::Fcs));
-        }
-        if sys_status.rxphe() == 0b1 {
-            return Err(nb::Error::Other(Error::Phy));
-        }
-        if sys_status.rxrfsl() == 0b1 {
-            return Err(nb::Error::Other(Error::ReedSolomon));
-        }
-        if sys_status.rxrfto() == 0b1 {
-            return Err(nb::Error::Other(Error::FrameWaitTimeout));
-        }
-        if sys_status.rxovrr() == 0b1 {
-            return Err(nb::Error::Other(Error::Overrun));
-        }
-        if sys_status.rxpto() == 0b1 {
-            return Err(nb::Error::Other(Error::PreambleDetectionTimeout));
-        }
-        if sys_status.rxsfdto() == 0b1 {
-            return Err(nb::Error::Other(Error::SfdTimeout));
-        }
-        // Some error flags that sound like valid errors aren't checked here,
-        // because experience has shown that they seem to occur spuriously
-        // without preventing a good frame from being received. Those are:
-        // - LDEERR: Leading Edge Detection Processing Error
-        // - RXPREJ: Receiver Preamble Rejection
-
         // Is a frame ready?
         if sys_status.rxdfr() == 0b0 {
-            // No frame ready
+            // No frame ready. Check for errors.
+            if sys_status.rxfce() == 0b1 {
+                return Err(nb::Error::Other(Error::Fcs));
+            }
+            if sys_status.rxphe() == 0b1 {
+                return Err(nb::Error::Other(Error::Phy));
+            }
+            if sys_status.rxrfsl() == 0b1 {
+                return Err(nb::Error::Other(Error::ReedSolomon));
+            }
+            if sys_status.rxrfto() == 0b1 {
+                return Err(nb::Error::Other(Error::FrameWaitTimeout));
+            }
+            if sys_status.rxovrr() == 0b1 {
+                return Err(nb::Error::Other(Error::Overrun));
+            }
+            if sys_status.rxpto() == 0b1 {
+                return Err(nb::Error::Other(Error::PreambleDetectionTimeout));
+            }
+            if sys_status.rxsfdto() == 0b1 {
+                return Err(nb::Error::Other(Error::SfdTimeout));
+            }
+            // Some error flags that sound like valid errors aren't checked here,
+            // because experience has shown that they seem to occur spuriously
+            // without preventing a good frame from being received. Those are:
+            // - LDEERR: Leading Edge Detection Processing Error
+            // - RXPREJ: Receiver Preamble Rejection
+
+            // No errors detected. That must mean the frame is just not ready
+            // yet.
             return Err(nb::Error::WouldBlock);
         }
 
