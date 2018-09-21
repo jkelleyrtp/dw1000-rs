@@ -47,7 +47,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     /// Broadcast raw data
     ///
     /// Broadcasts data without any MAC header.
-    pub fn send_raw(&mut self, data: &[u8]) -> Result<(), Error> {
+    pub fn send_raw(&mut self, data: &[u8]) -> Result<TxFuture<SPI>, Error> {
         // Prepare transmitter
         self.0
             .tx_buffer()
@@ -78,35 +78,12 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
                     .txstrt(1)
             )?;
 
-        // Wait until frame is sent
-        loop {
-            let sys_status = self.0
-                .sys_status()
-                .read()?;
-
-            // Has the frame been sent?
-            if sys_status.txfrs() == 0b1 {
-                // Frame sent. Reset all progress flags.
-                self.0
-                    .sys_status()
-                    .write(|w|
-                        w
-                            .txfrb(0b1) // Transmit Frame Begins
-                            .txprs(0b1) // Transmit Preamble Sent
-                            .txphs(0b1) // Transmit PHY Header Sent
-                            .txfrs(0b1) // Transmit Frame Sent
-                    )?;
-
-                break;
-            }
-        }
-
-        Ok(())
+        Ok(TxFuture(&mut self.0))
     }
 
     /// Starts the receiver
-    pub fn start_receiver(&mut self) -> Result<Receiver<SPI>, Error> {
-        // For unknown reasons, the DW1000 get stuck in RX mode without ever
+    pub fn receive(&mut self) -> Result<RxFuture<SPI>, Error> {
+        // For unknown reasons, the DW1000 gets stuck in RX mode without ever
         // receiving anything, after receiving one good frame. Reset the
         // receiver to make sure its in a valid state before attempting to
         // receive anything.
@@ -168,22 +145,51 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
                 w.rxenab(0b1)
             )?;
 
-        Ok(Receiver(&mut self.0))
+        Ok(RxFuture(&mut self.0))
     }
 }
 
 
-/// Receives data
-///
-/// Call [`DW1000::start_receiver`] to get an instance of `Receiver`.
-pub struct Receiver<'r, SPI: 'r>(&'r mut ll::DW1000<SPI>);
+/// Represents a TX operation that might not have completed
+pub struct TxFuture<'r, SPI: 'r>(&'r mut ll::DW1000<SPI>);
 
-impl<'r, SPI> Receiver<'r, SPI> where SPI: SpimExt {
-    /// Receive data
-    ///
-    /// On success, it writes the received data into the buffer and returns the
-    /// length of the received data.
-    pub fn receive(&mut self, buffer: &mut [u8]) -> nb::Result<usize, Error> {
+impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
+    /// Wait for the data to be sent
+    pub fn wait(&mut self) -> nb::Result<(), Error> {
+        let sys_status = self.0
+            .sys_status()
+            .read()
+            .map_err(|error| Error::Spi(error))?;
+
+        // Has the frame been sent?
+        if sys_status.txfrs() == 0b0 {
+            // Frame has not been sent
+            return Err(nb::Error::WouldBlock);
+        }
+
+        // Frame sent. Reset all progress flags.
+        self.0
+            .sys_status()
+            .write(|w|
+                w
+                    .txfrb(0b1) // Transmit Frame Begins
+                    .txprs(0b1) // Transmit Preamble Sent
+                    .txphs(0b1) // Transmit PHY Header Sent
+                    .txfrs(0b1) // Transmit Frame Sent
+            )
+            .map_err(|error| Error::Spi(error))?;
+
+        Ok(())
+    }
+}
+
+
+/// Represents an RX operation that might not have finished
+pub struct RxFuture<'r, SPI: 'r>(&'r mut ll::DW1000<SPI>);
+
+impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
+    /// Wait for data to be available
+    pub fn wait(&mut self, buffer: &mut [u8]) -> nb::Result<usize, Error> {
         let sys_status = self.0
             .sys_status()
             .read()
