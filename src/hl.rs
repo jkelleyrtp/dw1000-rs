@@ -47,7 +47,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     /// Broadcast raw data
     ///
     /// Broadcasts data without any MAC header.
-    pub fn send_raw(&mut self, data: &[u8]) -> Result<(), Error> {
+    pub fn send_raw(&mut self, data: &[u8]) -> Result<TxFuture<SPI>, Error> {
         // Prepare transmitter
         self.0
             .tx_buffer()
@@ -78,30 +78,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
                     .txstrt(1)
             )?;
 
-        // Wait until frame is sent
-        loop {
-            let sys_status = self.0
-                .sys_status()
-                .read()?;
-
-            // Has the frame been sent?
-            if sys_status.txfrs() == 0b1 {
-                // Frame sent. Reset all progress flags.
-                self.0
-                    .sys_status()
-                    .write(|w|
-                        w
-                            .txfrb(0b1) // Transmit Frame Begins
-                            .txprs(0b1) // Transmit Preamble Sent
-                            .txphs(0b1) // Transmit PHY Header Sent
-                            .txfrs(0b1) // Transmit Frame Sent
-                    )?;
-
-                break;
-            }
-        }
-
-        Ok(())
+        Ok(TxFuture(&mut self.0))
     }
 
     /// Starts the receiver
@@ -169,6 +146,40 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
             )?;
 
         Ok(RxFuture(&mut self.0))
+    }
+}
+
+
+/// Represents a TX operation that might not have completed
+pub struct TxFuture<'r, SPI: 'r>(&'r mut ll::DW1000<SPI>);
+
+impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
+    /// Wait for the data to be sent
+    pub fn wait(&mut self) -> nb::Result<(), Error> {
+        let sys_status = self.0
+            .sys_status()
+            .read()
+            .map_err(|error| Error::Spi(error))?;
+
+        // Has the frame been sent?
+        if sys_status.txfrs() == 0b0 {
+            // Frame has not been sent
+            return Err(nb::Error::WouldBlock);
+        }
+
+        // Frame sent. Reset all progress flags.
+        self.0
+            .sys_status()
+            .write(|w|
+                w
+                    .txfrb(0b1) // Transmit Frame Begins
+                    .txprs(0b1) // Transmit Preamble Sent
+                    .txphs(0b1) // Transmit PHY Header Sent
+                    .txfrs(0b1) // Transmit Frame Sent
+            )
+            .map_err(|error| Error::Spi(error))?;
+
+        Ok(())
     }
 }
 
