@@ -48,6 +48,13 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     ///
     /// Broadcasts data without any MAC header.
     pub fn send_raw(&mut self, data: &[u8]) -> Result<TxFuture<SPI>, Error> {
+        // Sometimes, for unknown reasons, the DW1000 gets stuck in RX mode.
+        // Starting the transmitter won't get it to enter TX mode, which means
+        // all subsequent send operations will fail. Let's disable the
+        // transceiver and force the chip into IDLE mode to make sure that
+        // doesn't happen.
+        self.force_idle()?;
+
         // Prepare transmitter
         self.0
             .tx_buffer()
@@ -146,6 +153,17 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
             )?;
 
         Ok(RxFuture(&mut self.0))
+    }
+
+
+    /// Force the DW1000 into IDLE mode
+    ///
+    /// Any ongoing RX/TX operations will be aborted.
+    pub fn force_idle(&mut self) -> Result<(), Error> {
+        self.0.sys_ctrl().write(|w| w.trxoff(0b1))?;
+        while self.0.sys_ctrl().read()?.trxoff() == 0b1 {}
+
+        Ok(())
     }
 }
 
