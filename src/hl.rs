@@ -58,9 +58,10 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         // Prepare transmitter
         self.0
             .tx_buffer()
-            .write(|w|
-                w.data(data)
-            )?;
+            .write(|w| {
+                w.data()[..data.len()].copy_from_slice(data);
+                w
+            })?;
         self.0
             .tx_fctrl()
             .write(|w| {

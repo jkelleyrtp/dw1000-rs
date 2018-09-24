@@ -687,12 +687,9 @@ pub mod tx_buffer {
     pub struct W(pub(crate) [u8; 127 + 1]);
 
     impl W {
-        /// Write data to the buffer
-        ///
-        /// `data` must at most be 127 bytes long.
-        pub fn data(&mut self, data: &[u8]) -> &mut Self {
-            self.0[1 .. data.len() + 1].copy_from_slice(data);
-            self
+        /// Provides access to the buffer
+        pub fn data(&mut self) -> &mut [u8] {
+            &mut self.0[1..]
         }
     }
 }
