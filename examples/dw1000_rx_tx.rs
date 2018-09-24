@@ -196,7 +196,7 @@ fn send<SPI, T>(
         SPI: SpimExt,
         T:   TimerExt,
 {
-    let mut future = dw1000.send_raw(b"ping")?;
+    let mut future = dw1000.send(b"ping")?;
 
     loop {
         match future.wait() {
