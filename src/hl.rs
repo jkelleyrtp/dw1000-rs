@@ -47,7 +47,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     /// Broadcast raw data
     ///
     /// Broadcasts data without any MAC header.
-    pub fn send_raw(&mut self, data: &[u8]) -> Result<TxFuture<SPI>, Error> {
+    pub fn send(&mut self, data: &[u8]) -> Result<TxFuture<SPI>, Error> {
         // Sometimes, for unknown reasons, the DW1000 gets stuck in RX mode.
         // Starting the transmitter won't get it to enter TX mode, which means
         // all subsequent send operations will fail. Let's disable the
