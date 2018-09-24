@@ -1,7 +1,4 @@
 //! Waits to receive data and signals status via LEDs
-//!
-//! Please note that, for unknown reasons, this example only receives data once,
-//! then needs to be re-flashed to receive data again. It's a start.
 
 
 #![no_main]
