@@ -180,7 +180,7 @@ fn receive<SPI, T>(
     if len < 2 {
         return Err(Error::UnexpectedMessage);
     }
-    if &buffer[.. len-2] != b"ping" {
+    if !buffer[.. len-2].ends_with(b"ping") {
         return Err(Error::UnexpectedMessage);
     }
 
