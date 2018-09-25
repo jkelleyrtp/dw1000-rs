@@ -75,7 +75,7 @@ fn main() -> ! {
 
         let data = &buffer[..len];
 
-        print!("Received data: {:?}\n", data);
+        print!("Received data: {:x?}\n", data);
 
         let expected_data = b"ping";
 
