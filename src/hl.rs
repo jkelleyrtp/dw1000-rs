@@ -153,6 +153,18 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
                 w.softreset(0b1111) // clear reset
             )?;
 
+        // Enable frame filtering
+        self.ll
+            .sys_cfg()
+            .modify(|_, w|
+                w
+                    .ffen(0b1) // enable frame filtering
+                    .ffab(0b1) // receive beacon frames
+                    .ffad(0b1) // receive data frames
+                    .ffaa(0b1) // receive acknowledgement frames
+                    .ffam(0b1) // receive MAC command frames
+            )?;
+
         // Set PLLLDT bit in EC_CTRL. According to the documentation of the
         // CLKPLL_LL bit in SYS_STATUS, this bit needs to be set to ensure the
         // reliable operation of the CLKPLL_LL bit. Since I've seen that bit
