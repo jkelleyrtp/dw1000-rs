@@ -5,6 +5,15 @@
 //! greater flexibility provided by the register-level interface.
 
 
+use core::{
+    mem,
+    num::Wrapping,
+};
+
+use byteorder::{
+    ByteOrder,
+    LittleEndian,
+};
 use hal::{
     prelude::*,
     gpio::{
@@ -22,7 +31,8 @@ use ll;
 
 /// Entry point to the DW1000 driver API
 pub struct DW1000<SPI> {
-    ll: ll::DW1000<SPI>,
+    ll:  ll::DW1000<SPI>,
+    seq: Wrapping<u8>,
 }
 
 impl<SPI> DW1000<SPI> where SPI: SpimExt {
@@ -37,7 +47,8 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         -> Self
     {
         DW1000 {
-            ll: ll::DW1000::new(spim, chip_select),
+            ll:  ll::DW1000::new(spim, chip_select),
+            seq: Wrapping(0),
         }
     }
 
@@ -57,17 +68,51 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         // doesn't happen.
         self.force_idle()?;
 
+        let seq = self.seq.0;
+        self.seq += Wrapping(1);
+
         // Prepare transmitter
+        let mut len = 0;
         self.ll
             .tx_buffer()
             .write(|w| {
-                w.data()[..data.len()].copy_from_slice(data);
+                // Build the Frame Control part of the MAC header. See user
+                // manual, section 11.2.
+                let frame_control =
+                    0b001 <<  0 | // Frame Type (Data)
+                    0b0   <<  3 | // Security Enabled (disabled)
+                    0b0   <<  4 | // Frame Pending (disabled)
+                    0b0   <<  5 | // ACK Request (disabled)
+                    0b0   <<  6 | // PAN ID Compress (disabled)
+                    0b10  << 10 | // Destination Address Mode (short address)
+                    0b01  << 12 | // Frame Version
+                    0b10  << 14;  // Source Address Mode (short address)
+
+                let destination = 0xffffffff; // broadcast
+                let source      = 0x00000000; // temporary placeholder
+
+                // Write header
+                LittleEndian::write_u16(&mut w.data()[len..], frame_control);
+                len += mem::size_of_val(&frame_control);
+                w.data()[len] = seq;
+                len += mem::size_of_val(&seq);
+                LittleEndian::write_u32(&mut w.data()[len..], destination);
+                len += mem::size_of_val(&destination);
+                LittleEndian::write_u32(&mut w.data()[len..], source);
+                len += mem::size_of_val(&source);
+
+                // Write payload
+                w.data()[len .. len+data.len()].copy_from_slice(data);
+                len += data.len();
+
+                // 2-byte CRC checksum is added automatically
+
                 w
             })?;
         self.ll
             .tx_fctrl()
             .write(|w| {
-                let tflen = data.len() as u8 + 2;
+                let tflen = len as u8 + 2;
                 w
                     .tflen(tflen) // data length + two-octet CRC
                     .tfle(0)      // no non-standard length extension
