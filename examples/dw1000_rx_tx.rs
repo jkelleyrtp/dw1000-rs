@@ -64,7 +64,7 @@ fn main() -> ! {
     let mut task_timer    = dwm1001.TIMER0.constrain();
     let mut timeout_timer = dwm1001.TIMER1.constrain();
 
-    let receive_time = 2_000_000 + (random(&mut dwm1001.RNG) % 1_000_000);
+    let receive_time = 2_000_000 + (random_u32(&mut dwm1001.RNG) % 1_000_000);
 
     loop {
         task_timer.start(receive_time);
@@ -129,7 +129,7 @@ fn main() -> ! {
     }
 }
 
-fn random(rng: &mut RNG) -> u32 {
+fn random_u32(rng: &mut RNG) -> u32 {
     let mut val = 0u32;
 
     rng.tasks_start.write(|w| unsafe { w.bits(1) });
