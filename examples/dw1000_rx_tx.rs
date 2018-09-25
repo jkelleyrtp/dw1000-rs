@@ -60,6 +60,15 @@ fn main() -> ! {
 
     dwm1001.DW_RST.reset_dw1000(&mut delay);
 
+    // Set network address
+    let address = random_u16(&mut dwm1001.RNG);
+    dwm1001.DW1000
+        .set_address(
+            0x0d57,  // hardcoded network id
+            address, // random device address
+        )
+        .expect("Failed to set address");
+
     // Configure timer
     let mut task_timer    = dwm1001.TIMER0.constrain();
     let mut timeout_timer = dwm1001.TIMER1.constrain();
@@ -127,6 +136,20 @@ fn main() -> ! {
             }
         }
     }
+}
+
+fn random_u16(rng: &mut RNG) -> u16 {
+    let mut val = 0u16;
+
+    rng.tasks_start.write(|w| unsafe { w.bits(1) });
+    for i in 0 ..= 1 {
+        while rng.events_valrdy.read().bits() == 0 {}
+        rng.events_valrdy.write(|w| unsafe { w.bits(0) });
+
+        val |= (rng.value.read().value().bits() as u16) << (i * 8);
+    }
+
+    val
 }
 
 fn random_u32(rng: &mut RNG) -> u32 {
