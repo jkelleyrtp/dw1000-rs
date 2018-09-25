@@ -27,6 +27,7 @@ use hal::{
 use nb;
 
 use ll;
+use mac;
 
 
 /// Entry point to the DW1000 driver API
@@ -58,14 +59,14 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 
     /// Sets the network id and address used for sending and receiving
-    pub fn set_address(&mut self, pan_id: u16, short_addr: u16)
+    pub fn set_address(&mut self, address: mac::Address)
         -> Result<(), Error>
     {
         self.ll
             .panadr().write(|w|
                 w
-                    .pan_id(pan_id)
-                    .short_addr(short_addr)
+                    .pan_id(address.pan_id)
+                    .short_addr(address.short_addr)
             )?;
 
         Ok(())

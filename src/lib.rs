@@ -17,6 +17,8 @@ pub mod ll;
 pub mod hl;
 
 
+pub use ieee802154::mac;
+
 pub use hl::{
     DW1000,
     Error,
