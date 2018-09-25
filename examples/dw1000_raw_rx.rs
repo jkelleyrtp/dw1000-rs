@@ -75,21 +75,7 @@ fn main() -> ! {
 
         let data = &buffer[..len];
 
-        print!("Received data: {:?}\n", data);
-
-        let expected_data = b"ping";
-
-        // Received data should have length of expected data, plus 2-byte CRC
-        // checksum.
-        if data.len() != expected_data.len() + 2 {
-            print!("Unexpected length: {}\n", data.len());
-            continue;
-        }
-
-        if data[0 .. data.len() - 2] != expected_data[..] {
-            print!("Unexpected data");
-            continue;
-        }
+        print!("Received data: {:x?}\n", data);
 
         // Signal that data was received
         for _ in 0..20 {

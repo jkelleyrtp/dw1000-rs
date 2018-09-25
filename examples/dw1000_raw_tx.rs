@@ -27,7 +27,7 @@ fn main() -> ! {
 
     loop {
         let mut tx = dwm1001.DW1000
-            .send_raw(b"ping")
+            .send(b"ping")
             .expect("Failed to start receiver");
 
         block!(tx.wait())

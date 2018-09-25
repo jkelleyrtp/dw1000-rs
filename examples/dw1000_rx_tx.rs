@@ -60,11 +60,20 @@ fn main() -> ! {
 
     dwm1001.DW_RST.reset_dw1000(&mut delay);
 
+    // Set network address
+    let address = random_u16(&mut dwm1001.RNG);
+    dwm1001.DW1000
+        .set_address(
+            0x0d57,  // hardcoded network id
+            address, // random device address
+        )
+        .expect("Failed to set address");
+
     // Configure timer
     let mut task_timer    = dwm1001.TIMER0.constrain();
     let mut timeout_timer = dwm1001.TIMER1.constrain();
 
-    let receive_time = 2_000_000 + (random(&mut dwm1001.RNG) % 1_000_000);
+    let receive_time = 2_000_000 + (random_u32(&mut dwm1001.RNG) % 1_000_000);
 
     loop {
         task_timer.start(receive_time);
@@ -129,7 +138,21 @@ fn main() -> ! {
     }
 }
 
-fn random(rng: &mut RNG) -> u32 {
+fn random_u16(rng: &mut RNG) -> u16 {
+    let mut val = 0u16;
+
+    rng.tasks_start.write(|w| unsafe { w.bits(1) });
+    for i in 0 ..= 1 {
+        while rng.events_valrdy.read().bits() == 0 {}
+        rng.events_valrdy.write(|w| unsafe { w.bits(0) });
+
+        val |= (rng.value.read().value().bits() as u16) << (i * 8);
+    }
+
+    val
+}
+
+fn random_u32(rng: &mut RNG) -> u32 {
     let mut val = 0u32;
 
     rng.tasks_start.write(|w| unsafe { w.bits(1) });
@@ -180,7 +203,7 @@ fn receive<SPI, T>(
     if len < 2 {
         return Err(Error::UnexpectedMessage);
     }
-    if &buffer[.. len-2] != b"ping" {
+    if !buffer[.. len-2].ends_with(b"ping") {
         return Err(Error::UnexpectedMessage);
     }
 
@@ -196,7 +219,7 @@ fn send<SPI, T>(
         SPI: SpimExt,
         T:   TimerExt,
 {
-    let mut future = dw1000.send_raw(b"ping")?;
+    let mut future = dw1000.send(b"ping")?;
 
     loop {
         match future.wait() {
