@@ -73,6 +73,16 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         Ok(())
     }
 
+    /// Returns the network id and address used for sending and receiving
+    pub fn get_address(&mut self) -> Result<mac::Address, Error> {
+        let panadr = self.ll.panadr().read()?;
+
+        Ok(mac::Address {
+            pan_id:     panadr.pan_id(),
+            short_addr: panadr.short_addr(),
+        })
+    }
+
     /// Broadcast raw data
     ///
     /// Broadcasts data without any MAC header.
