@@ -63,7 +63,8 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         -> Result<(), Error>
     {
         self.ll
-            .panadr().write(|w|
+            .panadr()
+            .write(|w|
                 w
                     .pan_id(address.pan_id)
                     .short_addr(address.short_addr)
