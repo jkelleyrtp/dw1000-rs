@@ -5,6 +5,15 @@
 //! greater flexibility provided by the register-level interface.
 
 
+use core::{
+    mem,
+    num::Wrapping,
+};
+
+use byteorder::{
+    ByteOrder,
+    LittleEndian,
+};
 use hal::{
     prelude::*,
     gpio::{
@@ -21,7 +30,10 @@ use ll;
 
 
 /// Entry point to the DW1000 driver API
-pub struct DW1000<SPI>(ll::DW1000<SPI>);
+pub struct DW1000<SPI> {
+    ll:  ll::DW1000<SPI>,
+    seq: Wrapping<u8>,
+}
 
 impl<SPI> DW1000<SPI> where SPI: SpimExt {
     /// Create a new instance of `DW1000`
@@ -34,20 +46,35 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     )
         -> Self
     {
-        DW1000(
-            ll::DW1000::new(spim, chip_select)
-        )
+        DW1000 {
+            ll:  ll::DW1000::new(spim, chip_select),
+            seq: Wrapping(0),
+        }
     }
 
     /// Provides direct access to the register-level API
     pub fn ll(&mut self) -> &mut ll::DW1000<SPI> {
-        &mut self.0
+        &mut self.ll
+    }
+
+    /// Sets the network id and address used for sending and receiving
+    pub fn set_address(&mut self, pan_id: u16, short_addr: u16)
+        -> Result<(), Error>
+    {
+        self.ll
+            .panadr().write(|w|
+                w
+                    .pan_id(pan_id)
+                    .short_addr(short_addr)
+            )?;
+
+        Ok(())
     }
 
     /// Broadcast raw data
     ///
     /// Broadcasts data without any MAC header.
-    pub fn send_raw(&mut self, data: &[u8]) -> Result<TxFuture<SPI>, Error> {
+    pub fn send(&mut self, data: &[u8]) -> Result<TxFuture<SPI>, Error> {
         // Sometimes, for unknown reasons, the DW1000 gets stuck in RX mode.
         // Starting the transmitter won't get it to enter TX mode, which means
         // all subsequent send operations will fail. Let's disable the
@@ -55,16 +82,57 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         // doesn't happen.
         self.force_idle()?;
 
+        let seq = self.seq.0;
+        self.seq += Wrapping(1);
+
+        // Determine address
+        let panadr     = self.ll.panadr().read()?;
+        let pan_id     = panadr.pan_id();
+        let short_addr = panadr.short_addr();
+
         // Prepare transmitter
-        self.0
+        let mut len = 0;
+        self.ll
             .tx_buffer()
-            .write(|w|
-                w.data(data)
-            )?;
-        self.0
+            .write(|w| {
+                // Build the Frame Control part of the MAC header. See user
+                // manual, section 11.2.
+                let frame_control =
+                    0b001 <<  0 | // Frame Type (Data)
+                    0b0   <<  3 | // Security Enabled (disabled)
+                    0b0   <<  4 | // Frame Pending (disabled)
+                    0b0   <<  5 | // ACK Request (disabled)
+                    0b0   <<  6 | // PAN ID Compress (disabled)
+                    0b10  << 10 | // Destination Address Mode (short address)
+                    0b01  << 12 | // Frame Version
+                    0b10  << 14;  // Source Address Mode (short address)
+
+                let destination = 0xffffffff; // broadcast
+
+                // Write header
+                LittleEndian::write_u16(&mut w.data()[len..], frame_control);
+                len += mem::size_of_val(&frame_control);
+                w.data()[len] = seq;
+                len += mem::size_of_val(&seq);
+                LittleEndian::write_u32(&mut w.data()[len..], destination);
+                len += mem::size_of_val(&destination);
+                LittleEndian::write_u16(&mut w.data()[len..], pan_id);
+                len += mem::size_of_val(&pan_id);
+                LittleEndian::write_u16(&mut w.data()[len..], short_addr);
+                len += mem::size_of_val(&short_addr);
+
+                // Write payload
+                w.data()[len .. len+data.len()].copy_from_slice(data);
+                len += data.len();
+
+                // 2-byte CRC checksum is added automatically
+
+                w
+            })?;
+        self.ll
             .tx_fctrl()
             .write(|w| {
-                let tflen = data.len() as u8 + 2;
+                let tflen = len as u8 + 2;
                 w
                     .tflen(tflen) // data length + two-octet CRC
                     .tfle(0)      // no non-standard length extension
@@ -78,14 +146,14 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
             })?;
 
         // Start transmission
-        self.0
+        self.ll
             .sys_ctrl()
             .modify(|_, w|
                 w
                     .txstrt(1)
             )?;
 
-        Ok(TxFuture(&mut self.0))
+        Ok(TxFuture(&mut self.ll))
     }
 
     /// Starts the receiver
@@ -94,22 +162,34 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         // receiving anything, after receiving one good frame. Reset the
         // receiver to make sure its in a valid state before attempting to
         // receive anything.
-        self.0
+        self.ll
             .pmsc_ctrl0()
             .modify(|_, w|
                 w.softreset(0b1110) // reset receiver
             )?;
-        self.0
+        self.ll
             .pmsc_ctrl0()
             .modify(|_, w|
                 w.softreset(0b1111) // clear reset
+            )?;
+
+        // Enable frame filtering
+        self.ll
+            .sys_cfg()
+            .modify(|_, w|
+                w
+                    .ffen(0b1) // enable frame filtering
+                    .ffab(0b1) // receive beacon frames
+                    .ffad(0b1) // receive data frames
+                    .ffaa(0b1) // receive acknowledgement frames
+                    .ffam(0b1) // receive MAC command frames
             )?;
 
         // Set PLLLDT bit in EC_CTRL. According to the documentation of the
         // CLKPLL_LL bit in SYS_STATUS, this bit needs to be set to ensure the
         // reliable operation of the CLKPLL_LL bit. Since I've seen that bit
         // being set, I want to make sure I'm not just seeing crap.
-        self.0
+        self.ll
             .ec_ctrl()
             .modify(|_, w|
                 w.pllldt(0b1)
@@ -118,7 +198,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         // Now that PLLLDT is set, clear all bits in SYS_STATUS that depend on
         // it for reliable operation. After that is done, these bits should work
         // reliably.
-        self.0
+        self.ll
             .sys_status()
             .write(|w|
                 w
@@ -134,7 +214,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         // recommended value for that preamble length, according to section
         // 4.1.1. The value we're writing to DRX_TUNE2 here also depends on the
         // PRF, which we expect to be 16 MHz.
-        self.0
+        self.ll
             .drx_tune2()
             .write(|w|
                 // PAC size 8, with 16 MHz PRF
@@ -146,13 +226,13 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         // at 850 kbps though, so the default is fine. See section 4.1.3 for a
         // detailed explanation.
 
-        self.0
+        self.ll
             .sys_ctrl()
             .modify(|_, w|
                 w.rxenab(0b1)
             )?;
 
-        Ok(RxFuture(&mut self.0))
+        Ok(RxFuture(&mut self.ll))
     }
 
 
@@ -160,8 +240,8 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     ///
     /// Any ongoing RX/TX operations will be aborted.
     pub fn force_idle(&mut self) -> Result<(), Error> {
-        self.0.sys_ctrl().write(|w| w.trxoff(0b1))?;
-        while self.0.sys_ctrl().read()?.trxoff() == 0b1 {}
+        self.ll.sys_ctrl().write(|w| w.trxoff(0b1))?;
+        while self.ll.sys_ctrl().read()?.trxoff() == 0b1 {}
 
         Ok(())
     }
