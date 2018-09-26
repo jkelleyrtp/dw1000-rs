@@ -64,7 +64,7 @@ fn main() -> ! {
     let mut task_timer    = dwm1001.TIMER0.constrain();
     let mut timeout_timer = dwm1001.TIMER1.constrain();
 
-    let receive_time = 2_000_000 + (random_u32(&mut dwm1001.RNG) % 1_000_000);
+    let receive_time = 500_000 + (random_u32(&mut dwm1001.RNG) % 500_000);
 
     loop {
         task_timer.start(receive_time);
@@ -78,7 +78,7 @@ fn main() -> ! {
                     unreachable!(),
             }
 
-            timeout_timer.start(1_000_000);
+            timeout_timer.start(100_000);
             match receive(&mut dwm1001.DW1000, &mut timeout_timer) {
                 Ok(()) => {
                     // Sucessfully received: Blue LED
@@ -94,7 +94,7 @@ fn main() -> ! {
             }
         }
 
-        task_timer.start(500_000);
+        task_timer.start(50_000);
         loop {
             match task_timer.wait() {
                 Ok(()) =>
@@ -105,7 +105,7 @@ fn main() -> ! {
                     unreachable!(),
             }
 
-            timeout_timer.start(100_000);
+            timeout_timer.start(10_000);
             match send(&mut dwm1001.DW1000, &mut timeout_timer) {
                 Ok(()) => {
                     ()
