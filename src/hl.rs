@@ -5,15 +5,8 @@
 //! greater flexibility provided by the register-level interface.
 
 
-use core::{
-    mem,
-    num::Wrapping,
-};
+use core::num::Wrapping;
 
-use byteorder::{
-    ByteOrder,
-    LittleEndian,
-};
 use hal::{
     prelude::*,
     gpio::{
@@ -97,39 +90,24 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         let seq = self.seq.0;
         self.seq += Wrapping(1);
 
-        let source = self.get_address()?;
+        let header = mac::Header {
+            frame_type:      mac::FrameType::Data,
+            security:        mac::Security::None,
+            frame_pending:   false,
+            ack_request:     false,
+            pan_id_compress: mac::PanIdCompress::Disabled,
+            destination:     mac::Address::broadcast(),
+            source:          self.get_address()?,
+            seq:             seq,
+        };
 
         // Prepare transmitter
         let mut len = 0;
         self.ll
             .tx_buffer()
             .write(|w| {
-                // Build the Frame Control part of the MAC header. See user
-                // manual, section 11.2.
-                let frame_control =
-                    0b001 <<  0 | // Frame Type (Data)
-                    0b0   <<  3 | // Security Enabled (disabled)
-                    0b0   <<  4 | // Frame Pending (disabled)
-                    0b0   <<  5 | // ACK Request (disabled)
-                    0b0   <<  6 | // PAN ID Compress (disabled)
-                    0b10  << 10 | // Destination Address Mode (short address)
-                    0b01  << 12 | // Frame Version
-                    0b10  << 14;  // Source Address Mode (short address)
-
-                let destination = mac::Address { // broadcast
-                    pan_id:     0xffff,
-                    short_addr: 0xffff,
-                };
-
                 // Write header
-                LittleEndian::write_u16(&mut w.data()[len..], frame_control);
-                len += mem::size_of_val(&frame_control);
-                w.data()[len] = seq;
-                len += mem::size_of_val(&seq);
-                destination.write(&mut w.data()[len..]);
-                len += mem::size_of_val(&destination);
-                source.write(&mut w.data()[len..]);
-                len += mem::size_of_val(&source);
+                len += header.write(&mut w.data()[len..]);
 
                 // Write payload
                 w.data()[len .. len+data.len()].copy_from_slice(data);
