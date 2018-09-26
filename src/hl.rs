@@ -90,15 +90,19 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         let seq = self.seq.0;
         self.seq += Wrapping(1);
 
-        let header = mac::Header {
-            frame_type:      mac::FrameType::Data,
-            security:        mac::Security::None,
-            frame_pending:   false,
-            ack_request:     false,
-            pan_id_compress: mac::PanIdCompress::Disabled,
-            destination:     mac::Address::broadcast(),
-            source:          self.get_address()?,
-            seq:             seq,
+        let frame = mac::Frame {
+            header: mac::Header {
+                frame_type:      mac::FrameType::Data,
+                security:        mac::Security::None,
+                frame_pending:   false,
+                ack_request:     false,
+                pan_id_compress: mac::PanIdCompress::Disabled,
+                destination:     mac::Address::broadcast(),
+                source:          self.get_address()?,
+                seq:             seq,
+            },
+            payload: data,
+            footer: [0; 2],
         };
 
         // Prepare transmitter
@@ -106,15 +110,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         self.ll
             .tx_buffer()
             .write(|w| {
-                // Write header
-                len += header.write(&mut w.data()[len..]);
-
-                // Write payload
-                w.data()[len .. len+data.len()].copy_from_slice(data);
-                len += data.len();
-
-                // 2-byte CRC checksum is added automatically
-
+                len += frame.write(&mut w.data(), mac::WriteFooter::No);
                 w
             })?;
         self.ll
