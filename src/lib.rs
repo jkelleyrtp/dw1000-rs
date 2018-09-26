@@ -7,7 +7,6 @@
 #![deny(warnings)]
 
 
-extern crate byteorder;
 extern crate ieee802154;
 extern crate nb;
 extern crate nrf52832_hal as hal;
