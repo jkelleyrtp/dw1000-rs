@@ -97,10 +97,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         let seq = self.seq.0;
         self.seq += Wrapping(1);
 
-        // Determine address
-        let panadr     = self.ll.panadr().read()?;
-        let pan_id     = panadr.pan_id();
-        let short_addr = panadr.short_addr();
+        let source = self.get_address()?;
 
         // Prepare transmitter
         let mut len = 0;
@@ -119,19 +116,20 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
                     0b01  << 12 | // Frame Version
                     0b10  << 14;  // Source Address Mode (short address)
 
-                let destination = 0xffffffff; // broadcast
+                let destination = mac::Address { // broadcast
+                    pan_id:     0xffff,
+                    short_addr: 0xffff,
+                };
 
                 // Write header
                 LittleEndian::write_u16(&mut w.data()[len..], frame_control);
                 len += mem::size_of_val(&frame_control);
                 w.data()[len] = seq;
                 len += mem::size_of_val(&seq);
-                LittleEndian::write_u32(&mut w.data()[len..], destination);
+                destination.write(&mut w.data()[len..]);
                 len += mem::size_of_val(&destination);
-                LittleEndian::write_u16(&mut w.data()[len..], pan_id);
-                len += mem::size_of_val(&pan_id);
-                LittleEndian::write_u16(&mut w.data()[len..], short_addr);
-                len += mem::size_of_val(&short_addr);
+                source.write(&mut w.data()[len..]);
+                len += mem::size_of_val(&source);
 
                 // Write payload
                 w.data()[len .. len+data.len()].copy_from_slice(data);
