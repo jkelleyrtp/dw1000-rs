@@ -201,7 +201,7 @@ fn send<SPI, T>(
         SPI: SpimExt,
         T:   TimerExt,
 {
-    let mut future = dw1000.send(b"ping")?;
+    let mut future = dw1000.send(b"ping", mac::Address::broadcast())?;
 
     loop {
         match future.wait() {
