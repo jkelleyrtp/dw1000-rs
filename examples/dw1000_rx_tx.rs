@@ -4,21 +4,9 @@
 //! full glory, you need two DWM1001-DEV boards running it.
 //!
 //! As printing debug output via semihosting is really slow and would interefere
-//! with the rest of the code, this example signals its status via LEDs. The
-//! following behavior is expected, if everything works normally:
-//! - Green LED blinks quickly all the time
-//!   The green LED signals receive errors, which usually happen all the time. I
-//!   don't know if that's normal, but I guess there's just enough RF noise in
-//!   the air, to make the module think it received something when that actually
-//!   didn't happen.
-//! - Red LED blinks every few seconds for half a second
-//!   The red LED signals that messages were sent. The code only activates it
-//!   for 30ms per message, but sending messages is so quick that it stays on
-//!   for the full half second or so that messages are being send.
-//! - Blue LED blinks from time to time
-//!   The blue LED signals successful receipt of a message. Unless something is
-//!   wrong, this should happen from time to time. The blue LED on one module
-//!   should correspond with the red LED on the other module.
+//! with the rest of the code, this example signals its status via LEDs. If
+//! everything works well, you should see the blue LED blink from time to time
+//! on both boards, signalling a successfully received message.
 
 
 #![no_main]
@@ -101,12 +89,6 @@ fn main() -> ! {
                 Err(_) => {
                     // It would be nice to print the error, but that takes way
                     // too much time and interferes with everything else.
-
-                    // RX Error: Green LED
-                    dwm1001.leds.D9.enable();
-                    delay.delay_ms(30u32);
-                    dwm1001.leds.D9.disable();
-
                     continue;
                 }
             }
@@ -126,10 +108,7 @@ fn main() -> ! {
             timeout_timer.start(100_000);
             match send(&mut dwm1001.DW1000, &mut timeout_timer) {
                 Ok(()) => {
-                    // Successful send: Red LED
-                    dwm1001.leds.D11.enable();
-                    delay.delay_ms(30u32);
-                    dwm1001.leds.D11.disable();
+                    ()
                 }
                 Err(_) => {
                     // It would be nice to print the error, but that takes way
