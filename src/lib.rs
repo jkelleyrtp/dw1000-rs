@@ -7,7 +7,7 @@
 #![deny(warnings)]
 
 
-extern crate byteorder;
+extern crate ieee802154;
 extern crate nb;
 extern crate nrf52832_hal as hal;
 
@@ -15,6 +15,8 @@ extern crate nrf52832_hal as hal;
 pub mod ll;
 pub mod hl;
 
+
+pub use ieee802154::mac;
 
 pub use hl::{
     DW1000,

@@ -5,15 +5,8 @@
 //! greater flexibility provided by the register-level interface.
 
 
-use core::{
-    mem,
-    num::Wrapping,
-};
+use core::num::Wrapping;
 
-use byteorder::{
-    ByteOrder,
-    LittleEndian,
-};
 use hal::{
     prelude::*,
     gpio::{
@@ -27,6 +20,7 @@ use hal::{
 use nb;
 
 use ll;
+use mac;
 
 
 /// Entry point to the DW1000 driver API
@@ -58,17 +52,28 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 
     /// Sets the network id and address used for sending and receiving
-    pub fn set_address(&mut self, pan_id: u16, short_addr: u16)
+    pub fn set_address(&mut self, address: mac::Address)
         -> Result<(), Error>
     {
         self.ll
-            .panadr().write(|w|
+            .panadr()
+            .write(|w|
                 w
-                    .pan_id(pan_id)
-                    .short_addr(short_addr)
+                    .pan_id(address.pan_id)
+                    .short_addr(address.short_addr)
             )?;
 
         Ok(())
+    }
+
+    /// Returns the network id and address used for sending and receiving
+    pub fn get_address(&mut self) -> Result<mac::Address, Error> {
+        let panadr = self.ll.panadr().read()?;
+
+        Ok(mac::Address {
+            pan_id:     panadr.pan_id(),
+            short_addr: panadr.short_addr(),
+        })
     }
 
     /// Broadcast raw data
@@ -85,48 +90,27 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         let seq = self.seq.0;
         self.seq += Wrapping(1);
 
-        // Determine address
-        let panadr     = self.ll.panadr().read()?;
-        let pan_id     = panadr.pan_id();
-        let short_addr = panadr.short_addr();
+        let frame = mac::Frame {
+            header: mac::Header {
+                frame_type:      mac::FrameType::Data,
+                security:        mac::Security::None,
+                frame_pending:   false,
+                ack_request:     false,
+                pan_id_compress: mac::PanIdCompress::Disabled,
+                destination:     mac::Address::broadcast(),
+                source:          self.get_address()?,
+                seq:             seq,
+            },
+            payload: data,
+            footer: [0; 2],
+        };
 
         // Prepare transmitter
         let mut len = 0;
         self.ll
             .tx_buffer()
             .write(|w| {
-                // Build the Frame Control part of the MAC header. See user
-                // manual, section 11.2.
-                let frame_control =
-                    0b001 <<  0 | // Frame Type (Data)
-                    0b0   <<  3 | // Security Enabled (disabled)
-                    0b0   <<  4 | // Frame Pending (disabled)
-                    0b0   <<  5 | // ACK Request (disabled)
-                    0b0   <<  6 | // PAN ID Compress (disabled)
-                    0b10  << 10 | // Destination Address Mode (short address)
-                    0b01  << 12 | // Frame Version
-                    0b10  << 14;  // Source Address Mode (short address)
-
-                let destination = 0xffffffff; // broadcast
-
-                // Write header
-                LittleEndian::write_u16(&mut w.data()[len..], frame_control);
-                len += mem::size_of_val(&frame_control);
-                w.data()[len] = seq;
-                len += mem::size_of_val(&seq);
-                LittleEndian::write_u32(&mut w.data()[len..], destination);
-                len += mem::size_of_val(&destination);
-                LittleEndian::write_u16(&mut w.data()[len..], pan_id);
-                len += mem::size_of_val(&pan_id);
-                LittleEndian::write_u16(&mut w.data()[len..], short_addr);
-                len += mem::size_of_val(&short_addr);
-
-                // Write payload
-                w.data()[len .. len+data.len()].copy_from_slice(data);
-                len += data.len();
-
-                // 2-byte CRC checksum is added automatically
-
+                len += frame.write(&mut w.data(), mac::WriteFooter::No);
                 w
             })?;
         self.ll
