@@ -38,6 +38,7 @@ use dwm1001::{
     debug,
     dw1000::{
         self,
+        mac,
         DW1000,
     },
     nrf52832_hal::{
@@ -64,8 +65,10 @@ fn main() -> ! {
     let address = random_u16(&mut dwm1001.RNG);
     dwm1001.DW1000
         .set_address(
-            0x0d57,  // hardcoded network id
-            address, // random device address
+            mac::Address {
+                pan_id:     0x0d57,  // hardcoded network id
+                short_addr: address, // random device address
+            }
         )
         .expect("Failed to set address");
 
