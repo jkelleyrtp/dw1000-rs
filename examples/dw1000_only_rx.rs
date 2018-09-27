@@ -4,6 +4,8 @@
 #![no_main]
 #![no_std]
 
+#![feature(nll)]
+
 
 #[macro_use] extern crate cortex_m_rt;
 #[macro_use] extern crate dwm1001;
@@ -19,9 +21,6 @@ use dwm1001::{
     nrf52832_hal::Delay,
     DWM1001,
 };
-
-
-
 
 
 #[entry]
@@ -49,10 +48,10 @@ fn main() -> ! {
         timer.start(5_000_000);
 
         // Wait until frame has been received
-        let len = loop {
+        let frame = loop {
             match rx.wait(&mut buffer) {
-                Ok(len) =>
-                    break len,
+                Ok(frame) =>
+                    break frame,
                 Err(nb::Error::WouldBlock) =>
                     (),
                 Err(error) => {
@@ -73,9 +72,7 @@ fn main() -> ! {
             }
         };
 
-        let data = &buffer[..len];
-
-        print!("Received data: {:x?}\n", data);
+        print!("Received frame: {:x?}\n", frame);
 
         // Signal that data was received
         for _ in 0..20 {

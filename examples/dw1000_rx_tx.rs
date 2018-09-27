@@ -12,6 +12,8 @@
 #![no_main]
 #![no_std]
 
+#![feature(nll)]
+
 
 #[macro_use] extern crate cortex_m_rt;
 
@@ -162,10 +164,10 @@ fn receive<SPI, T>(
     let mut future = dw1000.receive()?;
 
     // Wait until frame has been received
-    let len = loop {
+    let frame = loop {
         match future.wait(&mut buffer) {
-            Ok(len) =>
-                break len,
+            Ok(frame) =>
+                break frame,
             Err(nb::Error::WouldBlock) =>
                 (),
             Err(nb::Error::Other(error)) =>
@@ -182,10 +184,7 @@ fn receive<SPI, T>(
         }
     };
 
-    if len < 2 {
-        return Err(Error::UnexpectedMessage);
-    }
-    if !buffer[.. len-2].ends_with(b"ping") {
+    if frame.payload != b"ping" {
         return Err(Error::UnexpectedMessage);
     }
 
