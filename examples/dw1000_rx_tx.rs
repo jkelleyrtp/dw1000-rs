@@ -16,9 +16,10 @@
 
 
 #[macro_use] extern crate cortex_m_rt;
+#[macro_use] extern crate dwm1001;
 
 extern crate cortex_m_semihosting;
-extern crate dwm1001;
+extern crate heapless;
 extern crate nb;
 extern crate panic_semihosting;
 
@@ -38,11 +39,14 @@ use dwm1001::{
     },
     DWM1001,
 };
+use heapless::FnvIndexSet;
 
 
 #[entry]
 fn main() -> ! {
     debug::init();
+
+    let mut known_nodes = FnvIndexSet::<_, heapless::consts::U64>::new();
 
     let mut dwm1001 = DWM1001::take().unwrap();
 
@@ -65,8 +69,11 @@ fn main() -> ! {
     // Configure timer
     let mut task_timer    = dwm1001.TIMER0.constrain();
     let mut timeout_timer = dwm1001.TIMER1.constrain();
+    let mut output_timer  = dwm1001.TIMER2.constrain();
 
     let receive_time = 500_000 + (random_u32(&mut dwm1001.RNG) % 500_000);
+
+    output_timer.start(5_000_000);
 
     loop {
         task_timer.start(receive_time);
@@ -82,11 +89,15 @@ fn main() -> ! {
 
             timeout_timer.start(100_000);
             match receive(&mut dwm1001.DW1000, &mut timeout_timer) {
-                Ok(()) => {
+                Ok(source) => {
                     // Sucessfully received: Blue LED
                     dwm1001.leds.D10.enable();
                     delay.delay_ms(30u32);
                     dwm1001.leds.D10.disable();
+
+                    if let Err(_) = known_nodes.insert(source) {
+                        print!("Too many nodes. Can't add another one.\n");
+                    }
                 }
                 Err(_) => {
                     // It would be nice to print the error, but that takes way
@@ -118,6 +129,18 @@ fn main() -> ! {
                     continue;
                 }
             }
+        }
+
+        if output_timer.wait().is_ok() {
+            print!("\n-- Known nodes:\n");
+            for node in &known_nodes {
+                print!("PAN ID: 0x{:04x}, Short Address: 0x{:04x}\n",
+                    node.pan_id,
+                    node.short_addr,
+                );
+            }
+
+            output_timer.start(5_000_000);
         }
     }
 }
@@ -154,7 +177,7 @@ fn receive<SPI, T>(
     dw1000: &mut DW1000<SPI>,
     timer:  &mut Timer<T>,
 )
-    -> Result<(), Error>
+    -> Result<mac::Address, Error>
     where
         SPI: SpimExt,
         T:   TimerExt,
@@ -188,7 +211,7 @@ fn receive<SPI, T>(
         return Err(Error::UnexpectedMessage);
     }
 
-    Ok(())
+    Ok(frame.header.source)
 }
 
 fn send<SPI, T>(
