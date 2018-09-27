@@ -273,7 +273,9 @@ pub struct RxFuture<'r, SPI: 'r>(&'r mut ll::DW1000<SPI>);
 
 impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
     /// Wait for data to be available
-    pub fn wait(&mut self, buffer: &mut [u8]) -> nb::Result<usize, Error> {
+    pub fn wait<'b>(&mut self, buffer: &'b mut [u8])
+        -> nb::Result<mac::Frame<'b>, Error>
+    {
         let sys_status = self.0
             .sys_status()
             .read()
@@ -359,7 +361,10 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
 
         buffer[..len].copy_from_slice(&rx_buffer.data()[..len]);
 
-        Ok(len)
+        let frame = mac::Frame::read(&buffer[..len])
+            .map_err(|error| Error::Frame(error))?;
+
+        Ok(frame)
     }
 }
 
@@ -396,6 +401,9 @@ pub enum Error {
 
     /// Receiver SFD Timeout
     SfdTimeout,
+
+    /// Frame could not be decoded
+    Frame(mac::ReadError),
 }
 
 impl From<spim::Error> for Error {
