@@ -4,25 +4,15 @@
 //! full glory, you need two DWM1001-DEV boards running it.
 //!
 //! As printing debug output via semihosting is really slow and would interefere
-//! with the rest of the code, this example signals its status via LEDs. The
-//! following behavior is expected, if everything works normally:
-//! - Green LED blinks quickly all the time
-//!   The green LED signals receive errors, which usually happen all the time. I
-//!   don't know if that's normal, but I guess there's just enough RF noise in
-//!   the air, to make the module think it received something when that actually
-//!   didn't happen.
-//! - Red LED blinks every few seconds for half a second
-//!   The red LED signals that messages were sent. The code only activates it
-//!   for 30ms per message, but sending messages is so quick that it stays on
-//!   for the full half second or so that messages are being send.
-//! - Blue LED blinks from time to time
-//!   The blue LED signals successful receipt of a message. Unless something is
-//!   wrong, this should happen from time to time. The blue LED on one module
-//!   should correspond with the red LED on the other module.
+//! with the rest of the code, this example signals its status via LEDs. If
+//! everything works well, you should see the blue LED blink from time to time
+//! on both boards, signalling a successfully received message.
 
 
 #![no_main]
 #![no_std]
+
+#![feature(nll)]
 
 
 #[macro_use] extern crate cortex_m_rt;
@@ -76,7 +66,7 @@ fn main() -> ! {
     let mut task_timer    = dwm1001.TIMER0.constrain();
     let mut timeout_timer = dwm1001.TIMER1.constrain();
 
-    let receive_time = 2_000_000 + (random_u32(&mut dwm1001.RNG) % 1_000_000);
+    let receive_time = 500_000 + (random_u32(&mut dwm1001.RNG) % 500_000);
 
     loop {
         task_timer.start(receive_time);
@@ -90,7 +80,7 @@ fn main() -> ! {
                     unreachable!(),
             }
 
-            timeout_timer.start(1_000_000);
+            timeout_timer.start(100_000);
             match receive(&mut dwm1001.DW1000, &mut timeout_timer) {
                 Ok(()) => {
                     // Sucessfully received: Blue LED
@@ -101,18 +91,12 @@ fn main() -> ! {
                 Err(_) => {
                     // It would be nice to print the error, but that takes way
                     // too much time and interferes with everything else.
-
-                    // RX Error: Green LED
-                    dwm1001.leds.D9.enable();
-                    delay.delay_ms(30u32);
-                    dwm1001.leds.D9.disable();
-
                     continue;
                 }
             }
         }
 
-        task_timer.start(500_000);
+        task_timer.start(50_000);
         loop {
             match task_timer.wait() {
                 Ok(()) =>
@@ -123,13 +107,10 @@ fn main() -> ! {
                     unreachable!(),
             }
 
-            timeout_timer.start(100_000);
+            timeout_timer.start(10_000);
             match send(&mut dwm1001.DW1000, &mut timeout_timer) {
                 Ok(()) => {
-                    // Successful send: Red LED
-                    dwm1001.leds.D11.enable();
-                    delay.delay_ms(30u32);
-                    dwm1001.leds.D11.disable();
+                    ()
                 }
                 Err(_) => {
                     // It would be nice to print the error, but that takes way
@@ -183,10 +164,10 @@ fn receive<SPI, T>(
     let mut future = dw1000.receive()?;
 
     // Wait until frame has been received
-    let len = loop {
+    let frame = loop {
         match future.wait(&mut buffer) {
-            Ok(len) =>
-                break len,
+            Ok(frame) =>
+                break frame,
             Err(nb::Error::WouldBlock) =>
                 (),
             Err(nb::Error::Other(error)) =>
@@ -203,10 +184,7 @@ fn receive<SPI, T>(
         }
     };
 
-    if len < 2 {
-        return Err(Error::UnexpectedMessage);
-    }
-    if !buffer[.. len-2].ends_with(b"ping") {
+    if frame.payload != b"ping" {
         return Err(Error::UnexpectedMessage);
     }
 
@@ -222,7 +200,7 @@ fn send<SPI, T>(
         SPI: SpimExt,
         T:   TimerExt,
 {
-    let mut future = dw1000.send(b"ping")?;
+    let mut future = dw1000.send(b"ping", mac::Address::broadcast())?;
 
     loop {
         match future.wait() {

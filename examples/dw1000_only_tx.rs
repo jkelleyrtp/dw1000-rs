@@ -15,6 +15,7 @@ extern crate panic_semihosting;
 
 use dwm1001::{
     debug,
+    dw1000::mac,
     DWM1001,
 };
 
@@ -27,7 +28,7 @@ fn main() -> ! {
 
     loop {
         let mut tx = dwm1001.DW1000
-            .send(b"ping")
+            .send(b"ping", mac::Address::broadcast())
             .expect("Failed to start receiver");
 
         block!(tx.wait())
