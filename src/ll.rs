@@ -623,6 +623,12 @@ impl_register! {
         rxprfr, 16, 17, u8; /// RX Pulse Repetition Rate Report
         rxpsr,  18, 19, u8; /// RX Preamble Repetition
     }
+    0x15, 0x00, 14, RO, RX_TIME(rx_time) { /// Receive Time Stamp
+        rx_stamp,  0,  39, u64; /// Fully adjusted time stamp
+        fp_index, 40,  55, u16; /// First Path Index
+        fp_ampl1, 56,  71, u16; /// First Path Amplitude Point 1
+        rx_rawst, 72, 111, u64; /// Raw time stamp
+    }
     0x19, 0x00, 5, RO, SYS_STATE(sys_state) { /// System State information
         // This register is explicitely named in the user manual, but its
         // documentation states that it is reserved, and no info about fields is
