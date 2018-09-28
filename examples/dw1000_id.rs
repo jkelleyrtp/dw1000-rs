@@ -9,17 +9,21 @@
 
 
 #[macro_use] extern crate cortex_m_rt;
+#[macro_use] extern crate dwm1001;
 
-extern crate cortex_m_semihosting;
-extern crate dwm1001;
 extern crate panic_semihosting;
 
 
-use dwm1001::DWM1001;
+use dwm1001::{
+    debug,
+    DWM1001,
+};
 
 
 #[entry]
 fn main() -> ! {
+    debug::init();
+
     let mut dwm1001 = DWM1001::take().unwrap();
 
     let dev_id = dwm1001.DW1000
@@ -32,6 +36,8 @@ fn main() -> ! {
     assert_eq!(dev_id.model(),  0x01);
     assert_eq!(dev_id.ver(),    0x3);
     assert_eq!(dev_id.rev(),    0x0);
+
+    print!("Success!\n");
 
     loop {}
 }
