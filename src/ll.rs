@@ -283,8 +283,10 @@ macro_rules! impl_register {
                             // byte, we might have bits from unrelated fields
                             // there. Let's erase those before doing the final
                             // conversion into the field's data type.
+                            const SIZE_IN_BITS: usize =
+                                $last_bit - $first_bit + 1;
                             const BITS_ABOVE_FIELD: usize =
-                                8 - (($last_bit - $first_bit + 1) % 8);
+                                8 - (SIZE_IN_BITS % 8);
                             const LAST_INDEX: usize = size_of::<$ty>() - 1;
                             if BITS_ABOVE_FIELD < 8 {
                                 // Need to allow exceeding bitshifts to make the
