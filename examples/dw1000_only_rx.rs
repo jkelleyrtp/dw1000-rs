@@ -10,7 +10,6 @@
 #[macro_use] extern crate cortex_m_rt;
 #[macro_use] extern crate dwm1001;
 
-extern crate cortex_m_semihosting;
 extern crate nb;
 extern crate panic_semihosting;
 
