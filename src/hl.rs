@@ -159,6 +159,22 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
                 w.softreset(0b1111) // clear reset
             )?;
 
+        // We're already resetting the receiver in the previous step, and that's
+        // good enough to make my example program that's both sending and
+        // receiving work very reliably over many hours (that's not to say it
+        // comes unreliable after those hours, that's just when my test
+        // stopped). However, I've seen problems with an example program that
+        // only received, never sent, data. That got itself into some weird
+        // state where it couldn't receive anymore.
+        // I suspect that's because that example didn't have the following line
+        // of code, while the send/receive example had that line of code, being
+        // called from `send`.
+        // While I haven't, as of this writing, run any hours-long tests to
+        // confirm this does indeed fix the receive-only example, it seems
+        // (based on my eyeball-only measurements) that the RX/TX example is
+        // dropping fewer frames now.
+        self.force_idle()?;
+
         // Enable frame filtering
         self.ll
             .sys_cfg()
