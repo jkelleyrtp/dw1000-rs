@@ -629,6 +629,10 @@ impl_register! {
         fp_ampl1, 56,  71, u16; /// First Path Amplitude Point 1
         rx_rawst, 72, 111, u64; /// Raw time stamp
     }
+    0x17, 0x00, 10, RO, TX_TIME(tx_time) { /// Transmit Time Stamp
+        tx_stamp,  0, 39, u64; /// Fully adjusted time stamp
+        tx_rawst, 40, 79, u64; /// Raw time stamp
+    }
     0x19, 0x00, 5, RO, SYS_STATE(sys_state) { /// System State information
         // This register is explicitely named in the user manual, but its
         // documentation states that it is reserved, and no info about fields is
