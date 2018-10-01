@@ -159,7 +159,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
                     .txstrt(0b1)
             )?;
 
-        Ok(TxFuture(&mut self.ll))
+        Ok(TxFuture(self))
     }
 
     /// Starts the receiver
@@ -254,7 +254,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
                 w.rxenab(0b1)
             )?;
 
-        Ok(RxFuture(&mut self.ll))
+        Ok(RxFuture(self))
     }
 
 
@@ -271,7 +271,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 
 
 /// Represents a TX operation that might not have completed
-pub struct TxFuture<'r, SPI: 'r>(&'r mut ll::DW1000<SPI>);
+pub struct TxFuture<'r, SPI: 'r>(&'r mut DW1000<SPI>);
 
 impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
     /// Wait for the data to be sent
@@ -279,7 +279,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
         // Check Half Period Warning Counter. If this is a delayed transmission,
         // this will indicate that the delay was too short, and the frame was
         // sent too late.
-        let evc_hpw = self.0
+        let evc_hpw = self.0.ll()
             .evc_hpw()
             .read()
             .map_err(|error| Error::Spi(error))?
@@ -292,7 +292,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
         // transmission, this indicates that the transmitter was still powering
         // up while sending, and the frame preamble might not have transmit
         // correctly.
-        let evc_tpw = self.0
+        let evc_tpw = self.0.ll()
             .evc_tpw()
             .read()
             .map_err(|error| Error::Spi(error))?
@@ -301,7 +301,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
             return Err(nb::Error::Other(Error::DelayedSendPowerUpWarning));
         }
 
-        let sys_status = self.0
+        let sys_status = self.0.ll()
             .sys_status()
             .read()
             .map_err(|error| Error::Spi(error))?;
@@ -313,7 +313,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
         }
 
         // Frame sent. Reset all progress flags.
-        self.0
+        self.0.ll()
             .sys_status()
             .write(|w|
                 w
@@ -330,14 +330,14 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
 
 
 /// Represents an RX operation that might not have finished
-pub struct RxFuture<'r, SPI: 'r>(&'r mut ll::DW1000<SPI>);
+pub struct RxFuture<'r, SPI: 'r>(&'r mut DW1000<SPI>);
 
 impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
     /// Wait for data to be available
     pub fn wait<'b>(&mut self, buffer: &'b mut [u8])
         -> nb::Result<mac::Frame<'b>, Error>
     {
-        let sys_status = self.0
+        let sys_status = self.0.ll()
             .sys_status()
             .read()
             .map_err(|error| Error::Spi(error))?;
@@ -379,7 +379,7 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
 
         // Reset status bits. This is not strictly necessary, but it helps, if
         // you have to inspect SYS_STATUS manually during debugging.
-        self.0
+        self.0.ll()
             .sys_status()
             .write(|w|
                 w
@@ -403,11 +403,11 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
             .map_err(|error| Error::Spi(error))?;
 
         // Read received frame
-        let rx_finfo = self.0
+        let rx_finfo = self.0.ll()
             .rx_finfo()
             .read()
             .map_err(|error| Error::Spi(error))?;
-        let rx_buffer = self.0
+        let rx_buffer = self.0.ll()
             .rx_buffer()
             .read()
             .map_err(|error| Error::Spi(error))?;
