@@ -658,6 +658,10 @@ impl_register! {
     0x2E, 0x1806, 2, RW, LDE_CFG2(lde_cfg2) { /// LDE Configuration Register 2
         value, 0, 15, u16; /// The LDE_CFG2 configuration value
     }
+    0x2F, 0x00, 4, RW, EVC_CTRL(evc_ctrl) { /// Event Counter Control
+        evc_en,  0, 0, u8; /// Event Counters Enable
+        evc_clr, 1, 1, u8; /// Event Counters Clear
+    }
     0x36, 0x00, 4, RW, PMSC_CTRL0(pmsc_ctrl0) { /// PMSC Control Register 0
         sysclks,    0,  1, u8; /// System Clock Selection
         rxclks,     2,  3, u8; /// Receiver Clock Selection
