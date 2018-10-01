@@ -662,6 +662,9 @@ impl_register! {
         evc_en,  0, 0, u8; /// Event Counters Enable
         evc_clr, 1, 1, u8; /// Event Counters Clear
     }
+    0x2F, 0x18, 2, RO, EVC_HPW(evc_hpw) { /// Half Period Warning Counter
+        value, 0, 11, u16; /// Half Period Warning Event Counter
+    }
     0x2F, 0x1A, 2, RO, EVC_TPW(evc_tpw) { /// TX Power-Up Warning Counter
         value, 0, 11, u16; /// TX Power-Up Warning Event Counter
     }
