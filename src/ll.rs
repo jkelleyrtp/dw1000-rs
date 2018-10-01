@@ -556,6 +556,9 @@ impl_register! {
         autoack,    30, 30, u8; /// Automatic Acknowledgement Enable
         aackpend,   31, 31, u8; /// Automatic Acknowledgement Pending
     }
+    0x06, 0x00, 5, RO, SYS_TIME(sys_time) { /// System Time Counter
+        value, 0, 39, u64; /// System Time Counter
+    }
     0x08, 0x00, 5, RW, TX_FCTRL(tx_fctrl) { /// TX Frame Control
         tflen,     0,  6, u8;  /// TX Frame Length
         tfle,      7,  9, u8;  /// TX Frame Length Extension
