@@ -662,6 +662,9 @@ impl_register! {
         evc_en,  0, 0, u8; /// Event Counters Enable
         evc_clr, 1, 1, u8; /// Event Counters Clear
     }
+    0x2F, 0x1A, 2, RO, EVC_TPW(evc_tpw) { /// TX Power-Up Warning Counter
+        value, 0, 11, u16; /// TX Power-Up Warning Event Counter
+    }
     0x36, 0x00, 4, RW, PMSC_CTRL0(pmsc_ctrl0) { /// PMSC Control Register 0
         sysclks,    0,  1, u8; /// System Clock Selection
         rxclks,     2,  3, u8; /// Receiver Clock Selection
