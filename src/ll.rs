@@ -567,6 +567,9 @@ impl_register! {
         txboffs,  22, 31, u16; /// TX Buffer Index Offset
         ifsdelay, 32, 39, u8;  /// Inter-Frame Spacing
     }
+    0x0A, 0x00, 5, RW, DX_TIME(dx_time) { /// Delayed Send or Receive Time
+        value, 0, 39, u64; /// Delayed Send or Receive Time
+    }
     0x0D, 0x00, 4, RW, SYS_CTRL(sys_ctrl) { /// System Control Register
         sfcst,      0,  0, u8; /// Suppress Auto-FCS Transmission
         txstrt,     1,  1, u8; /// Transmit Start
