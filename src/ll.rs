@@ -237,15 +237,27 @@ macro_rules! impl_register {
                     $(
                         #[$field_doc]
                         pub fn $field(&self) -> $ty {
+                            use core::mem::size_of;
                             use ll::FromBytes;
+
+                            // The index (in the register data) of the first
+                            // byte that contains a part of this field.
+                            const START: usize = $first_bit / 8;
+
+                            // The index (in the register data) of the byte
+                            // after the last byte that contains a part of this
+                            // field.
+                            const END: usize = $last_bit  / 8 + 1;
+
+                            // The numer of bytes in the register data that
+                            // contain part of this field.
+                            const LEN: usize = END - START;
 
                             // Get all bytes that contain our field. The field
                             // might fill out these bytes completely, or only
                             // some bits in them.
-                            const START: usize = $first_bit / 8;
-                            const END:   usize = $last_bit  / 8 + 1;
-                            let mut bytes = [0; END - START];
-                            bytes.copy_from_slice(
+                            let mut bytes = [0; LEN];
+                            bytes[..LEN].copy_from_slice(
                                 &self.0[START+HEADER_LEN .. END+HEADER_LEN]
                             );
 
@@ -270,7 +282,7 @@ macro_rules! impl_register {
                                 // the if condition above.
                                 let mut i = 1;
                                 #[allow(exceeding_bitshifts)]
-                                while i < bytes.len() {
+                                while i < LEN {
                                     bytes[i - 1] |=
                                         bytes[i] << 8 - OFFSET_IN_BYTE;
                                     bytes[i] >>= OFFSET_IN_BYTE;
@@ -308,7 +320,13 @@ macro_rules! impl_register {
                             // stable Rust, so we might be able to remove our
                             // custom infrastructure here. Tracking issue:
                             // https://github.com/rust-lang/rust/issues/52963
-                            <$ty as FromBytes>::from_bytes(&bytes)
+                            let bytes = if bytes.len() > size_of::<$ty>() {
+                                &bytes[..size_of::<$ty>()]
+                            }
+                            else {
+                                &bytes
+                            };
+                            <$ty as FromBytes>::from_bytes(bytes)
                         }
                     )*
                 }
@@ -538,6 +556,9 @@ impl_register! {
         autoack,    30, 30, u8; /// Automatic Acknowledgement Enable
         aackpend,   31, 31, u8; /// Automatic Acknowledgement Pending
     }
+    0x06, 0x00, 5, RO, SYS_TIME(sys_time) { /// System Time Counter
+        value, 0, 39, u64; /// System Time Counter
+    }
     0x08, 0x00, 5, RW, TX_FCTRL(tx_fctrl) { /// TX Frame Control
         tflen,     0,  6, u8;  /// TX Frame Length
         tfle,      7,  9, u8;  /// TX Frame Length Extension
@@ -548,6 +569,9 @@ impl_register! {
         pe,       20, 21, u8;  /// Preamble Extension
         txboffs,  22, 31, u16; /// TX Buffer Index Offset
         ifsdelay, 32, 39, u8;  /// Inter-Frame Spacing
+    }
+    0x0A, 0x00, 5, RW, DX_TIME(dx_time) { /// Delayed Send or Receive Time
+        value, 0, 39, u64; /// Delayed Send or Receive Time
     }
     0x0D, 0x00, 4, RW, SYS_CTRL(sys_ctrl) { /// System Control Register
         sfcst,      0,  0, u8; /// Suppress Auto-FCS Transmission
@@ -605,6 +629,16 @@ impl_register! {
         rxprfr, 16, 17, u8; /// RX Pulse Repetition Rate Report
         rxpsr,  18, 19, u8; /// RX Preamble Repetition
     }
+    0x15, 0x00, 14, RO, RX_TIME(rx_time) { /// Receive Time Stamp
+        rx_stamp,  0,  39, u64; /// Fully adjusted time stamp
+        fp_index, 40,  55, u16; /// First Path Index
+        fp_ampl1, 56,  71, u16; /// First Path Amplitude Point 1
+        rx_rawst, 72, 111, u64; /// Raw time stamp
+    }
+    0x17, 0x00, 10, RO, TX_TIME(tx_time) { /// Transmit Time Stamp
+        tx_stamp,  0, 39, u64; /// Fully adjusted time stamp
+        tx_rawst, 40, 79, u64; /// Raw time stamp
+    }
     0x19, 0x00, 5, RO, SYS_STATE(sys_state) { /// System State information
         // This register is explicitely named in the user manual, but its
         // documentation states that it is reserved, and no info about fields is
@@ -623,6 +657,16 @@ impl_register! {
     }
     0x2E, 0x1806, 2, RW, LDE_CFG2(lde_cfg2) { /// LDE Configuration Register 2
         value, 0, 15, u16; /// The LDE_CFG2 configuration value
+    }
+    0x2F, 0x00, 4, RW, EVC_CTRL(evc_ctrl) { /// Event Counter Control
+        evc_en,  0, 0, u8; /// Event Counters Enable
+        evc_clr, 1, 1, u8; /// Event Counters Clear
+    }
+    0x2F, 0x18, 2, RO, EVC_HPW(evc_hpw) { /// Half Period Warning Counter
+        value, 0, 11, u16; /// Half Period Warning Event Counter
+    }
+    0x2F, 0x1A, 2, RO, EVC_TPW(evc_tpw) { /// TX Power-Up Warning Counter
+        value, 0, 11, u16; /// TX Power-Up Warning Event Counter
     }
     0x36, 0x00, 4, RW, PMSC_CTRL0(pmsc_ctrl0) { /// PMSC Control Register 0
         sysclks,    0,  1, u8; /// System Clock Selection
@@ -768,93 +812,50 @@ trait FromBytes {
     fn from_bytes(bytes: &[u8]) -> Self;
 }
 
-impl FromBytes for u8 {
-    fn from_bytes(bytes: &[u8]) -> Self {
-        bytes[0]
-    }
-}
-
-impl FromBytes for u16 {
-    fn from_bytes(bytes: &[u8]) -> Self {
-        (bytes[1] as u16) << 8 |
-        (bytes[0] as u16) << 0
-    }
-}
-
-impl FromBytes for u32 {
-    fn from_bytes(bytes: &[u8]) -> Self {
-        (bytes[3] as u32) << 24 |
-        (bytes[2] as u32) << 16 |
-        (bytes[1] as u32) <<  8 |
-        (bytes[0] as u32) <<  0
-    }
-}
-
-impl FromBytes for u64 {
-    fn from_bytes(bytes: &[u8]) -> Self {
-        (bytes[7] as u64) << 56 |
-        (bytes[6] as u64) << 48 |
-        (bytes[5] as u64) << 40 |
-        (bytes[4] as u64) << 32 |
-        (bytes[3] as u64) << 24 |
-        (bytes[2] as u64) << 16 |
-        (bytes[1] as u64) <<  8 |
-        (bytes[0] as u64) <<  0
-    }
-}
-
-
 trait ToBytes {
     type Bytes;
 
     fn to_bytes(self) -> Self::Bytes;
 }
 
-impl ToBytes for u8 {
-    type Bytes = [u8; 1];
+macro_rules! impl_bytes {
+    ($($ty:ty,)*) => {
+        $(
+            impl FromBytes for $ty {
+                fn from_bytes(bytes: &[u8]) -> Self {
+                    let mut val = 0;
 
-    fn to_bytes(self) -> Self::Bytes {
-        [self]
+                    for (i, &b) in bytes.iter().enumerate() {
+                        val |= (b as $ty) << (i * 8);
+                    }
+
+                    val
+                }
+            }
+
+            impl ToBytes for $ty {
+                type Bytes = [u8; ::core::mem::size_of::<$ty>()];
+
+                fn to_bytes(self) -> Self::Bytes {
+                    let mut bytes = [0; ::core::mem::size_of::<$ty>()];
+
+                    for (i, b) in bytes.iter_mut().enumerate() {
+                        let shift = 8 * i;
+                        let mask  = 0xff << shift;
+
+                        *b = ((self & mask) >> shift) as u8;
+                    }
+
+                    bytes
+                }
+            }
+        )*
     }
 }
 
-impl ToBytes for u16 {
-    type Bytes = [u8; 2];
-
-    fn to_bytes(self) -> Self::Bytes {
-        [
-            ((self & 0x00ff) >> 0) as u8,
-            ((self & 0xff00) >> 8) as u8,
-        ]
-    }
-}
-
-impl ToBytes for u32 {
-    type Bytes = [u8; 4];
-
-    fn to_bytes(self) -> Self::Bytes {
-        [
-            ((self & 0x000000ff) >>  0) as u8,
-            ((self & 0x0000ff00) >>  8) as u8,
-            ((self & 0x00ff0000) >> 16) as u8,
-            ((self & 0xff000000) >> 24) as u8,
-        ]
-    }
-}
-
-impl ToBytes for u64 {
-    type Bytes = [u8; 8];
-
-    fn to_bytes(self) -> Self::Bytes {
-        [
-            ((self & 0x00000000000000ff) >>  0) as u8,
-            ((self & 0x000000000000ff00) >>  8) as u8,
-            ((self & 0x0000000000ff0000) >> 16) as u8,
-            ((self & 0x00000000ff000000) >> 24) as u8,
-            ((self & 0x000000ff00000000) >> 32) as u8,
-            ((self & 0x0000ff0000000000) >> 40) as u8,
-            ((self & 0x00ff000000000000) >> 48) as u8,
-            ((self & 0xff00000000000000) >> 56) as u8,
-        ]
-    }
+impl_bytes! {
+    u8,
+    u16,
+    u32,
+    u64,
 }
