@@ -240,13 +240,24 @@ macro_rules! impl_register {
                             use core::mem::size_of;
                             use ll::FromBytes;
 
+                            // The index (in the register data) of the first
+                            // byte that contains a part of this field.
+                            const START: usize = $first_bit / 8;
+
+                            // The index (in the register data) of the byte
+                            // after the last byte that contains a part of this
+                            // field.
+                            const END: usize = $last_bit  / 8 + 1;
+
+                            // The numer of bytes in the register data that
+                            // contain part of this field.
+                            const LEN: usize = END - START;
+
                             // Get all bytes that contain our field. The field
                             // might fill out these bytes completely, or only
                             // some bits in them.
-                            const START: usize = $first_bit / 8;
-                            const END:   usize = $last_bit  / 8 + 1;
-                            let mut bytes = [0; END - START];
-                            bytes.copy_from_slice(
+                            let mut bytes = [0; LEN];
+                            bytes[..LEN].copy_from_slice(
                                 &self.0[START+HEADER_LEN .. END+HEADER_LEN]
                             );
 
@@ -271,7 +282,7 @@ macro_rules! impl_register {
                                 // the if condition above.
                                 let mut i = 1;
                                 #[allow(exceeding_bitshifts)]
-                                while i < bytes.len() {
+                                while i < LEN {
                                     bytes[i - 1] |=
                                         bytes[i] << 8 - OFFSET_IN_BYTE;
                                     bytes[i] >>= OFFSET_IN_BYTE;
