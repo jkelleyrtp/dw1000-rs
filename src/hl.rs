@@ -162,7 +162,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         Ok(TxFuture(self))
     }
 
-    /// Starts the receiver
+    /// Attempt to receive a frame
     pub fn receive(&mut self) -> Result<RxFuture<SPI>, Error> {
         // For unknown reasons, the DW1000 gets stuck in RX mode without ever
         // receiving anything, after receiving one good frame. Reset the
