@@ -237,6 +237,7 @@ macro_rules! impl_register {
                     $(
                         #[$field_doc]
                         pub fn $field(&self) -> $ty {
+                            use core::mem::size_of;
                             use ll::FromBytes;
 
                             // Get all bytes that contain our field. The field
@@ -308,7 +309,13 @@ macro_rules! impl_register {
                             // stable Rust, so we might be able to remove our
                             // custom infrastructure here. Tracking issue:
                             // https://github.com/rust-lang/rust/issues/52963
-                            <$ty as FromBytes>::from_bytes(&bytes)
+                            let bytes = if bytes.len() > size_of::<$ty>() {
+                                &bytes[..size_of::<$ty>()]
+                            }
+                            else {
+                                &bytes
+                            };
+                            <$ty as FromBytes>::from_bytes(bytes)
                         }
                     )*
                 }
@@ -768,93 +775,50 @@ trait FromBytes {
     fn from_bytes(bytes: &[u8]) -> Self;
 }
 
-impl FromBytes for u8 {
-    fn from_bytes(bytes: &[u8]) -> Self {
-        bytes[0]
-    }
-}
-
-impl FromBytes for u16 {
-    fn from_bytes(bytes: &[u8]) -> Self {
-        (bytes[1] as u16) << 8 |
-        (bytes[0] as u16) << 0
-    }
-}
-
-impl FromBytes for u32 {
-    fn from_bytes(bytes: &[u8]) -> Self {
-        (bytes[3] as u32) << 24 |
-        (bytes[2] as u32) << 16 |
-        (bytes[1] as u32) <<  8 |
-        (bytes[0] as u32) <<  0
-    }
-}
-
-impl FromBytes for u64 {
-    fn from_bytes(bytes: &[u8]) -> Self {
-        (bytes[7] as u64) << 56 |
-        (bytes[6] as u64) << 48 |
-        (bytes[5] as u64) << 40 |
-        (bytes[4] as u64) << 32 |
-        (bytes[3] as u64) << 24 |
-        (bytes[2] as u64) << 16 |
-        (bytes[1] as u64) <<  8 |
-        (bytes[0] as u64) <<  0
-    }
-}
-
-
 trait ToBytes {
     type Bytes;
 
     fn to_bytes(self) -> Self::Bytes;
 }
 
-impl ToBytes for u8 {
-    type Bytes = [u8; 1];
+macro_rules! impl_bytes {
+    ($($ty:ty,)*) => {
+        $(
+            impl FromBytes for $ty {
+                fn from_bytes(bytes: &[u8]) -> Self {
+                    let mut val = 0;
 
-    fn to_bytes(self) -> Self::Bytes {
-        [self]
+                    for (i, &b) in bytes.iter().enumerate() {
+                        val |= (b as $ty) << (i * 8);
+                    }
+
+                    val
+                }
+            }
+
+            impl ToBytes for $ty {
+                type Bytes = [u8; ::core::mem::size_of::<$ty>()];
+
+                fn to_bytes(self) -> Self::Bytes {
+                    let mut bytes = [0; ::core::mem::size_of::<$ty>()];
+
+                    for (i, b) in bytes.iter_mut().enumerate() {
+                        let shift = 8 * i;
+                        let mask  = 0xff << shift;
+
+                        *b = ((self & mask) >> shift) as u8;
+                    }
+
+                    bytes
+                }
+            }
+        )*
     }
 }
 
-impl ToBytes for u16 {
-    type Bytes = [u8; 2];
-
-    fn to_bytes(self) -> Self::Bytes {
-        [
-            ((self & 0x00ff) >> 0) as u8,
-            ((self & 0xff00) >> 8) as u8,
-        ]
-    }
-}
-
-impl ToBytes for u32 {
-    type Bytes = [u8; 4];
-
-    fn to_bytes(self) -> Self::Bytes {
-        [
-            ((self & 0x000000ff) >>  0) as u8,
-            ((self & 0x0000ff00) >>  8) as u8,
-            ((self & 0x00ff0000) >> 16) as u8,
-            ((self & 0xff000000) >> 24) as u8,
-        ]
-    }
-}
-
-impl ToBytes for u64 {
-    type Bytes = [u8; 8];
-
-    fn to_bytes(self) -> Self::Bytes {
-        [
-            ((self & 0x00000000000000ff) >>  0) as u8,
-            ((self & 0x000000000000ff00) >>  8) as u8,
-            ((self & 0x0000000000ff0000) >> 16) as u8,
-            ((self & 0x00000000ff000000) >> 24) as u8,
-            ((self & 0x000000ff00000000) >> 32) as u8,
-            ((self & 0x0000ff0000000000) >> 40) as u8,
-            ((self & 0x00ff000000000000) >> 48) as u8,
-            ((self & 0xff00000000000000) >> 56) as u8,
-        ]
-    }
+impl_bytes! {
+    u8,
+    u16,
+    u32,
+    u64,
 }
