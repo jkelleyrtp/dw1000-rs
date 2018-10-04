@@ -31,6 +31,10 @@ name              = "blink"
 required-features = ["dev", "rt"]
 
 [[example]]
+name              = "dw1000_delayed_tx"
+required-features = ["dev", "rt"]
+
+[[example]]
 name              = "dw1000_id"
 required-features = ["dev", "rt"]
 
