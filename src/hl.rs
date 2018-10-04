@@ -79,9 +79,21 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     /// Broadcast raw data
     ///
     /// Broadcasts data without any MAC header.
-    pub fn send(&mut self, data: &[u8], destination: mac::Address)
+    pub fn send(&mut self,
+        data:         &[u8],
+        destination:  mac::Address,
+        delayed_time: Option<u64>,
+    )
         -> Result<TxFuture<SPI>, Error>
     {
+        // Clear event counters
+        self.ll.evc_ctrl().write(|w| w.evc_clr(0b1))?;
+        while self.ll.evc_ctrl().read()?.evc_clr() == 0b1 {}
+
+        // (Re-)Enable event counters
+        self.ll.evc_ctrl().write(|w| w.evc_en(0b1))?;
+        while self.ll.evc_ctrl().read()?.evc_en() == 0b1 {}
+
         // Sometimes, for unknown reasons, the DW1000 gets stuck in RX mode.
         // Starting the transmitter won't get it to enter TX mode, which means
         // all subsequent send operations will fail. Let's disable the
@@ -106,6 +118,14 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
             payload: data,
             footer: [0; 2],
         };
+
+        delayed_time.map(|time| {
+            self.ll
+                .dx_time()
+                .write(|w|
+                    w.value(time)
+                )
+        });
 
         // Prepare transmitter
         let mut len = 0;
@@ -135,8 +155,8 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         self.ll
             .sys_ctrl()
             .modify(|_, w|
-                w
-                    .txstrt(1)
+                if delayed_time.is_some() { w.txdlys(0b1) } else { w }
+                    .txstrt(0b1)
             )?;
 
         Ok(TxFuture(&mut self.ll))
@@ -256,6 +276,31 @@ pub struct TxFuture<'r, SPI: 'r>(&'r mut ll::DW1000<SPI>);
 impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
     /// Wait for the data to be sent
     pub fn wait(&mut self) -> nb::Result<(), Error> {
+        // Check Half Period Warning Counter. If this is a delayed transmission,
+        // this will indicate that the delay was too short, and the frame was
+        // sent too late.
+        let evc_hpw = self.0
+            .evc_hpw()
+            .read()
+            .map_err(|error| Error::Spi(error))?
+            .value();
+        if evc_hpw != 0 {
+            return Err(nb::Error::Other(Error::DelayedSendTooLate));
+        }
+
+        // Check Transmitter Power-Up Warning Counter. If this is a delayed
+        // transmission, this indicates that the transmitter was still powering
+        // up while sending, and the frame preamble might not have transmit
+        // correctly.
+        let evc_tpw = self.0
+            .evc_tpw()
+            .read()
+            .map_err(|error| Error::Spi(error))?
+            .value();
+        if evc_tpw != 0 {
+            return Err(nb::Error::Other(Error::DelayedSendPowerUpWarning));
+        }
+
         let sys_status = self.0
             .sys_status()
             .read()
@@ -420,6 +465,19 @@ pub enum Error {
 
     /// Frame could not be decoded
     Frame(mac::ReadError),
+
+    /// A delayed frame could not be sent in time
+    ///
+    /// Please note that the frame was still sent. Replies could still arrive,
+    /// and if it was a ranging frame, the resulting range measurement will be
+    /// wrong.
+    DelayedSendTooLate,
+
+    /// Transmitter could not power up in time for delayed send
+    ///
+    /// The frame was still transmitted, but the first bytes of the preamble
+    /// were likely corrupted.
+    DelayedSendPowerUpWarning,
 }
 
 impl From<spim::Error> for Error {
