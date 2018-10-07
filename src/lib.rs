@@ -62,10 +62,18 @@ use nrf52832_hal::{
 };
 
 #[cfg(feature = "dev")]
-use nrf52832_hal::gpio::{
-    p0::P0_Pin,
-    Output,
-    PushPull,
+use nrf52832_hal::{
+    gpio::{
+        p0::P0_Pin,
+        Output,
+        PushPull,
+    },
+    uarte::{
+        self,
+        Uarte,
+        Parity as UartParity,
+        Baudrate as UartBaudrate,
+    },
 };
 
 
@@ -80,6 +88,12 @@ pub struct DWM1001 {
     /// This is only available if the `dev` feature is enabled.
     #[cfg(feature = "dev")]
     pub leds: Leds,
+
+    /// DWM1001 UART, wired to USB virtual UART port
+    ///
+    /// This is only available if the `dev` feature is enabled.
+    #[cfg(feature = "dev")]
+    pub uart: Uarte<nrf52::UARTE0>,
 
     /// The DW_RST pin (P0.24 on the nRF52)
     ///
@@ -155,6 +169,7 @@ pub struct DWM1001 {
     pub RADIO: nrf52::RADIO,
 
     /// nRF52 peripheral: UARTE0
+    #[cfg(not(feature = "dev"))]
     pub UARTE0: nrf52::UARTE0,
 
     /// nRF52 peripheral: UART0
@@ -370,15 +385,34 @@ impl DWM1001 {
 
         let dw_cs = pins.p0_17.into_push_pull_output(Level::High).degrade();
 
+        // Some notes about the hardcoded configuration of `Uarte`:
+        // - On the DWM1001-DEV board, the UART is connected (without CTS/RTS flow control)
+        //   to the attached debugger chip. This UART is exposed via USB as a virtual
+        //   port, which is capable of 1Mbps baudrate
+        // - Although these ports/pins are exposed generally on the DWM1001 package, and are marked
+        //   as UART RXD and TXD, they are not necessarily used as such by the firmware. For this reason,
+        //   non-`dev` features may be used to manually configure the serial port
+        #[cfg(feature = "dev")]
+        let uarte0 = p.UARTE0.constrain(uarte::Pins {
+                txd: pins.p0_05.into_push_pull_output(Level::High).degrade(),
+                rxd: pins.p0_11.into_push_pull_output(Level::High).degrade(),
+                cts: None,
+                rts: None,
+            },
+            UartParity::EXCLUDED,
+            UartBaudrate::BAUD1M
+        );
+
         DWM1001 {
+            #[cfg(feature = "dev")]
+            uart: uarte0,
+
             pins: Pins {
                 BT_WAKE_UP: pins.p0_02,
                 SPIS_CSn  : pins.p0_03,
                 SPIS_CLK  : pins.p0_04,
-                UART_TX   : pins.p0_05,
                 SPIS_MOSI : pins.p0_06,
                 SPIS_MISO : pins.p0_07,
-                UART_RX   : pins.p0_11,
                 RESETn    : pins.p0_21,
                 READY     : pins.p0_26,
 
@@ -390,6 +424,9 @@ impl DWM1001 {
                 GPIO_15: pins.p0_15,
                 GPIO_23: pins.p0_23,
                 GPIO_27: pins.p0_27,
+
+                #[cfg(not(feature = "dev"))] UART_RX   : pins.p0_11,
+                #[cfg(not(feature = "dev"))] UART_TX   : pins.p0_05,
 
                 #[cfg(not(feature = "dev"))] GPIO_14: pins.p0_14,
                 #[cfg(not(feature = "dev"))] GPIO_22: pins.p0_22,
@@ -435,7 +472,10 @@ impl DWM1001 {
             POWER : p.POWER,
             CLOCK : p.CLOCK,
             RADIO : p.RADIO,
+
+            #[cfg(not(feature = "dev"))]
             UARTE0: p.UARTE0,
+
             UART0 : p.UART0,
             SPIM0 : p.SPIM0,
             SPIS0 : p.SPIS0,
@@ -509,6 +549,10 @@ pub struct Pins {
     pub SPIS_CLK: p0::P0_04<Input<Floating>>,
 
     /// DWM1001: UART_TX; nRF52: P0.05
+    ///
+    /// This field is only available, if the `dev` feature is disabled.
+    /// Otherwise the pin is used for a UART on the DWM1001-Dev board.
+    #[cfg(not(feature = "dev"))]
     pub UART_TX: p0::P0_05<Input<Floating>>,
 
     /// DWM1001: SPIS_MOSI; nRF52: P0.06
@@ -518,6 +562,10 @@ pub struct Pins {
     pub SPIS_MISO: p0::P0_07<Input<Floating>>,
 
     /// DWM1001: UART_RX; nRF52: P0.11
+    ///
+    /// This field is only available, if the `dev` feature is disabled.
+    /// Otherwise the pin is used for a UART on the DWM1001-Dev board.
+    #[cfg(not(feature = "dev"))]
     pub UART_RX: p0::P0_11<Input<Floating>>,
 
     /// DWM1001: RESETn; nRF52: P0.21
