@@ -648,6 +648,9 @@ impl_register! {
     0x23, 0x04, 2, RW, AGC_TUNE1(agc_tune1) { /// AGC Tuning register 1
         value, 0, 15, u16; /// AGC Tuning register 1 value
     }
+    0x23, 0x0C, 4, RW, AGC_TUNE2(agc_tune2) { /// AGC Tuning register 2
+        value, 0, 31, u32; /// AGC Tuning register 2 value
+    }
     0x24, 0x00, 4, RW, EC_CTRL(ec_ctrl) { /// External Clock Sync Counter Config
         ostsm,   0,  0, u8; /// External Transmit Synchronization Mode Enable
         osrsm,   1,  1, u8; /// External Receive Synchronization Mode Enable
