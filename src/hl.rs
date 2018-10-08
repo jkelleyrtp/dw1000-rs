@@ -238,10 +238,6 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
                     .clkpll_ll(0b1)
             )?;
 
-        // If we cared about MAC addresses, which we don't in this example, we'd
-        // have to enable frame filtering at this point. By default it's off,
-        // meaning we'll receive everything, no matter who it is addressed to.
-
         // We're expecting a preamble length of `64`. Set PAC size to the
         // recommended value for that preamble length, according to section
         // 4.1.1. The value we're writing to DRX_TUNE2 here also depends on the
