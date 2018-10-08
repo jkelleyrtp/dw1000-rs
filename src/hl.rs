@@ -30,7 +30,7 @@ pub struct DW1000<SPI, State> {
     _state: State,
 }
 
-impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
+impl<SPI> DW1000<SPI, Uninitialized> where SPI: SpimExt {
     /// Create a new instance of `DW1000`
     ///
     /// Requires the SPI peripheral and the chip select pin that are connected
@@ -44,10 +44,23 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
         DW1000 {
             ll:     ll::DW1000::new(spim, chip_select),
             seq:    Wrapping(0),
-            _state: Ready,
+            _state: Uninitialized,
         }
     }
 
+    /// Initialize the DW1000
+    pub fn init(self) -> DW1000<SPI, Ready> {
+        // Nothing here yet.
+
+        DW1000 {
+            ll:     self.ll,
+            seq:    self.seq,
+            _state: Ready,
+        }
+    }
+}
+
+impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
     /// Sets the network id and address used for sending and receiving
     pub fn set_address(&mut self, address: mac::Address)
         -> Result<(), Error>
@@ -496,6 +509,10 @@ impl From<Error> for nb::Error<Error> {
     }
 }
 
+
+
+/// Indicates that the `DW1000` instance is not initialized yet
+pub struct Uninitialized;
 
 /// Indicates that the `DW1000` instance is ready to be used
 pub struct Ready;
