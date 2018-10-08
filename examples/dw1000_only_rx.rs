@@ -32,12 +32,14 @@ fn main() -> ! {
     let mut delay  = Delay::new(dwm1001.SYST, clocks);
 
     dwm1001.DW_RST.reset_dw1000(&mut delay);
+    let mut dw1000 = dwm1001.DW1000.init()
+        .expect("Failed to initialize DW1000");
 
     // Configure timer
     let mut timer = dwm1001.TIMER0.constrain();
 
     'outer: loop {
-        let mut rx = dwm1001.DW1000
+        let mut rx = dw1000
             .receive()
             .expect("Failed to start receiver");
 

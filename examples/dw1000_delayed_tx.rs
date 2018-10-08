@@ -23,10 +23,11 @@ use dwm1001::{
 fn main() -> ! {
     debug::init();
 
-    let mut dwm1001 = DWM1001::take().unwrap();
+    let     dwm1001 = DWM1001::take().unwrap();
+    let mut dw1000  = dwm1001.DW1000.init().unwrap();
 
     loop {
-        let sys_time = dwm1001.DW1000.ll()
+        let sys_time = dw1000.ll()
             .sys_time()
             .read()
             .expect("Failed to read system time")
@@ -35,7 +36,7 @@ fn main() -> ! {
         let delay   = 10 * 64_000_000; // ~10 ms
         let tx_time = sys_time + delay;
 
-        let mut tx = dwm1001.DW1000
+        let mut tx = dw1000
             .send(b"ping", mac::Address::broadcast(), Some(tx_time))
             .expect("Failed to start receiver");
 

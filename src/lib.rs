@@ -73,7 +73,7 @@ pub struct DWM1001 {
     pub DW_RST: DW_RST,
 
     /// DW1000 UWB transceiver
-    pub DW1000: DW1000<nrf52::SPIM2>,
+    pub DW1000: DW1000<nrf52::SPIM2, dw1000::Uninitialized>,
 
     /// Core peripheral: Cache and branch predictor maintenance operations
     pub CBP: nrf52::CBP,
