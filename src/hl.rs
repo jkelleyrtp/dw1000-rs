@@ -147,18 +147,12 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
             })?;
         self.ll
             .tx_fctrl()
-            .write(|w| {
+            .modify(|_, w| {
                 let tflen = len as u8 + 2;
                 w
                     .tflen(tflen) // data length + two-octet CRC
                     .tfle(0)      // no non-standard length extension
-                    .txbr(0b01)   // 850 kbps bit rate
-                    .tr(0b0)      // no ranging
-                    .txprf(0b01)  // pulse repetition frequency: 16 MHz
-                    .txpsr(0b01)  // preamble length: 64
-                    .pe(0b00)     // no non-standard preamble length
                     .txboffs(0)   // no offset in TX_BUFFER
-                    .ifsdelay(0)  // no delay between frames
             })?;
 
         // Start transmission
