@@ -645,6 +645,9 @@ impl_register! {
         // given. I still found it helpful to have it, to print raw bytes during
         // debugging.
     }
+    0x23, 0x04, 2, RW, AGC_TUNE1(agc_tune1) { /// AGC Tuning register 1
+        value, 0, 15, u16; /// AGC Tuning register 1 value
+    }
     0x24, 0x00, 4, RW, EC_CTRL(ec_ctrl) { /// External Clock Sync Counter Config
         ostsm,   0,  0, u8; /// External Transmit Synchronization Mode Enable
         osrsm,   1,  1, u8; /// External Receive Synchronization Mode Enable
