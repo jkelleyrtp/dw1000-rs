@@ -24,12 +24,13 @@ use mac;
 
 
 /// Entry point to the DW1000 driver API
-pub struct DW1000<SPI> {
-    ll:  ll::DW1000<SPI>,
-    seq: Wrapping<u8>,
+pub struct DW1000<SPI, State> {
+    ll:     ll::DW1000<SPI>,
+    seq:    Wrapping<u8>,
+    _state: State,
 }
 
-impl<SPI> DW1000<SPI> where SPI: SpimExt {
+impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
     /// Create a new instance of `DW1000`
     ///
     /// Requires the SPI peripheral and the chip select pin that are connected
@@ -41,14 +42,10 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         -> Self
     {
         DW1000 {
-            ll:  ll::DW1000::new(spim, chip_select),
-            seq: Wrapping(0),
+            ll:     ll::DW1000::new(spim, chip_select),
+            seq:    Wrapping(0),
+            _state: Ready,
         }
-    }
-
-    /// Provides direct access to the register-level API
-    pub fn ll(&mut self) -> &mut ll::DW1000<SPI> {
-        &mut self.ll
     }
 
     /// Sets the network id and address used for sending and receiving
@@ -269,9 +266,16 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 }
 
+impl<SPI, State> DW1000<SPI, State> where SPI: SpimExt {
+    /// Provides direct access to the register-level API
+    pub fn ll(&mut self) -> &mut ll::DW1000<SPI> {
+        &mut self.ll
+    }
+}
+
 
 /// Represents a TX operation that might not have completed
-pub struct TxFuture<'r, SPI: 'r>(&'r mut DW1000<SPI>);
+pub struct TxFuture<'r, SPI: 'r>(&'r mut DW1000<SPI, Ready>);
 
 impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
     /// Wait for the data to be sent
@@ -330,7 +334,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
 
 
 /// Represents an RX operation that might not have finished
-pub struct RxFuture<'r, SPI: 'r>(&'r mut DW1000<SPI>);
+pub struct RxFuture<'r, SPI: 'r>(&'r mut DW1000<SPI, Ready>);
 
 impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
     /// Wait for data to be available
@@ -491,3 +495,7 @@ impl From<Error> for nb::Error<Error> {
         nb::Error::Other(error.into())
     }
 }
+
+
+/// Indicates that the `DW1000` instance is ready to be used
+pub struct Ready;
