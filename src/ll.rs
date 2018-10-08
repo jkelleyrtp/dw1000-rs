@@ -655,6 +655,14 @@ impl_register! {
     0x27, 0x08, 4, RW, DRX_TUNE2(drx_tune2) { /// Digital Tuning Register 2
         value, 0, 31, u32; /// DRX_TUNE2 tuning value
     }
+    0x2D, 0x06, 2, RW, OTP_CTRL(otp_ctrl) { /// OTP Control
+        otprden,  0,  0, u8; /// Forces OTP into manual read mode
+        otpread,  1,  1, u8; /// Commands a read operation
+        otpmrwr,  3,  3, u8; /// OTP mode register write
+        otpprog,  6,  6, u8; /// Write OTP_WDAT to OTP_ADDR
+        otpmr,    7, 10, u8; /// OTP mode register
+        ldeload, 15, 15, u8; /// Force load of LDE microcode
+    }
     0x2E, 0x1806, 2, RW, LDE_CFG2(lde_cfg2) { /// LDE Configuration Register 2
         value, 0, 15, u16; /// The LDE_CFG2 configuration value
     }
