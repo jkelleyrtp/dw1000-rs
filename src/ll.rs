@@ -645,6 +645,19 @@ impl_register! {
         // given. I still found it helpful to have it, to print raw bytes during
         // debugging.
     }
+    0x1E, 0x00, 4, RW, TX_POWER(tx_power) { /// TX Power Control
+        // The TX_POWER register has multiple sets of fields defined, depending
+        // on the smart TX power control setting. I don't know how to model
+        // this, so I've opted to provide just a single `value` field for
+        // maximum flexibility.
+        value, 0, 31, u32; /// TX Power Control value
+    }
+    0x23, 0x04, 2, RW, AGC_TUNE1(agc_tune1) { /// AGC Tuning register 1
+        value, 0, 15, u16; /// AGC Tuning register 1 value
+    }
+    0x23, 0x0C, 4, RW, AGC_TUNE2(agc_tune2) { /// AGC Tuning register 2
+        value, 0, 31, u32; /// AGC Tuning register 2 value
+    }
     0x24, 0x00, 4, RW, EC_CTRL(ec_ctrl) { /// External Clock Sync Counter Config
         ostsm,   0,  0, u8; /// External Transmit Synchronization Mode Enable
         osrsm,   1,  1, u8; /// External Receive Synchronization Mode Enable
@@ -654,6 +667,37 @@ impl_register! {
     }
     0x27, 0x08, 4, RW, DRX_TUNE2(drx_tune2) { /// Digital Tuning Register 2
         value, 0, 31, u32; /// DRX_TUNE2 tuning value
+    }
+    0x28, 0x0C, 3, RW, RF_TXCTRL(rf_txctrl) { /// Analog TX Control Register
+        txmtune, 5,  8, u8; /// Transmit mixer tuning register
+        txmq,    9, 11, u8; /// Transmit mixer Q-factor tuning register
+    }
+    0x28, 0x30, 5, RW, LDOTUNE(ldotune) { /// LDO voltage tuning parameter
+        value, 0, 39, u64; /// Internal LDO voltage tuning parameter
+    }
+    0x2A, 0x0B, 1, RW, TC_PGDELAY(tc_pgdelay) { /// Pulse Generator Delay
+        value, 0, 7, u8; /// Transmitter Calibration - Pulse Generator Delay
+    }
+    0x2B, 0x0B, 1, RW, FS_PLLTUNE(fs_plltune) { /// Frequency synth - PLL Tuning
+        value, 0, 7, u8; /// Frequency synthesiser - PLL Tuning
+    }
+    0x2D, 0x04, 2, RW, OTP_ADDR(otp_addr) { /// OTP Address
+        value, 0, 10, u16; /// OTP Address
+    }
+    0x2D, 0x06, 2, RW, OTP_CTRL(otp_ctrl) { /// OTP Control
+        otprden,  0,  0, u8; /// Forces OTP into manual read mode
+        otpread,  1,  1, u8; /// Commands a read operation
+        otpmrwr,  3,  3, u8; /// OTP mode register write
+        otpprog,  6,  6, u8; /// Write OTP_WDAT to OTP_ADDR
+        otpmr,    7, 10, u8; /// OTP mode register
+        ldeload, 15, 15, u8; /// Force load of LDE microcode
+    }
+    0x2D, 0x0A, 4, RO, OTP_RDAT(otp_rdat) { /// OTP Read Data
+        value, 0, 31, u32; /// OTP Read Data
+    }
+    0x2E, 0x0806, 1, RW, LDE_CFG1(lde_cfg1) { /// LDE Configuration Register 1
+        ntm,   0, 4, u8; /// Noise Threshold Multiplier
+        pmult, 5, 7, u8; /// Peak Multiplier
     }
     0x2E, 0x1806, 2, RW, LDE_CFG2(lde_cfg2) { /// LDE Configuration Register 2
         value, 0, 15, u16; /// The LDE_CFG2 configuration value
