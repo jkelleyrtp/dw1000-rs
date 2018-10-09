@@ -672,6 +672,9 @@ impl_register! {
         txmtune, 5,  8, u8; /// Transmit mixer tuning register
         txmq,    9, 11, u8; /// Transmit mixer Q-factor tuning register
     }
+    0x28, 0x30, 5, RW, LDOTUNE(ldotune) { /// LDO voltage tuning parameter
+        value, 0, 39, u64; /// Internal LDO voltage tuning parameter
+    }
     0x2A, 0x0B, 1, RW, TC_PGDELAY(tc_pgdelay) { /// Pulse Generator Delay
         value, 0, 7, u8; /// Transmitter Calibration - Pulse Generator Delay
     }
