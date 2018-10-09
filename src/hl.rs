@@ -301,17 +301,6 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
                     .clkpll_ll(0b1)
             )?;
 
-        // We're expecting a preamble length of `64`. Set PAC size to the
-        // recommended value for that preamble length, according to section
-        // 4.1.1. The value we're writing to DRX_TUNE2 here also depends on the
-        // PRF, which we expect to be 16 MHz.
-        self.ll
-            .drx_tune2()
-            .write(|w|
-                // PAC size 8, with 16 MHz PRF
-                w.value(0x311A002D)
-            )?;
-
         // If we were going to receive at 110 kbps, we'd need to set the RXM110K
         // bit in the System Configuration register. We're expecting to receive
         // at 850 kbps though, so the default is fine. See section 4.1.3 for a
