@@ -689,6 +689,9 @@ impl_register! {
         otpmr,    7, 10, u8; /// OTP mode register
         ldeload, 15, 15, u8; /// Force load of LDE microcode
     }
+    0x2D, 0x0A, 4, RO, OTP_RDAT(otp_rdat) { /// OTP Read Data
+        value, 0, 31, u32; /// OTP Read Data
+    }
     0x2E, 0x0806, 1, RW, LDE_CFG1(lde_cfg1) { /// LDE Configuration Register 1
         ntm,   0, 4, u8; /// Noise Threshold Multiplier
         pmult, 5, 7, u8; /// Peak Multiplier
