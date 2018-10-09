@@ -24,12 +24,13 @@ use mac;
 
 
 /// Entry point to the DW1000 driver API
-pub struct DW1000<SPI> {
-    ll:  ll::DW1000<SPI>,
-    seq: Wrapping<u8>,
+pub struct DW1000<SPI, State> {
+    ll:     ll::DW1000<SPI>,
+    seq:    Wrapping<u8>,
+    _state: State,
 }
 
-impl<SPI> DW1000<SPI> where SPI: SpimExt {
+impl<SPI> DW1000<SPI, Uninitialized> where SPI: SpimExt {
     /// Create a new instance of `DW1000`
     ///
     /// Requires the SPI peripheral and the chip select pin that are connected
@@ -41,16 +42,94 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
         -> Self
     {
         DW1000 {
-            ll:  ll::DW1000::new(spim, chip_select),
-            seq: Wrapping(0),
+            ll:     ll::DW1000::new(spim, chip_select),
+            seq:    Wrapping(0),
+            _state: Uninitialized,
         }
     }
 
-    /// Provides direct access to the register-level API
-    pub fn ll(&mut self) -> &mut ll::DW1000<SPI> {
-        &mut self.ll
-    }
+    /// Initialize the DW1000
+    ///
+    /// The DW1000's default configuration is somewhat inconsistent, and the
+    /// user manual (section 2.5.5) has a long list of default configuration
+    /// values that should be changed to guarantee everything works correctly.
+    /// This method does just that.
+    ///
+    /// Please note that this method assumes that you kept the default
+    /// configuration. It is generally recommended not to change configuration
+    /// before calling this method.
+    pub fn init(mut self) -> Result<DW1000<SPI, Ready>, Error> {
+        // Set AGC_TUNE1. See user manual, section 2.5.5.1.
+        self.ll.agc_tune1().write(|w| w.value(0x8870))?;
 
+        // Set AGC_TUNE2. See user manual, section 2.5.5.2.
+        self.ll.agc_tune2().write(|w| w.value(0x2502A907))?;
+
+        // Set DRX_TUNE2. See user manual, section 2.5.5.3.
+        self.ll.drx_tune2().write(|w| w.value(0x311A002D))?;
+
+        // Set NTM. See user manual, section 2.5.5.4. This improves performance
+        // in line-of-sight conditions, but might not be the best choice if non-
+        // line-of-sight performance is important.
+        self.ll.lde_cfg1().modify(|_, w| w.ntm(0xD))?;
+
+        // Set LDE_CFG2. See user manual, section 2.5.5.5.
+        self.ll.lde_cfg2().write(|w| w.value(0x1607))?;
+
+        // Set TX_POWER. See user manual, section 2.5.5.6.
+        self.ll.tx_power().write(|w| w.value(0x0E082848))?;
+
+        // Set RF_TXCTRL. See user manual, section 2.5.5.7.
+        self.ll.rf_txctrl().modify(|_, w|
+            w
+                .txmtune(0b1111)
+                .txmq(0b111)
+        )?;
+
+        // Set TC_PGDELAY. See user manual, section 2.5.5.8.
+        self.ll.tc_pgdelay().write(|w| w.value(0xC0))?;
+
+        // Set FS_PLLTUNE. See user manual, section 2.5.5.9.
+        self.ll.fs_plltune().write(|w| w.value(0xBE))?;
+
+        // Set LDELOAD. See user manual, section 2.5.5.10.
+        self.ll.pmsc_ctrl0().modify(|_, w| w.sysclks(0b01))?;
+        self.ll.otp_ctrl().modify(|_, w| w.ldeload(0b1))?;
+        while self.ll.otp_ctrl().read()?.ldeload() == 0b1 {}
+        self.ll.pmsc_ctrl0().modify(|_, w| w.sysclks(0b00))?;
+
+        // Set LDOTUNE. See user manual, section 2.5.5.11.
+        self.ll.otp_addr().write(|w| w.value(0x004))?;
+        self.ll.otp_ctrl().modify(|_, w|
+            w
+                .otprden(0b1)
+                .otpread(0b1)
+        )?;
+        while self.ll.otp_ctrl().read()?.otpread() == 0b1 {}
+        let ldotune_low = self.ll.otp_rdat().read()?.value();
+        if ldotune_low != 0 {
+            self.ll.otp_addr().write(|w| w.value(0x005))?;
+            self.ll.otp_ctrl().modify(|_, w|
+                w
+                    .otprden(0b1)
+                    .otpread(0b1)
+            )?;
+            while self.ll.otp_ctrl().read()?.otpread() == 0b1 {}
+            let ldotune_high = self.ll.otp_rdat().read()?.value();
+
+            let ldotune = ldotune_low as u64 | (ldotune_high as u64) << 32;
+            self.ll.ldotune().write(|w| w.value(ldotune))?;
+        }
+
+        Ok(DW1000 {
+            ll:     self.ll,
+            seq:    self.seq,
+            _state: Ready,
+        })
+    }
+}
+
+impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
     /// Sets the network id and address used for sending and receiving
     pub fn set_address(&mut self, address: mac::Address)
         -> Result<(), Error>
@@ -137,18 +216,12 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
             })?;
         self.ll
             .tx_fctrl()
-            .write(|w| {
+            .modify(|_, w| {
                 let tflen = len as u8 + 2;
                 w
                     .tflen(tflen) // data length + two-octet CRC
                     .tfle(0)      // no non-standard length extension
-                    .txbr(0b01)   // 850 kbps bit rate
-                    .tr(0b0)      // no ranging
-                    .txprf(0b01)  // pulse repetition frequency: 16 MHz
-                    .txpsr(0b01)  // preamble length: 64
-                    .pe(0b00)     // no non-standard preamble length
                     .txboffs(0)   // no offset in TX_BUFFER
-                    .ifsdelay(0)  // no delay between frames
             })?;
 
         // Start transmission
@@ -159,10 +232,10 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
                     .txstrt(0b1)
             )?;
 
-        Ok(TxFuture(&mut self.ll))
+        Ok(TxFuture(self))
     }
 
-    /// Starts the receiver
+    /// Attempt to receive a frame
     pub fn receive(&mut self) -> Result<RxFuture<SPI>, Error> {
         // For unknown reasons, the DW1000 gets stuck in RX mode without ever
         // receiving anything, after receiving one good frame. Reset the
@@ -228,21 +301,6 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
                     .clkpll_ll(0b1)
             )?;
 
-        // If we cared about MAC addresses, which we don't in this example, we'd
-        // have to enable frame filtering at this point. By default it's off,
-        // meaning we'll receive everything, no matter who it is addressed to.
-
-        // We're expecting a preamble length of `64`. Set PAC size to the
-        // recommended value for that preamble length, according to section
-        // 4.1.1. The value we're writing to DRX_TUNE2 here also depends on the
-        // PRF, which we expect to be 16 MHz.
-        self.ll
-            .drx_tune2()
-            .write(|w|
-                // PAC size 8, with 16 MHz PRF
-                w.value(0x311A002D)
-            )?;
-
         // If we were going to receive at 110 kbps, we'd need to set the RXM110K
         // bit in the System Configuration register. We're expecting to receive
         // at 850 kbps though, so the default is fine. See section 4.1.3 for a
@@ -254,7 +312,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
                 w.rxenab(0b1)
             )?;
 
-        Ok(RxFuture(&mut self.ll))
+        Ok(RxFuture(self))
     }
 
 
@@ -269,9 +327,16 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
     }
 }
 
+impl<SPI, State> DW1000<SPI, State> where SPI: SpimExt {
+    /// Provides direct access to the register-level API
+    pub fn ll(&mut self) -> &mut ll::DW1000<SPI> {
+        &mut self.ll
+    }
+}
+
 
 /// Represents a TX operation that might not have completed
-pub struct TxFuture<'r, SPI: 'r>(&'r mut ll::DW1000<SPI>);
+pub struct TxFuture<'r, SPI: 'r>(&'r mut DW1000<SPI, Ready>);
 
 impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
     /// Wait for the data to be sent
@@ -279,7 +344,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
         // Check Half Period Warning Counter. If this is a delayed transmission,
         // this will indicate that the delay was too short, and the frame was
         // sent too late.
-        let evc_hpw = self.0
+        let evc_hpw = self.0.ll()
             .evc_hpw()
             .read()
             .map_err(|error| Error::Spi(error))?
@@ -292,7 +357,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
         // transmission, this indicates that the transmitter was still powering
         // up while sending, and the frame preamble might not have transmit
         // correctly.
-        let evc_tpw = self.0
+        let evc_tpw = self.0.ll()
             .evc_tpw()
             .read()
             .map_err(|error| Error::Spi(error))?
@@ -301,7 +366,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
             return Err(nb::Error::Other(Error::DelayedSendPowerUpWarning));
         }
 
-        let sys_status = self.0
+        let sys_status = self.0.ll()
             .sys_status()
             .read()
             .map_err(|error| Error::Spi(error))?;
@@ -313,7 +378,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
         }
 
         // Frame sent. Reset all progress flags.
-        self.0
+        self.0.ll()
             .sys_status()
             .write(|w|
                 w
@@ -330,14 +395,14 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
 
 
 /// Represents an RX operation that might not have finished
-pub struct RxFuture<'r, SPI: 'r>(&'r mut ll::DW1000<SPI>);
+pub struct RxFuture<'r, SPI: 'r>(&'r mut DW1000<SPI, Ready>);
 
 impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
     /// Wait for data to be available
     pub fn wait<'b>(&mut self, buffer: &'b mut [u8])
         -> nb::Result<mac::Frame<'b>, Error>
     {
-        let sys_status = self.0
+        let sys_status = self.0.ll()
             .sys_status()
             .read()
             .map_err(|error| Error::Spi(error))?;
@@ -379,7 +444,7 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
 
         // Reset status bits. This is not strictly necessary, but it helps, if
         // you have to inspect SYS_STATUS manually during debugging.
-        self.0
+        self.0.ll()
             .sys_status()
             .write(|w|
                 w
@@ -403,11 +468,11 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
             .map_err(|error| Error::Spi(error))?;
 
         // Read received frame
-        let rx_finfo = self.0
+        let rx_finfo = self.0.ll()
             .rx_finfo()
             .read()
             .map_err(|error| Error::Spi(error))?;
-        let rx_buffer = self.0
+        let rx_buffer = self.0.ll()
             .rx_buffer()
             .read()
             .map_err(|error| Error::Spi(error))?;
@@ -491,3 +556,11 @@ impl From<Error> for nb::Error<Error> {
         nb::Error::Other(error.into())
     }
 }
+
+
+
+/// Indicates that the `DW1000` instance is not initialized yet
+pub struct Uninitialized;
+
+/// Indicates that the `DW1000` instance is ready to be used
+pub struct Ready;
