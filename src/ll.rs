@@ -678,6 +678,9 @@ impl_register! {
     0x2B, 0x0B, 1, RW, FS_PLLTUNE(fs_plltune) { /// Frequency synth - PLL Tuning
         value, 0, 7, u8; /// Frequency synthesiser - PLL Tuning
     }
+    0x2D, 0x04, 2, RW, OTP_ADDR(otp_addr) { /// OTP Address
+        value, 0, 10, u16; /// OTP Address
+    }
     0x2D, 0x06, 2, RW, OTP_CTRL(otp_ctrl) { /// OTP Control
         otprden,  0,  0, u8; /// Forces OTP into manual read mode
         otpread,  1,  1, u8; /// Commands a read operation
