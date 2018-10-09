@@ -672,6 +672,9 @@ impl_register! {
         txmtune, 5,  8, u8; /// Transmit mixer tuning register
         txmq,    9, 11, u8; /// Transmit mixer Q-factor tuning register
     }
+    0x2A, 0x0B, 1, RW, TC_PGDELAY(tc_pgdelay) { /// Pulse Generator Delay
+        value, 0, 7, u8; /// Transmitter Calibration - Pulse Generator Delay
+    }
     0x2D, 0x06, 2, RW, OTP_CTRL(otp_ctrl) { /// OTP Control
         otprden,  0,  0, u8; /// Forces OTP into manual read mode
         otpread,  1,  1, u8; /// Commands a read operation
