@@ -645,6 +645,13 @@ impl_register! {
         // given. I still found it helpful to have it, to print raw bytes during
         // debugging.
     }
+    0x1E, 0x00, 4, RW, TX_POWER(tx_power) { /// TX Power Control
+        // The TX_POWER register has multiple sets of fields defined, depending
+        // on the smart TX power control setting. I don't know how to model
+        // this, so I've opted to provide just a single `value` field for
+        // maximum flexibility.
+        value, 0, 31, u32; /// TX Power Control value
+    }
     0x23, 0x04, 2, RW, AGC_TUNE1(agc_tune1) { /// AGC Tuning register 1
         value, 0, 15, u16; /// AGC Tuning register 1 value
     }
