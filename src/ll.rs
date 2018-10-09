@@ -668,6 +668,10 @@ impl_register! {
     0x27, 0x08, 4, RW, DRX_TUNE2(drx_tune2) { /// Digital Tuning Register 2
         value, 0, 31, u32; /// DRX_TUNE2 tuning value
     }
+    0x28, 0x0C, 3, RW, RF_TXCTRL(rf_txctrl) { /// Analog TX Control Register
+        txmtune, 5,  8, u8; /// Transmit mixer tuning register
+        txmq,    9, 11, u8; /// Transmit mixer Q-factor tuning register
+    }
     0x2D, 0x06, 2, RW, OTP_CTRL(otp_ctrl) { /// OTP Control
         otprden,  0,  0, u8; /// Forces OTP into manual read mode
         otpread,  1,  1, u8; /// Commands a read operation
