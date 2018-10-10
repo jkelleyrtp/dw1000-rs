@@ -21,6 +21,7 @@ use nb;
 
 use ll;
 use mac;
+use TIME_MAX;
 
 
 /// Entry point to the DW1000 driver API
@@ -153,6 +154,40 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
             pan_id:     panadr.pan_id(),
             short_addr: panadr.short_addr(),
         })
+    }
+
+    /// Converts a delay in nanoseconds into a future timestamp
+    ///
+    /// Takes a delay in nanoseconds and returns a timestamp in the future,
+    /// based on the delay and the current system time. This time stamp can be
+    /// used for a delayed transmission.
+    ///
+    /// The result will fit within 40 bits, which means it will always be a
+    /// valid timer value.
+    pub fn time_from_delay(&mut self, delay_ns: u32) -> Result<u64, Error> {
+        let sys_time = self.ll.sys_time().read()?.value();
+
+        // This should always be the case, unless we're getting crap back from
+        // the lower-level layer.
+        assert!(sys_time <= TIME_MAX);
+
+        // All of the following operations should be safe against undefined
+        // behavior. First, `delay_ns` fills 32 bits before it is cast to `u64`.
+        // The resulting number fills at most 38 bits. `sys_time` fits within 40
+        // bits (as we've verified above), so the result of the addition fits
+        // within 41 bits.
+        let delay   = delay_ns as u64 * 64;
+        let tx_time = sys_time + delay;
+
+        // Make sure our delayed time doesn't overflow the 40-bit timer.
+        let tx_time = if tx_time > TIME_MAX {
+            tx_time - TIME_MAX
+        }
+        else {
+            tx_time
+        };
+
+        Ok(tx_time)
     }
 
     /// Broadcast raw data
