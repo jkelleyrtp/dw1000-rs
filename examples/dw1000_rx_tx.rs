@@ -29,12 +29,10 @@ use dwm1001::{
     dw1000::{
         self,
         mac,
-        DW1000,
+        util::TimeoutError,
+        Message,
     },
-    nrf52832_hal::{
-        Delay,
-        Timer,
-    },
+    nrf52832_hal::Delay,
     DWM1001,
 };
 use heapless::FnvIndexSet;
@@ -77,60 +75,56 @@ fn main() -> ! {
     output_timer.start(5_000_000);
 
     loop {
+        let mut buffer = [0u8; 1024];
+        let leds = &mut dwm1001.leds;
+
         task_timer.start(receive_time);
-        loop {
-            match task_timer.wait() {
-                Ok(()) =>
-                    break,
-                Err(nb::Error::WouldBlock) =>
-                    (),
-                Err(_) =>
-                    unreachable!(),
-            }
+        repeat_timeout!(
+            &mut task_timer,
+            {
+                let mut future = dw1000
+                    .receive()
+                    .expect("Failed to receive");
 
-            timeout_timer.start(100_000);
-            match receive(&mut dw1000, &mut timeout_timer) {
-                Ok(source) => {
-                    // Sucessfully received: Blue LED
-                    dwm1001.leds.D10.enable();
-                    delay.delay_ms(30u32);
-                    dwm1001.leds.D10.disable();
+                timeout_timer.start(100_000);
+                block_timeout!(&mut timeout_timer, future.wait(&mut buffer))
+            },
+            |message: Message| {
+                if message.frame.payload != b"ping" {
+                    return;
+                }
 
-                    if let Err(_) = known_nodes.insert(source) {
-                        print!("Too many nodes. Can't add another one.\n");
-                    }
+                // Sucessfully received: Blink blue LED
+                leds.D10.enable();
+                delay.delay_ms(30u32);
+                leds.D10.disable();
+
+                let source = message.frame.header.source;
+                if let Err(_) = known_nodes.insert(source) {
+                    print!("Too many nodes. Can't add another one.\n");
                 }
-                Err(_) => {
-                    // It would be nice to print the error, but that takes way
-                    // too much time and interferes with everything else.
-                    continue;
-                }
-            }
-        }
+            },
+            |_| {},
+        );
 
         task_timer.start(50_000);
-        loop {
-            match task_timer.wait() {
-                Ok(()) =>
-                    break,
-                Err(nb::Error::WouldBlock) =>
-                    (),
-                Err(_) =>
-                    unreachable!(),
-            }
+        repeat_timeout!(
+            &mut task_timer,
+            {
+                let mut future = dw1000
+                    .send(
+                        b"ping",
+                        mac::Address::broadcast(),
+                        None,
+                    )
+                    .expect("Failed to broadcast ping");
 
-            timeout_timer.start(10_000);
-            match send(&mut dw1000, &mut timeout_timer) {
-                Ok(()) => {
-                    ()
-                }
-                Err(_) => {
-                    // It would be nice to print the error, but that takes way
-                    // too much time and interferes with everything else.
-                    continue;
-                }
-            }
-        }
+                timeout_timer.start(10_000);
+                block_timeout!(&mut timeout_timer, future.wait())
+            },
+            |_| {},
+            |_| {},
+        );
 
         if output_timer.wait().is_ok() {
             print!("\n-- Known nodes:\n");
@@ -143,94 +137,5 @@ fn main() -> ! {
 
             output_timer.start(5_000_000);
         }
-    }
-}
-
-fn receive<SPI, T>(
-    dw1000: &mut DW1000<SPI, dw1000::Ready>,
-    timer:  &mut Timer<T>,
-)
-    -> Result<mac::Address, Error>
-    where
-        SPI: SpimExt,
-        T:   TimerExt,
-{
-    let mut buffer = [0u8; 1024];
-
-    let mut future = dw1000.receive()?;
-
-    // Wait until frame has been received
-    let message = loop {
-        match future.wait(&mut buffer) {
-            Ok(message) =>
-                break message,
-            Err(nb::Error::WouldBlock) =>
-                (),
-            Err(nb::Error::Other(error)) =>
-                return Err(Error::Dw1000(error)),
-        }
-
-        match timer.wait() {
-            Ok(()) =>
-                return Err(Error::Timeout),
-            Err(nb::Error::WouldBlock) =>
-                (),
-            Err(_) =>
-                unreachable!(),
-        }
-    };
-
-    if message.frame.payload != b"ping" {
-        return Err(Error::UnexpectedMessage);
-    }
-
-    Ok(message.frame.header.source)
-}
-
-fn send<SPI, T>(
-    dw1000: &mut DW1000<SPI, dw1000::Ready>,
-    timer:  &mut Timer<T>,
-)
-    -> Result<(), Error>
-    where
-        SPI: SpimExt,
-        T:   TimerExt,
-{
-    let mut future = dw1000.send(b"ping", mac::Address::broadcast(), None)?;
-
-    loop {
-        match future.wait() {
-            Ok(()) =>
-                break,
-            Err(nb::Error::WouldBlock) =>
-                (),
-            Err(nb::Error::Other(error)) =>
-                return Err(Error::Dw1000(error)),
-        }
-
-        match timer.wait() {
-            Ok(()) =>
-                return Err(Error::Timeout),
-            Err(nb::Error::WouldBlock) =>
-                (),
-            Err(_) =>
-                unreachable!(),
-        }
-    }
-
-    Ok(())
-}
-
-
-#[derive(Debug)]
-pub enum Error {
-    Dw1000(dw1000::Error),
-    Timeout,
-    UnexpectedMessage,
-}
-
-impl From<dw1000::Error> for Error {
-    fn from(error: dw1000::Error) -> Self {
-        Error::Dw1000(error)
     }
 }
