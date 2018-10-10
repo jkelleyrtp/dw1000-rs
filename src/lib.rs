@@ -21,6 +21,7 @@ pub use ieee802154::mac;
 pub use hl::{
     DW1000,
     Error,
+    Message,
     Ready,
     Uninitialized,
 };

@@ -400,7 +400,7 @@ pub struct RxFuture<'r, SPI: 'r>(&'r mut DW1000<SPI, Ready>);
 impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
     /// Wait for data to be available
     pub fn wait<'b>(&mut self, buffer: &'b mut [u8])
-        -> nb::Result<mac::Frame<'b>, Error>
+        -> nb::Result<Message<'b>, Error>
     {
         let sys_status = self.0.ll()
             .sys_status()
@@ -441,6 +441,19 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
             // yet.
             return Err(nb::Error::WouldBlock);
         }
+
+        // Frame is ready. Continue.
+
+        // Wait until LDE processing is done. Before this is finished, the RX
+        // time stamp is not available.
+        if sys_status.ldedone() == 0b0 {
+            return Err(nb::Error::WouldBlock);
+        }
+        let rx_time = self.0.ll()
+            .rx_time()
+            .read()
+            .map_err(|error| Error::Spi(error))?
+            .rx_stamp();
 
         // Reset status bits. This is not strictly necessary, but it helps, if
         // you have to inspect SYS_STATUS manually during debugging.
@@ -490,7 +503,10 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
         let frame = mac::Frame::read(&buffer[..len])
             .map_err(|error| Error::Frame(error))?;
 
-        Ok(frame)
+        Ok(Message {
+            rx_time,
+            frame,
+        })
     }
 }
 
@@ -558,9 +574,21 @@ impl From<Error> for nb::Error<Error> {
 }
 
 
-
 /// Indicates that the `DW1000` instance is not initialized yet
 pub struct Uninitialized;
 
 /// Indicates that the `DW1000` instance is ready to be used
 pub struct Ready;
+
+
+/// An incoming message
+pub struct Message<'l> {
+    /// The time the message was received
+    ///
+    /// This time is based on the local system time, as defined in the SYS_TIME
+    /// register.
+    pub rx_time: u64,
+
+    /// The MAC frame
+    pub frame: mac::Frame<'l>,
+}
