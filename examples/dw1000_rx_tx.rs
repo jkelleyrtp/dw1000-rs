@@ -53,10 +53,12 @@ fn main() -> ! {
     let mut rng    = dwm1001.RNG.constrain();
 
     dwm1001.DW_RST.reset_dw1000(&mut delay);
+    let mut dw1000 = dwm1001.DW1000.init()
+        .expect("Failed to initialize DW1000");
 
     // Set network address
     let address = rng.random_u16();
-    dwm1001.DW1000
+    dw1000
         .set_address(
             mac::Address {
                 pan_id:     0x0d57,  // hardcoded network id
@@ -87,7 +89,7 @@ fn main() -> ! {
             }
 
             timeout_timer.start(100_000);
-            match receive(&mut dwm1001.DW1000, &mut timeout_timer) {
+            match receive(&mut dw1000, &mut timeout_timer) {
                 Ok(source) => {
                     // Sucessfully received: Blue LED
                     dwm1001.leds.D10.enable();
@@ -118,7 +120,7 @@ fn main() -> ! {
             }
 
             timeout_timer.start(10_000);
-            match send(&mut dwm1001.DW1000, &mut timeout_timer) {
+            match send(&mut dw1000, &mut timeout_timer) {
                 Ok(()) => {
                     ()
                 }
@@ -145,7 +147,7 @@ fn main() -> ! {
 }
 
 fn receive<SPI, T>(
-    dw1000: &mut DW1000<SPI>,
+    dw1000: &mut DW1000<SPI, dw1000::Ready>,
     timer:  &mut Timer<T>,
 )
     -> Result<mac::Address, Error>
@@ -186,7 +188,7 @@ fn receive<SPI, T>(
 }
 
 fn send<SPI, T>(
-    dw1000: &mut DW1000<SPI>,
+    dw1000: &mut DW1000<SPI, dw1000::Ready>,
     timer:  &mut Timer<T>,
 )
     -> Result<(), Error>

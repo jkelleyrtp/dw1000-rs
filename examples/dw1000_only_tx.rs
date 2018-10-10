@@ -23,10 +23,11 @@ use dwm1001::{
 fn main() -> ! {
     debug::init();
 
-    let mut dwm1001 = DWM1001::take().unwrap();
+    let     dwm1001 = DWM1001::take().unwrap();
+    let mut dw1000  = dwm1001.DW1000.init().unwrap();
 
     loop {
-        let mut tx = dwm1001.DW1000
+        let mut tx = dw1000
             .send(b"ping", mac::Address::broadcast(), None)
             .expect("Failed to start receiver");
 
