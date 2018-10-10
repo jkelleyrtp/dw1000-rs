@@ -14,6 +14,7 @@ extern crate nrf52832_hal as hal;
 
 pub mod ll;
 pub mod hl;
+pub mod util;
 
 
 pub use ieee802154::mac;
