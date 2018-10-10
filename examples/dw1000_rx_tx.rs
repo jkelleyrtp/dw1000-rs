@@ -160,10 +160,10 @@ fn receive<SPI, T>(
     let mut future = dw1000.receive()?;
 
     // Wait until frame has been received
-    let frame = loop {
+    let message = loop {
         match future.wait(&mut buffer) {
-            Ok(frame) =>
-                break frame,
+            Ok(message) =>
+                break message,
             Err(nb::Error::WouldBlock) =>
                 (),
             Err(nb::Error::Other(error)) =>
@@ -180,11 +180,11 @@ fn receive<SPI, T>(
         }
     };
 
-    if frame.payload != b"ping" {
+    if message.frame.payload != b"ping" {
         return Err(Error::UnexpectedMessage);
     }
 
-    Ok(frame.header.source)
+    Ok(message.frame.header.source)
 }
 
 fn send<SPI, T>(

@@ -49,10 +49,10 @@ fn main() -> ! {
         timer.start(5_000_000);
 
         // Wait until frame has been received
-        let frame = loop {
+        let message = loop {
             match rx.wait(&mut buffer) {
-                Ok(frame) =>
-                    break frame,
+                Ok(message) =>
+                    break message,
                 Err(nb::Error::WouldBlock) =>
                     (),
                 Err(error) => {
@@ -73,7 +73,7 @@ fn main() -> ! {
             }
         };
 
-        print!("Received frame: {:x?}\n", frame);
+        print!("Received frame: {:x?}\n", message.frame);
 
         // Signal that data was received
         for _ in 0..20 {
