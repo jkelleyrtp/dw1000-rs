@@ -18,6 +18,12 @@ pub extern crate nrf52832_hal;
 extern crate cortex_m_semihosting;
 
 
+pub use dw1000::{
+    block_timeout,
+    repeat_timeout,
+};
+
+
 /// Exports traits that are usually needed when using this crate
 pub mod prelude {
     pub use nrf52832_hal::prelude::*;
