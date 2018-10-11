@@ -59,6 +59,46 @@ macro_rules! block_timeout {
     }
 }
 
+/// Repeats an operation until a timer times out
+///
+/// Expects four arguments:
+/// - A timer
+/// - An expression that evaluates to `Result<T, E>` (the operation)
+/// - A closure that will be called every time the operation succeeds
+/// - A closure that will be called every time the operation fails
+///
+/// This will keep repeating the operation until the timer runs out, no matter
+/// whether it suceeds or fails.
+#[macro_export]
+macro_rules! repeat_timeout {
+    ($timer:expr, $op:expr, $on_success:expr, $on_error:expr,) => {
+        {
+            use $crate::hal::prelude::TimerExt;
+            let timer: &mut $crate::hal::Timer<_> = $timer;
+
+            loop {
+                match timer.wait() {
+                    Ok(()) =>
+                        break,
+                    Err(nb::Error::WouldBlock) =>
+                        (),
+                    Err(_) =>
+                        unreachable!(),
+                }
+
+                match $op {
+                    Ok(result) => {
+                        $on_success(result);
+                    }
+                    Err(error) => {
+                        $on_error(error);
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 /// An error that can be a timeout or another error
 #[derive(Debug)]
