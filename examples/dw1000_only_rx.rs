@@ -48,32 +48,17 @@ fn main() -> ! {
         // Set timer for timeout
         timer.start(5_000_000);
 
-        // Wait until frame has been received
-        let frame = loop {
-            match rx.wait(&mut buffer) {
-                Ok(frame) =>
-                    break frame,
-                Err(nb::Error::WouldBlock) =>
-                    (),
-                Err(error) => {
-                    print!("Error: {:?}\n", error);
-                    continue 'outer;
-                }
+        let message = match block_timeout!(&mut timer, rx.wait(&mut buffer)) {
+            Ok(message) => {
+                message
             }
-
-            match timer.wait() {
-                Ok(()) => {
-                    print!("Timeout\n");
-                    continue 'outer;
-                }
-                Err(nb::Error::WouldBlock) =>
-                    (),
-                Err(error) =>
-                    panic!("Failed to wait for timer: {:?}", error),
+            Err(error) => {
+                print!("Error: {:?}\n", error);
+                continue;
             }
         };
 
-        print!("Received frame: {:x?}\n", frame);
+        print!("Received frame: {:x?}\n", message.frame);
 
         // Signal that data was received
         for _ in 0..20 {
