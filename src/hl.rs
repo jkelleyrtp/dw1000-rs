@@ -21,6 +21,7 @@ use nb;
 
 use ll;
 use mac;
+use TIME_MAX;
 
 
 /// Entry point to the DW1000 driver API
@@ -153,6 +154,40 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
             pan_id:     panadr.pan_id(),
             short_addr: panadr.short_addr(),
         })
+    }
+
+    /// Converts a delay in nanoseconds into a future timestamp
+    ///
+    /// Takes a delay in nanoseconds and returns a timestamp in the future,
+    /// based on the delay and the current system time. This time stamp can be
+    /// used for a delayed transmission.
+    ///
+    /// The result will fit within 40 bits, which means it will always be a
+    /// valid timer value.
+    pub fn time_from_delay(&mut self, delay_ns: u32) -> Result<u64, Error> {
+        let sys_time = self.ll.sys_time().read()?.value();
+
+        // This should always be the case, unless we're getting crap back from
+        // the lower-level layer.
+        assert!(sys_time <= TIME_MAX);
+
+        // All of the following operations should be safe against undefined
+        // behavior. First, `delay_ns` fills 32 bits before it is cast to `u64`.
+        // The resulting number fills at most 38 bits. `sys_time` fits within 40
+        // bits (as we've verified above), so the result of the addition fits
+        // within 41 bits.
+        let delay   = delay_ns as u64 * 64;
+        let tx_time = sys_time + delay;
+
+        // Make sure our delayed time doesn't overflow the 40-bit timer.
+        let tx_time = if tx_time > TIME_MAX {
+            tx_time - TIME_MAX
+        }
+        else {
+            tx_time
+        };
+
+        Ok(tx_time)
     }
 
     /// Broadcast raw data
@@ -400,7 +435,7 @@ pub struct RxFuture<'r, SPI: 'r>(&'r mut DW1000<SPI, Ready>);
 impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
     /// Wait for data to be available
     pub fn wait<'b>(&mut self, buffer: &'b mut [u8])
-        -> nb::Result<mac::Frame<'b>, Error>
+        -> nb::Result<Message<'b>, Error>
     {
         let sys_status = self.0.ll()
             .sys_status()
@@ -441,6 +476,19 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
             // yet.
             return Err(nb::Error::WouldBlock);
         }
+
+        // Frame is ready. Continue.
+
+        // Wait until LDE processing is done. Before this is finished, the RX
+        // time stamp is not available.
+        if sys_status.ldedone() == 0b0 {
+            return Err(nb::Error::WouldBlock);
+        }
+        let rx_time = self.0.ll()
+            .rx_time()
+            .read()
+            .map_err(|error| Error::Spi(error))?
+            .rx_stamp();
 
         // Reset status bits. This is not strictly necessary, but it helps, if
         // you have to inspect SYS_STATUS manually during debugging.
@@ -490,7 +538,10 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
         let frame = mac::Frame::read(&buffer[..len])
             .map_err(|error| Error::Frame(error))?;
 
-        Ok(frame)
+        Ok(Message {
+            rx_time,
+            frame,
+        })
     }
 }
 
@@ -558,9 +609,21 @@ impl From<Error> for nb::Error<Error> {
 }
 
 
-
 /// Indicates that the `DW1000` instance is not initialized yet
 pub struct Uninitialized;
 
 /// Indicates that the `DW1000` instance is ready to be used
 pub struct Ready;
+
+
+/// An incoming message
+pub struct Message<'l> {
+    /// The time the message was received
+    ///
+    /// This time is based on the local system time, as defined in the SYS_TIME
+    /// register.
+    pub rx_time: u64,
+
+    /// The MAC frame
+    pub frame: mac::Frame<'l>,
+}
