@@ -27,9 +27,7 @@ use dwm1001::{
     prelude::*,
     debug,
     dw1000::{
-        self,
         mac,
-        util::TimeoutError,
         Message,
     },
     nrf52832_hal::Delay,
