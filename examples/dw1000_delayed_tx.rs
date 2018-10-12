@@ -27,14 +27,8 @@ fn main() -> ! {
     let mut dw1000  = dwm1001.DW1000.init().unwrap();
 
     loop {
-        let sys_time = dw1000.ll()
-            .sys_time()
-            .read()
-            .expect("Failed to read system time")
-            .value();
-
-        let delay   = 10 * 64_000_000; // ~10 ms
-        let tx_time = sys_time + delay;
+        let tx_time = dw1000.time_from_delay(10_000_000) // ~10 ms
+            .expect("Failed to compute transmission time");
 
         let mut tx = dw1000
             .send(b"ping", mac::Address::broadcast(), Some(tx_time))
