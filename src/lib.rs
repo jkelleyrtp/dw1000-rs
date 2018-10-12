@@ -9,6 +9,9 @@
 
 extern crate ieee802154;
 extern crate nb;
+extern crate serde;
+extern crate serde_derive;
+extern crate ssmarshal;
 
 pub extern crate nrf52832_hal as hal;
 

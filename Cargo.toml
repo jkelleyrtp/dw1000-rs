@@ -13,3 +13,6 @@ nb           = "0.1.1"
 # of embedded-hal yet, and we need nRF52 support because it's used on the
 # DWM1001 board.
 nrf52832-hal = { git = "https://github.com/braun-robotics/nrf52-hal.git", default-features = false }
+serde        = { version = "1.0.79", default-features = false }
+serde_derive = "1.0.79"
+ssmarshal    = { version = "1.0", default-features = false }
