@@ -27,6 +27,7 @@ pub use hl::{
     Instant,
     Message,
     Ready,
+    TxFuture,
     Uninitialized,
 };
 
