@@ -21,8 +21,10 @@ pub mod util;
 pub use ieee802154::mac;
 
 pub use hl::{
+    Duration,
     DW1000,
     Error,
+    Instant,
     Message,
     Ready,
     Uninitialized,
