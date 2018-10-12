@@ -631,11 +631,11 @@ pub struct Message<'l> {
 
 
 /// An instant, in DW1000 system time
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Deserialize, Serialize)]
 #[repr(C)]
 pub struct Instant(pub u64);
 
 /// A duration between two DW1000 system time instants
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Deserialize, Serialize)]
 #[repr(C)]
 pub struct Duration(pub u64);
