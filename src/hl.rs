@@ -18,6 +18,7 @@ use hal::{
     Spim,
 };
 use nb;
+use ssmarshal;
 
 use ll;
 use mac;
@@ -595,11 +596,20 @@ pub enum Error {
     /// The frame was still transmitted, but the first bytes of the preamble
     /// were likely corrupted.
     DelayedSendPowerUpWarning,
+
+    /// An error occured while serializing or deserializing data
+    Ssmarshal(ssmarshal::Error),
 }
 
 impl From<spim::Error> for Error {
     fn from(error: spim::Error) -> Self {
         Error::Spi(error)
+    }
+}
+
+impl From<ssmarshal::Error> for Error {
+    fn from(error: ssmarshal::Error) -> Self {
+        Error::Ssmarshal(error)
     }
 }
 
