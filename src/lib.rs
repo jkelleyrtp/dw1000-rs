@@ -19,6 +19,7 @@ pub extern crate nrf52832_hal as hal;
 
 pub mod ll;
 pub mod hl;
+pub mod ranging;
 pub mod util;
 
 
