@@ -7,24 +7,32 @@
 #![deny(warnings)]
 
 
+#[macro_use] extern crate serde_derive;
+
 extern crate ieee802154;
 extern crate nb;
+extern crate serde;
+extern crate ssmarshal;
 
 pub extern crate nrf52832_hal as hal;
 
 
 pub mod ll;
 pub mod hl;
+pub mod ranging;
 pub mod util;
 
 
 pub use ieee802154::mac;
 
 pub use hl::{
+    Duration,
     DW1000,
     Error,
+    Instant,
     Message,
     Ready,
+    TxFuture,
     Uninitialized,
 };
 

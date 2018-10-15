@@ -18,6 +18,7 @@ use hal::{
     Spim,
 };
 use nb;
+use ssmarshal;
 
 use ll;
 use mac;
@@ -164,7 +165,7 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
     ///
     /// The result will fit within 40 bits, which means it will always be a
     /// valid timer value.
-    pub fn time_from_delay(&mut self, delay_ns: u32) -> Result<u64, Error> {
+    pub fn time_from_delay(&mut self, delay_ns: u32) -> Result<Instant, Error> {
         let sys_time = self.ll.sys_time().read()?.value();
 
         // This should always be the case, unless we're getting crap back from
@@ -187,7 +188,7 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
             tx_time
         };
 
-        Ok(tx_time)
+        Ok(Instant(tx_time))
     }
 
     /// Broadcast raw data
@@ -196,7 +197,7 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
     pub fn send(&mut self,
         data:         &[u8],
         destination:  mac::Address,
-        delayed_time: Option<u64>,
+        delayed_time: Option<Instant>,
     )
         -> Result<TxFuture<SPI>, Error>
     {
@@ -237,7 +238,7 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
             self.ll
                 .dx_time()
                 .write(|w|
-                    w.value(time)
+                    w.value(time.0)
                 )
         });
 
@@ -489,6 +490,7 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
             .read()
             .map_err(|error| Error::Spi(error))?
             .rx_stamp();
+        let rx_time = Instant(rx_time);
 
         // Reset status bits. This is not strictly necessary, but it helps, if
         // you have to inspect SYS_STATUS manually during debugging.
@@ -594,11 +596,20 @@ pub enum Error {
     /// The frame was still transmitted, but the first bytes of the preamble
     /// were likely corrupted.
     DelayedSendPowerUpWarning,
+
+    /// An error occured while serializing or deserializing data
+    Ssmarshal(ssmarshal::Error),
 }
 
 impl From<spim::Error> for Error {
     fn from(error: spim::Error) -> Self {
         Error::Spi(error)
+    }
+}
+
+impl From<ssmarshal::Error> for Error {
+    fn from(error: ssmarshal::Error) -> Self {
+        Error::Ssmarshal(error)
     }
 }
 
@@ -617,13 +628,25 @@ pub struct Ready;
 
 
 /// An incoming message
+#[derive(Debug)]
 pub struct Message<'l> {
     /// The time the message was received
     ///
     /// This time is based on the local system time, as defined in the SYS_TIME
     /// register.
-    pub rx_time: u64,
+    pub rx_time: Instant,
 
     /// The MAC frame
     pub frame: mac::Frame<'l>,
 }
+
+
+/// An instant, in DW1000 system time
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[repr(C)]
+pub struct Instant(pub u64);
+
+/// A duration between two DW1000 system time instants
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[repr(C)]
+pub struct Duration(pub u64);
