@@ -47,6 +47,14 @@ name              = "dw1000_only_tx"
 required-features = ["dev", "rt"]
 
 [[example]]
+name              = "dw1000_ranging_anchor"
+required-features = ["dev", "rt"]
+
+[[example]]
+name              = "dw1000_ranging_tag"
+required-features = ["dev", "rt"]
+
+[[example]]
 name              = "dw1000_reg_modify"
 required-features = ["dev", "rt"]
 
