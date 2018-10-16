@@ -218,10 +218,8 @@ pub struct RequestData {
 impl Request {
     /// Creates a new ranging request message
     pub fn initiate<SPI>(
-        dw1000:       &mut DW1000<SPI, Ready>,
-        ping_tx_time: Instant,
-        ping_rx_time: Instant,
-        recipient: mac::Address,
+        dw1000: &mut DW1000<SPI, Ready>,
+        ping:   RxMessage<Ping>,
     )
         -> Result<Self, Error>
         where SPI: SpimExt
@@ -229,18 +227,18 @@ impl Request {
         let request_tx_time = dw1000.time_from_delay(10_000_000)?;
 
         let ping_reply_time = util::duration_between(
-            ping_rx_time,
+            ping.rx_time,
             request_tx_time,
         );
 
         let data = RequestData {
-            ping_tx_time,
+            ping_tx_time: ping.data.ping_tx_time,
             ping_reply_time,
             request_tx_time,
         };
 
         Ok(Request {
-            recipient,
+            recipient: ping.source,
             data,
         })
     }
@@ -296,12 +294,8 @@ pub struct ResponseData {
 impl Response {
     /// Creates a new ranging response message
     pub fn initiate<SPI>(
-        dw1000:          &mut DW1000<SPI, Ready>,
-        ping_tx_time:    Instant,
-        ping_reply_time: Duration,
-        request_tx_time: Instant,
-        request_rx_time: Instant,
-        recipient:       mac::Address,
+        dw1000:  &mut DW1000<SPI, Ready>,
+        request: RxMessage<Request>,
     )
         -> Result<Self, Error>
         where SPI: SpimExt
@@ -309,23 +303,23 @@ impl Response {
         let response_tx_time = dw1000.time_from_delay(10_000_000)?;
 
         let ping_round_trip_time = util::duration_between(
-            ping_tx_time,
-            request_rx_time,
+            request.data.ping_tx_time,
+            request.rx_time,
         );
         let request_reply_time = util::duration_between(
-            request_rx_time,
+            request.rx_time,
             response_tx_time,
         );
 
         let data = ResponseData {
-            ping_reply_time,
+            ping_reply_time: request.data.ping_reply_time,
             ping_round_trip_time,
-            request_tx_time,
+            request_tx_time: request.data.request_tx_time,
             request_reply_time,
         };
 
         Ok(Response {
-            recipient,
+            recipient: request.source,
             tx_time: response_tx_time,
             data,
         })
