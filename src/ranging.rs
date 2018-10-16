@@ -49,6 +49,14 @@ use ::{
 };
 
 
+/// The transmission delay
+///
+/// This defines the transmission delay as 10 ms. This should be enough to
+/// finish the rest of the preparation and send the message, even if we're
+/// running with unoptimized code.
+const TX_DELAY: u32 = 10_000_000;
+
+
 /// A ranging message
 pub trait Message: Sized {
     /// A prelude that identifies the message
@@ -166,7 +174,7 @@ impl Ping {
         where SPI: SpimExt
     {
         Ok(Ping {
-            ping_tx_time: dw1000.time_from_delay(10_000_000)?,
+            ping_tx_time: dw1000.time_from_delay(TX_DELAY)?,
         })
     }
 }
@@ -224,7 +232,7 @@ impl Request {
         -> Result<Self, Error>
         where SPI: SpimExt
     {
-        let request_tx_time = dw1000.time_from_delay(10_000_000)?;
+        let request_tx_time = dw1000.time_from_delay(TX_DELAY)?;
 
         let ping_reply_time = util::duration_between(
             ping.rx_time,
@@ -300,7 +308,7 @@ impl Response {
         -> Result<Self, Error>
         where SPI: SpimExt
     {
-        let response_tx_time = dw1000.time_from_delay(10_000_000)?;
+        let response_tx_time = dw1000.time_from_delay(TX_DELAY)?;
 
         let ping_round_trip_time = util::duration_between(
             request.data.ping_tx_time,
