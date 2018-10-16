@@ -53,6 +53,15 @@ fn main() -> ! {
     let mut dw1000 = dwm1001.DW1000.init()
         .expect("Failed to initialize DW1000");
 
+    // These are the hardcoded calibration values from the dwm1001-examples
+    // repository[1]. Ideally, the calibration values would be determined using
+    // the proper calibration procedure, but hopefully those are good enough for
+    // now.
+    //
+    // [1] https://github.com/Decawave/dwm1001-examples
+    dw1000.set_antenna_delay(16456, 16300)
+        .expect("Failed to set antenna delay");
+
     // Set network address
     dw1000
         .set_address(
