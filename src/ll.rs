@@ -639,6 +639,9 @@ impl_register! {
         tx_stamp,  0, 39, u64; /// Fully adjusted time stamp
         tx_rawst, 40, 79, u64; /// Raw time stamp
     }
+    0x18, 0x00, 2, RW, TX_ANTD(tx_antd) { /// TX Antenna Delay
+        value, 0, 15, u16; /// TX Antenna Delay
+    }
     0x19, 0x00, 5, RO, SYS_STATE(sys_state) { /// System State information
         // This register is explicitely named in the user manual, but its
         // documentation states that it is reserved, and no info about fields is
@@ -698,6 +701,9 @@ impl_register! {
     0x2E, 0x0806, 1, RW, LDE_CFG1(lde_cfg1) { /// LDE Configuration Register 1
         ntm,   0, 4, u8; /// Noise Threshold Multiplier
         pmult, 5, 7, u8; /// Peak Multiplier
+    }
+    0x2E, 0x1804, 2, RW, LDE_RXANTD(lde_rxantd) { /// RX Antenna Delay
+        value, 0, 15, u16; /// RX Antenna Delay
     }
     0x2E, 0x1806, 2, RW, LDE_CFG2(lde_cfg2) { /// LDE Configuration Register 2
         value, 0, 15, u16; /// The LDE_CFG2 configuration value
