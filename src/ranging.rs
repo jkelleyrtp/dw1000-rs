@@ -285,7 +285,7 @@ impl Response {
         -> Result<Self, Error>
         where SPI: SpimExt
     {
-        let tx_time = dw1000.time_from_delay(10_000_000)?;
+        let response_tx_time = dw1000.time_from_delay(10_000_000)?;
 
         let ping_round_trip_time = util::duration_between(
             ping_tx_time,
@@ -293,7 +293,7 @@ impl Response {
         );
         let request_reply_time = util::duration_between(
             request_rx_time,
-            tx_time,
+            response_tx_time,
         );
 
         let data = ResponseData {
@@ -305,7 +305,7 @@ impl Response {
 
         Ok(Response {
             recipient,
-            tx_time,
+            tx_time: response_tx_time,
             data,
         })
     }
