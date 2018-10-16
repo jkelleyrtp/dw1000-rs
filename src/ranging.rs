@@ -37,6 +37,7 @@ use serde::{
 use ssmarshal;
 
 use ::{
+    hl,
     mac,
     util,
     Duration,
@@ -100,13 +101,13 @@ pub trait Message: Sized {
     }
 
     /// Decodes a received message of this type
-    fn decode(buf: &[u8]) -> Result<Option<Self::Data>, Error> {
-        if !buf.starts_with(Self::PRELUDE.0) {
+    fn decode(message: &hl::Message) -> Result<Option<Self::Data>, Error> {
+        if !message.frame.payload.starts_with(Self::PRELUDE.0) {
             // Not a request of this type
             return Ok(None);
         }
 
-        if buf.len() != Self::LEN {
+        if message.frame.payload.len() != Self::LEN {
             // Invalid request
             return Err(Error::BufferTooSmall {
                 required_len: Self::LEN,
@@ -115,7 +116,7 @@ pub trait Message: Sized {
 
         // The request passes muster. Let's decode it.
         let (message, _) = ssmarshal::deserialize(
-            &buf[Self::PRELUDE.0.len()..
+            &message.frame.payload[Self::PRELUDE.0.len()..
         ])?;
 
         Ok(Some(message))
