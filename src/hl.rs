@@ -132,6 +132,20 @@ impl<SPI> DW1000<SPI, Uninitialized> where SPI: SpimExt {
 }
 
 impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
+    /// Sets the RX and TX antenna delays
+    pub fn set_antenna_delay(&mut self, rx_delay: u16, tx_delay: u16)
+        -> Result<(), Error>
+    {
+        self.ll
+            .lde_rxantd()
+            .write(|w| w.value(rx_delay))?;
+        self.ll
+            .tx_antd()
+            .write(|w| w.value(tx_delay))?;
+
+        Ok(())
+    }
+
     /// Sets the network id and address used for sending and receiving
     pub fn set_address(&mut self, address: mac::Address)
         -> Result<(), Error>
