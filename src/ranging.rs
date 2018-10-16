@@ -101,7 +101,7 @@ pub trait Message: Sized {
     }
 
     /// Decodes a received message of this type
-    fn decode(message: &hl::Message) -> Result<Option<Self::Data>, Error> {
+    fn decode(message: &hl::Message) -> Result<Option<RxMessage<Self>>, Error> {
         if !message.frame.payload.starts_with(Self::PRELUDE.0) {
             // Not a request of this type
             return Ok(None);
@@ -115,12 +115,32 @@ pub trait Message: Sized {
         }
 
         // The request passes muster. Let's decode it.
-        let (message, _) = ssmarshal::deserialize(
+        let (data, _) = ssmarshal::deserialize::<Self::Data>(
             &message.frame.payload[Self::PRELUDE.0.len()..
         ])?;
 
-        Ok(Some(message))
+        Ok(Some(RxMessage {
+            rx_time: message.rx_time,
+            source:  message.frame.header.source,
+            data,
+        }))
     }
+}
+
+
+/// A received ranging message
+///
+/// Contains the received data, as well as some metadata that's required to
+/// create a reply to the message.
+pub struct RxMessage<T: Message> {
+    /// The time the message was received
+    pub rx_time: Instant,
+
+    /// The source of the message
+    pub source: mac::Address,
+
+    /// The message data
+    pub data: T::Data,
 }
 
 
