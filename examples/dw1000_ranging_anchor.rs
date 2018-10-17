@@ -92,7 +92,7 @@ fn main() -> ! {
                 block_timeout!(&mut timeout_timer, future.wait(&mut buf))
             },
             |message: Message| {
-                let request = ranging::Request::decode(message.frame.payload);
+                let request = ranging::Request::decode(&message);
 
                 let request = match request {
                     Ok(Some(request)) =>
@@ -105,14 +105,7 @@ fn main() -> ! {
 
                 // Send ranging response
                 let mut future = ranging::Response
-                    ::initiate(
-                        &mut dw1000,
-                        request.ping_tx_time,
-                        request.ping_reply_time,
-                        request.request_tx_time,
-                        message.rx_time,
-                        message.frame.header.source,
-                    )
+                    ::initiate(&mut dw1000, request)
                     .expect("Failed to initiate response")
                     .send(&mut dw1000)
                     .expect("Failed to initiate response transmission");
@@ -120,7 +113,7 @@ fn main() -> ! {
                     .expect("Failed to send ranging response");
             },
             |_error| {
-                // print!("Error: {:?}\n", error);
+                // ignore
             },
         );
 

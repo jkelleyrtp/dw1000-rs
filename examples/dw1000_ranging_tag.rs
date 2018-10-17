@@ -31,7 +31,6 @@ use dwm1001::{
             self,
             Message as _RangingMessage,
         },
-        util::duration_between,
         Message,
     },
     nrf52832_hal::Delay,
@@ -91,19 +90,14 @@ fn main() -> ! {
                 block_timeout!(&mut timeout_timer, future.wait(&mut buf))
             },
             |message: Message| {
-                let ping = ranging::Ping::decode(message.frame.payload)
+                let ping = ranging::Ping::decode(&message)
                     .expect("Failed to decode ping");
                 if let Some(ping) = ping {
                     // Received ping from an anchor. Reply with a ranging
                     // request.
 
                     let mut future = ranging::Request
-                        ::initiate(
-                            &mut dw1000,
-                            ping.ping_tx_time,
-                            message.rx_time,
-                            message.frame.header.source,
-                        )
+                        ::initiate(&mut dw1000, ping)
                         .expect("Failed to initiate request")
                         .send(&mut dw1000)
                         .expect("Failed to initiate request transmission");
@@ -114,55 +108,23 @@ fn main() -> ! {
                     return;
                 }
 
-                let response = ranging::Response::decode(message.frame.payload)
+                let response = ranging::Response::decode(&message)
                     .expect("Failed to decode response");
                 if let Some(response) = response {
                     // Ranging response received. Compute distance.
-
-                    let request_round_trip_time = duration_between(
-                        response.request_tx_time,
-                        message.rx_time,
-                    );
-
-                    let rtt_product =
-                        response.ping_round_trip_time.0 *
-                        request_round_trip_time.0;
-                    let reply_time_product =
-                        response.ping_reply_time.0 *
-                        response.request_reply_time.0;
-                    let complete_sum =
-                        response.ping_round_trip_time.0 +
-                        request_round_trip_time.0 +
-                        response.ping_reply_time.0 +
-                        response.request_reply_time.0;
-
-                    let time_of_flight =
-                        (rtt_product - reply_time_product) / complete_sum;
-
-                    // Nominally, all time units are based on a 64 Ghz clock,
-                    // meaning each time unit is 1/64 ns.
-
-                    const SPEED_OF_LIGHT: u64 = 299_792_458; // m/s or nm/ns
-
-                    let distance_nm_times_64 =
-                        SPEED_OF_LIGHT.checked_mul(time_of_flight);
-                    let distance_nm_times_64 = match distance_nm_times_64 {
-                        Some(value) => {
-                            value
+                    match ranging::compute_distance_mm(&response) {
+                        Some(distance_mm) => {
+                            print!("{:04x}:{:04x} - {} mm\n",
+                                response.source.pan_id,
+                                response.source.short_addr,
+                                distance_mm,
+                            );
                         }
                         None => {
-                            print!("Time of flight too large; would overflow");
+                            print!("Distance too large; can't compute");
                             return;
                         }
-                    };
-
-                    let distance_mm = distance_nm_times_64 / 64 / 1_000_000;
-
-                    print!("{:04x}:{:04x} - {} mm\n",
-                        message.frame.header.source.pan_id,
-                        message.frame.header.source.short_addr,
-                        distance_mm,
-                    );
+                    }
 
                     return;
                 }
