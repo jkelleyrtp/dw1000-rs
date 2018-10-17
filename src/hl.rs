@@ -5,7 +5,10 @@
 //! greater flexibility provided by the register-level interface.
 
 
-use core::num::Wrapping;
+use core::{
+    num::Wrapping,
+    ops::Add,
+};
 
 use hal::{
     prelude::*,
@@ -662,11 +665,27 @@ pub struct Message<'l> {
 
 
 /// An instant, in DW1000 system time
+///
+/// DW1000 timestamps are 40-bit numbers. Creating an `Instant` with a value
+/// larger than 2^40 - 1 can lead to undefined behavior.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[repr(C)]
 pub struct Instant(pub u64);
 
 /// A duration between two DW1000 system time instants
+///
+/// DW1000 timestamps are 40-bit numbers. Creating a `Duration` with a value
+/// larger than 2^40 - 1 can lead to undefined behavior.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[repr(C)]
 pub struct Duration(pub u64);
+
+impl Add<Duration> for Instant {
+    type Output = Instant;
+
+    fn add(self, rhs: Duration) -> Self::Output {
+        // Both `Instant` and `Duration` contain 40-bit numbers, so this
+        // addition should never overflow.
+        Instant((self.0 + rhs.0) % (TIME_MAX + 1))
+    }
+}
