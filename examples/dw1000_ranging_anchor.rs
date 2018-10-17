@@ -113,7 +113,7 @@ fn main() -> ! {
                     .expect("Failed to send ranging response");
             },
             |_error| {
-                // print!("Error: {:?}\n", error);
+                // ignore
             },
         );
 
