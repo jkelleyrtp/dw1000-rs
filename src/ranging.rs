@@ -37,6 +37,7 @@ use serde::{
 use ssmarshal;
 
 use ::{
+    hl,
     mac,
     util,
     Duration,
@@ -46,6 +47,14 @@ use ::{
     Ready,
     TxFuture,
 };
+
+
+/// The transmission delay
+///
+/// This defines the transmission delay as 10 ms. This should be enough to
+/// finish the rest of the preparation and send the message, even if we're
+/// running with unoptimized code.
+const TX_DELAY: u32 = 10_000_000;
 
 
 /// A ranging message
@@ -100,13 +109,13 @@ pub trait Message: Sized {
     }
 
     /// Decodes a received message of this type
-    fn decode(buf: &[u8]) -> Result<Option<Self::Data>, Error> {
-        if !buf.starts_with(Self::PRELUDE.0) {
+    fn decode(message: &hl::Message) -> Result<Option<RxMessage<Self>>, Error> {
+        if !message.frame.payload.starts_with(Self::PRELUDE.0) {
             // Not a request of this type
             return Ok(None);
         }
 
-        if buf.len() != Self::LEN {
+        if message.frame.payload.len() != Self::LEN {
             // Invalid request
             return Err(Error::BufferTooSmall {
                 required_len: Self::LEN,
@@ -114,12 +123,32 @@ pub trait Message: Sized {
         }
 
         // The request passes muster. Let's decode it.
-        let (message, _) = ssmarshal::deserialize(
-            &buf[Self::PRELUDE.0.len()..
+        let (data, _) = ssmarshal::deserialize::<Self::Data>(
+            &message.frame.payload[Self::PRELUDE.0.len()..
         ])?;
 
-        Ok(Some(message))
+        Ok(Some(RxMessage {
+            rx_time: message.rx_time,
+            source:  message.frame.header.source,
+            data,
+        }))
     }
+}
+
+
+/// A received ranging message
+///
+/// Contains the received data, as well as some metadata that's required to
+/// create a reply to the message.
+pub struct RxMessage<T: Message> {
+    /// The time the message was received
+    pub rx_time: Instant,
+
+    /// The source of the message
+    pub source: mac::Address,
+
+    /// The message data
+    pub data: T::Data,
 }
 
 
@@ -129,12 +158,19 @@ pub trait Message: Sized {
 pub struct Prelude(pub &'static [u8]);
 
 
+/// Ranging ping message
+#[derive(Debug)]
+pub struct Ping {
+    tx_time: Instant,
+    data:    PingData,
+}
+
 /// A ranging ping
 ///
 /// Sent out regularly by anchors.
 #[derive(Debug, Deserialize, Serialize)]
 #[repr(C)]
-pub struct Ping {
+pub struct PingData {
     /// When the ping was sent, in local sender time
     pub ping_tx_time: Instant,
 }
@@ -144,8 +180,16 @@ impl Ping {
     pub fn initiate<SPI>(dw1000: &mut DW1000<SPI, Ready>) -> Result<Self, Error>
         where SPI: SpimExt
     {
+        let tx_antenna_delay = dw1000.get_tx_antenna_delay()?;
+        let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
+
+        let data = PingData {
+            ping_tx_time: tx_time + tx_antenna_delay,
+        };
+
         Ok(Ping {
-            ping_tx_time: dw1000.time_from_delay(10_000_000)?,
+            tx_time,
+            data,
         })
     }
 }
@@ -154,10 +198,10 @@ impl Message for Ping {
     const PRELUDE:     Prelude = Prelude(b"RANGING PING");
     const PRELUDE_LEN: usize   = 12;
 
-    type Data = Self;
+    type Data = PingData;
 
     fn data(&self) -> &Self::Data {
-        self
+        &self.data
     }
 
     fn recipient(&self) -> mac::Address {
@@ -165,7 +209,7 @@ impl Message for Ping {
     }
 
     fn tx_time(&self) -> Instant {
-        self.ping_tx_time
+        self.tx_time
     }
 }
 
@@ -175,6 +219,7 @@ impl Message for Ping {
 #[derive(Debug)]
 pub struct Request {
     recipient: mac::Address,
+    tx_time:   Instant,
     data:      RequestData,
 }
 
@@ -197,29 +242,30 @@ pub struct RequestData {
 impl Request {
     /// Creates a new ranging request message
     pub fn initiate<SPI>(
-        dw1000:       &mut DW1000<SPI, Ready>,
-        ping_tx_time: Instant,
-        ping_rx_time: Instant,
-        recipient: mac::Address,
+        dw1000: &mut DW1000<SPI, Ready>,
+        ping:   RxMessage<Ping>,
     )
         -> Result<Self, Error>
         where SPI: SpimExt
     {
-        let request_tx_time = dw1000.time_from_delay(10_000_000)?;
+        let tx_antenna_delay = dw1000.get_tx_antenna_delay()?;
+        let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
+        let request_tx_time  = tx_time + tx_antenna_delay;
 
         let ping_reply_time = util::duration_between(
-            ping_rx_time,
+            ping.rx_time,
             request_tx_time,
         );
 
         let data = RequestData {
-            ping_tx_time,
+            ping_tx_time: ping.data.ping_tx_time,
             ping_reply_time,
             request_tx_time,
         };
 
         Ok(Request {
-            recipient,
+            recipient: ping.source,
+            tx_time,
             data,
         })
     }
@@ -240,7 +286,7 @@ impl Message for Request {
     }
 
     fn tx_time(&self) -> Instant {
-        self.data.request_tx_time
+        self.tx_time
     }
 }
 
@@ -275,36 +321,34 @@ pub struct ResponseData {
 impl Response {
     /// Creates a new ranging response message
     pub fn initiate<SPI>(
-        dw1000:          &mut DW1000<SPI, Ready>,
-        ping_tx_time:    Instant,
-        ping_reply_time: Duration,
-        request_tx_time: Instant,
-        request_rx_time: Instant,
-        recipient:       mac::Address,
+        dw1000:  &mut DW1000<SPI, Ready>,
+        request: RxMessage<Request>,
     )
         -> Result<Self, Error>
         where SPI: SpimExt
     {
-        let tx_time = dw1000.time_from_delay(10_000_000)?;
+        let tx_antenna_delay = dw1000.get_tx_antenna_delay()?;
+        let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
+        let response_tx_time = tx_time + tx_antenna_delay;
 
         let ping_round_trip_time = util::duration_between(
-            ping_tx_time,
-            request_rx_time,
+            request.data.ping_tx_time,
+            request.rx_time,
         );
         let request_reply_time = util::duration_between(
-            request_rx_time,
-            tx_time,
+            request.rx_time,
+            response_tx_time,
         );
 
         let data = ResponseData {
-            ping_reply_time,
+            ping_reply_time: request.data.ping_reply_time,
             ping_round_trip_time,
-            request_tx_time,
+            request_tx_time: request.data.request_tx_time,
             request_reply_time,
         };
 
         Ok(Response {
-            recipient,
+            recipient: request.source,
             tx_time,
             data,
         })
@@ -328,4 +372,41 @@ impl Message for Response {
     fn tx_time(&self) -> Instant {
         self.tx_time
     }
+}
+
+
+/// Computes the distance to another node from a ranging response
+///
+/// Returns `None`, if the computed time of flight is so large the distance
+/// calculation would overflow.
+pub fn compute_distance_mm(response: &RxMessage<Response>) -> Option<u64> {
+    let request_round_trip_time = util::duration_between(
+        response.data.request_tx_time,
+        response.rx_time,
+    );
+
+    // Compute time of flight according to the formula given in the DW1000 user
+    // manual, section 12.3.2.
+    let rtt_product =
+        response.data.ping_round_trip_time.0 *
+        request_round_trip_time.0;
+    let reply_time_product =
+        response.data.ping_reply_time.0 *
+        response.data.request_reply_time.0;
+    let complete_sum =
+        response.data.ping_round_trip_time.0 +
+        request_round_trip_time.0 +
+        response.data.ping_reply_time.0 +
+        response.data.request_reply_time.0;
+    let time_of_flight = (rtt_product - reply_time_product) / complete_sum;
+
+    // Nominally, all time units are based on a 64 Ghz clock, meaning each time
+    // unit is 1/64 ns.
+
+    const SPEED_OF_LIGHT: u64 = 299_792_458; // m/s or nm/ns
+
+    let distance_nm_times_64 = SPEED_OF_LIGHT.checked_mul(time_of_flight)?;
+    let distance_mm          = distance_nm_times_64 / 64 / 1_000_000;
+
+    Some(distance_mm)
 }
