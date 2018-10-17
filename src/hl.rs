@@ -146,6 +146,12 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
         Ok(())
     }
 
+    /// Returns the TX antenna delay
+    pub fn get_tx_antenna_delay(&mut self) -> Result<Duration, Error> {
+        let tx_antenna_delay = self.ll.tx_antd().read()?.value();
+        Ok(Duration(tx_antenna_delay as u64))
+    }
+
     /// Sets the network id and address used for sending and receiving
     pub fn set_address(&mut self, address: mac::Address)
         -> Result<(), Error>
