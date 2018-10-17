@@ -158,12 +158,19 @@ pub struct RxMessage<T: Message> {
 pub struct Prelude(pub &'static [u8]);
 
 
+/// Ranging ping message
+#[derive(Debug)]
+pub struct Ping {
+    tx_time: Instant,
+    data:    PingData,
+}
+
 /// A ranging ping
 ///
 /// Sent out regularly by anchors.
 #[derive(Debug, Deserialize, Serialize)]
 #[repr(C)]
-pub struct Ping {
+pub struct PingData {
     /// When the ping was sent, in local sender time
     pub ping_tx_time: Instant,
 }
@@ -173,8 +180,16 @@ impl Ping {
     pub fn initiate<SPI>(dw1000: &mut DW1000<SPI, Ready>) -> Result<Self, Error>
         where SPI: SpimExt
     {
+        let tx_antenna_delay = dw1000.get_tx_antenna_delay()?;
+        let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
+
+        let data = PingData {
+            ping_tx_time: tx_time + tx_antenna_delay,
+        };
+
         Ok(Ping {
-            ping_tx_time: dw1000.time_from_delay(TX_DELAY)?,
+            tx_time,
+            data,
         })
     }
 }
@@ -183,10 +198,10 @@ impl Message for Ping {
     const PRELUDE:     Prelude = Prelude(b"RANGING PING");
     const PRELUDE_LEN: usize   = 12;
 
-    type Data = Self;
+    type Data = PingData;
 
     fn data(&self) -> &Self::Data {
-        self
+        &self.data
     }
 
     fn recipient(&self) -> mac::Address {
@@ -194,7 +209,7 @@ impl Message for Ping {
     }
 
     fn tx_time(&self) -> Instant {
-        self.ping_tx_time
+        self.tx_time
     }
 }
 
@@ -204,6 +219,7 @@ impl Message for Ping {
 #[derive(Debug)]
 pub struct Request {
     recipient: mac::Address,
+    tx_time:   Instant,
     data:      RequestData,
 }
 
@@ -232,7 +248,9 @@ impl Request {
         -> Result<Self, Error>
         where SPI: SpimExt
     {
-        let request_tx_time = dw1000.time_from_delay(TX_DELAY)?;
+        let tx_antenna_delay = dw1000.get_tx_antenna_delay()?;
+        let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
+        let request_tx_time  = tx_time + tx_antenna_delay;
 
         let ping_reply_time = util::duration_between(
             ping.rx_time,
@@ -247,6 +265,7 @@ impl Request {
 
         Ok(Request {
             recipient: ping.source,
+            tx_time,
             data,
         })
     }
@@ -267,7 +286,7 @@ impl Message for Request {
     }
 
     fn tx_time(&self) -> Instant {
-        self.data.request_tx_time
+        self.tx_time
     }
 }
 
@@ -308,7 +327,9 @@ impl Response {
         -> Result<Self, Error>
         where SPI: SpimExt
     {
-        let response_tx_time = dw1000.time_from_delay(TX_DELAY)?;
+        let tx_antenna_delay = dw1000.get_tx_antenna_delay()?;
+        let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
+        let response_tx_time = tx_time + tx_antenna_delay;
 
         let ping_round_trip_time = util::duration_between(
             request.data.ping_tx_time,
@@ -328,7 +349,7 @@ impl Response {
 
         Ok(Response {
             recipient: request.source,
-            tx_time: response_tx_time,
+            tx_time,
             data,
         })
     }
