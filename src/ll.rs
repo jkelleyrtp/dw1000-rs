@@ -584,6 +584,36 @@ impl_register! {
         rxdlye,     9,  9, u8; /// Receiver Delayed Enable
         hrbpt,     24, 24, u8; /// Host Side RX Buffer Pointer Toggle
     }
+    0x0E, 0x00, 4, RW, SYS_MASK(sys_mask) { /// System Event Mask Register
+        mpclock,    1,  1, u8; /// Mask clock PLL lock
+        mesyncr,    2,  2, u8; /// Mask external sync clock reset
+        maat,       3,  3, u8; /// Mask automatic acknowledge trigger
+        mtxfrbm,    4,  4, u8; /// Mask transmit frame begins
+        mtxprs,     5,  5, u8; /// Mask transmit preamble sent
+        mtxphs,     6,  6, u8; /// Mask transmit PHY Header Sent
+        mtxfrs,     7,  7, u8; /// Mask transmit frame sent
+        mrxprd,     8,  8, u8; /// Mask receiver preamble detected
+        mrxsfdd,    9,  9, u8; /// Mask receiver SFD detected
+        mldedone,  10, 10, u8; /// Mask LDE processing done
+        mrxphd,    11, 11, u8; /// Mask receiver PHY header detect
+        mrxphe,    12, 12, u8; /// Mask receiver PHY header error
+        mrxdfr,    13, 13, u8; /// Mask receiver data frame ready
+        mrxfcg,    14, 14, u8; /// Mask receiver FCS good
+        mrxfce,    15, 15, u8; /// Mask receiver FCS error
+        mrxrfsl,   16, 16, u8; /// Mask receiver Reed Solomon Frame Sync loss
+        mrxrfto,   17, 17, u8; /// Mask Receive Frame Wait Timeout
+        mldeerr,   18, 18, u8; /// Mask leading edge detection processing error
+        mrxovrr,   20, 20, u8; /// Mask Receiver Overrun
+        mrxpto,    21, 21, u8; /// Mask Preamble detection timeout
+        mgpioirq,  22, 22, u8; /// Mask GPIO interrupt
+        mslp2init, 23, 23, u8; /// Mask SLEEP to INIT event
+        mrfpllll,  24, 24, u8; /// Mask RF PLL Losing Lock warning
+        mcpllll,   25, 25, u8; /// Mask Clock PLL Losing Lock warning
+        mrxsfdto,  26, 26, u8; /// Mask Receive SFD timeout
+        mhpdwarn,  27, 27, u8; /// Mask Half Period Delay Warning
+        mtxberr,   28, 28, u8; /// Mask Transmit Buffer Error
+        maffrej,   29, 29, u8; /// Mask Automatic Frame Filtering rejection
+    }
     0x0F, 0x00, 5, RW, SYS_STATUS(sys_status) { /// System Event Status Register
         irqs,       0,  0, u8; /// Interrupt Request Status
         cplock,     1,  1, u8; /// Clock PLL Lock
