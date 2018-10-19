@@ -52,6 +52,10 @@ fn main() -> ! {
     let mut dw1000 = dwm1001.DW1000.init()
         .expect("Failed to initialize DW1000");
 
+    let mut dw_irq = dwm1001.DW_IRQ;
+    let mut nvic   = dwm1001.NVIC;
+    let mut gpiote = dwm1001.GPIOTE;
+
     // These are the hardcoded calibration values from the dwm1001-examples
     // repository[1]. Ideally, the calibration values would be determined using
     // the proper calibration procedure, but hopefully those are good enough for
@@ -85,9 +89,18 @@ fn main() -> ! {
                 let mut future = dw1000
                     .receive()
                     .expect("Failed to receive message");
+                future.enable_interrupts()
+                    .expect("Failed to enable interrupts");
 
                 timeout_timer.start(100_000);
-                block_timeout!(&mut timeout_timer, future.wait(&mut buf))
+                block_timeout!(timeout_timer, {
+                    dw_irq.wait_for_interrupts(
+                        &mut nvic,
+                        &mut gpiote,
+                        &mut timeout_timer,
+                    );
+                    future.wait(&mut buf)
+                })
             },
             |message: Message| {
                 let ping = ranging::Ping::decode(&message)
@@ -101,9 +114,19 @@ fn main() -> ! {
                         .expect("Failed to initiate request")
                         .send(&mut dw1000)
                         .expect("Failed to initiate request transmission");
+                    future.enable_interrupts()
+                        .expect("Failed to enable interrupts");
 
-                    block!(future.wait())
-                        .expect("Failed to send ranging request");
+                    timeout_timer.start(100_000);
+                    block!({
+                        dw_irq.wait_for_interrupts(
+                            &mut nvic,
+                            &mut gpiote,
+                            &mut timeout_timer,
+                        );
+                        future.wait()
+                    })
+                    .expect("Failed to send ranging request");
 
                     return;
                 }
