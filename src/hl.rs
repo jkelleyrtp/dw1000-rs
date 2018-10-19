@@ -384,6 +384,12 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
 
         Ok(())
     }
+
+    /// Clear all interrupt flags
+    pub fn clear_interrupts(&mut self) -> Result<(), Error> {
+        self.ll.sys_mask().write(|w| w)?;
+        Ok(())
+    }
 }
 
 impl<SPI, State> DW1000<SPI, State> where SPI: SpimExt {
