@@ -38,10 +38,9 @@ macro_rules! block_timeout {
     ($timer:expr, $op:expr) => {
         {
             use $crate::hal::prelude::TimerExt;
-            let timer: &mut $crate::hal::Timer<_> = $timer;
 
             loop {
-                match timer.wait() {
+                match $timer.wait() {
                     Ok(()) =>
                         break Err($crate::util::TimeoutError::Timeout),
                     Err(nb::Error::WouldBlock) =>
@@ -78,10 +77,9 @@ macro_rules! repeat_timeout {
     ($timer:expr, $op:expr, $on_success:expr, $on_error:expr,) => {
         {
             use $crate::hal::prelude::TimerExt;
-            let timer: &mut $crate::hal::Timer<_> = $timer;
 
             loop {
-                match timer.wait() {
+                match $timer.wait() {
                     Ok(()) =>
                         break,
                     Err(nb::Error::WouldBlock) =>
