@@ -20,7 +20,6 @@
 #[macro_use] extern crate nb;
 
 extern crate cortex_m_semihosting;
-extern crate heapless;
 extern crate panic_semihosting;
 
 
