@@ -53,6 +53,10 @@ fn main() -> ! {
     let mut dw1000 = dwm1001.DW1000.init()
         .expect("Failed to initialize DW1000");
 
+    let mut dw_irq = dwm1001.DW_IRQ;
+    let mut nvic   = dwm1001.NVIC;
+    let mut gpiote = dwm1001.GPIOTE;
+
     // These are the hardcoded calibration values from the dwm1001-examples
     // repository[1]. Ideally, the calibration values would be determined using
     // the proper calibration procedure, but hopefully those are good enough for
@@ -86,9 +90,18 @@ fn main() -> ! {
                 let mut future = dw1000
                     .receive()
                     .expect("Failed to receive message");
+                future.enable_interrupts()
+                    .expect("Failed to enable interrupts");
 
                 timeout_timer.start(100_000);
-                block_timeout!(&mut timeout_timer, future.wait(&mut buf))
+                block_timeout!(timeout_timer, {
+                    dw_irq.wait_for_interrupts(
+                        &mut nvic,
+                        &mut gpiote,
+                        &mut timeout_timer,
+                    );
+                    future.wait(&mut buf)
+                })
             },
             |message: Message| {
                 let request = ranging::Request::decode(&message);
@@ -108,8 +121,18 @@ fn main() -> ! {
                     .expect("Failed to initiate response")
                     .send(&mut dw1000)
                     .expect("Failed to initiate response transmission");
-                block!(future.wait())
-                    .expect("Failed to send ranging response");
+                future.enable_interrupts()
+                    .expect("Failed to enable interrupts");
+                timeout_timer.start(100_000);
+                block!({
+                    dw_irq.wait_for_interrupts(
+                        &mut nvic,
+                        &mut gpiote,
+                        &mut timeout_timer,
+                    );
+                    future.wait()
+                })
+                .expect("Failed to send ranging response");
             },
             |_error| {
                 // ignore
@@ -122,7 +145,17 @@ fn main() -> ! {
             .expect("Failed to initiate ping")
             .send(&mut dw1000)
             .expect("Failed to initiate ping transmission");
-        block!(future.wait())
-            .expect("Failed to send ping");
+        future.enable_interrupts()
+            .expect("Failed to enable interrupts");
+        timeout_timer.start(100_000);
+        block!({
+            dw_irq.wait_for_interrupts(
+                &mut nvic,
+                &mut gpiote,
+                &mut timeout_timer,
+            );
+            future.wait()
+        })
+        .expect("Failed to send ping");
     }
 }
