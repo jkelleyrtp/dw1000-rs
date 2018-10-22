@@ -5,6 +5,7 @@
 //! * PRF
 
 use core::cmp::{min, max};
+use core::hint::unreachable_unchecked;
 
 // These are the constants
 pub mod ch_1_prf_16;
@@ -23,7 +24,11 @@ pub mod ch_7_prf_64;
 /// Type alias for correction Factors
 pub type CorrectionFactor = [(u16, i16)];
 
-/// Correct a measurement based on range bias
+/// Correct a measurement based on range bias.
+///
+/// NOTE: The Correction Factors used must cover the entire range of `measured_range_cm`, e.g.
+/// the last item in the array must have an upper bound of <u16>::max_value(), otherwise this
+/// function may exhibit undefined behavior
 pub fn correct_range_bias(
     correction: &'static CorrectionFactor,
     measured_range_cm: u16
@@ -37,7 +42,10 @@ pub fn correct_range_bias(
         }
     }
 
-    // TODO: make this unreachable unchecked, all tables include u16::max as
-    // their upper limits
-    unreachable!()
+    // NOTE: This is sound if and only if the upper bounds of the correction factor cover the
+    // full u16 range. In this case, it is not possible for the loop not to have already returned
+    // by this point
+    unsafe {
+        unreachable_unchecked();
+    }
 }
