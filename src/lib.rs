@@ -32,6 +32,10 @@ pub mod prelude {
 pub mod debug;
 
 
+use cortex_m::{
+    asm,
+    interrupt,
+};
 use dw1000::DW1000;
 use embedded_hal::blocking::delay::DelayMs;
 use nrf52832_hal::{
@@ -48,9 +52,11 @@ use nrf52832_hal::{
     nrf52::{
         self,
         CorePeripherals,
+        Interrupt,
         Peripherals,
     },
     spim,
+    Timer,
 };
 
 #[cfg(feature = "dev")]
@@ -77,6 +83,11 @@ pub struct DWM1001 {
     ///
     /// Can be used to reset the DW1000 externally.
     pub DW_RST: DW_RST,
+
+    /// The DW_IRQ pin (P0.19 on the nRF52)
+    ///
+    /// Can be used to wait for DW1000 interrupts.
+    pub DW_IRQ: DW_IRQ,
 
     /// DW1000 UWB transceiver
     pub DW1000: DW1000<nrf52::SPIM2, dw1000::Uninitialized>,
@@ -374,7 +385,6 @@ impl DWM1001 {
                 #[cfg(not(feature = "dev"))] GPIO_30: pins.p0_30,
                 #[cfg(not(feature = "dev"))] GPIO_31: pins.p0_31,
 
-                DW_IRQ : pins.p0_19,
                 IRQ_ACC: pins.p0_25,
             },
 
@@ -387,6 +397,7 @@ impl DWM1001 {
             },
 
             DW_RST: DW_RST::new(pins.p0_24),
+            DW_IRQ: DW_IRQ::new(pins.p0_19),
 
             DW1000: DW1000::new(spim2, dw_cs),
 
@@ -569,11 +580,6 @@ pub struct Pins {
     // this comment are connected to components on the board, and should
     // eventually be subsumed by higher-level abstractions.
 
-    /// DWM1001: DW_IRQ; nRF52: P0.19
-    ///
-    /// Connected to the DW1000.
-    pub DW_IRQ: p0::P0_19<Input<Floating>>,
-
     /// DWM1001: IRQ_ACC; nRF52: P0.25
     ///
     /// Connected to the accelerometer.
@@ -666,5 +672,64 @@ impl DW_RST {
         // There must be some better way to determine whether the DW1000 is
         // ready, but I guess waiting for some time will do.
         delay.delay_ms(5);
+    }
+}
+
+
+/// The DW_IRQ pin (P0.19 on the nRF52)
+///
+/// Can be used to wait for DW1000 interrupts.
+#[allow(non_camel_case_types)]
+pub struct DW_IRQ(p0::P0_19<Input<Floating>>);
+
+impl DW_IRQ {
+    fn new<Mode>(p0_19: p0::P0_19<Mode>) -> Self {
+        DW_IRQ(p0_19.into_floating_input())
+    }
+
+    /// Sets up DW1000 interrupt and goes to sleep until an interrupt occurs
+    ///
+    /// This method sets up the interrupt of the pin connected to DW_IRQ on the
+    /// DW1000 and goes to sleep, waiting for interrupts.
+    ///
+    /// There are two gotchas that must be kept in mind when using this method:
+    /// - This method returns on _any_ interrupt, even those unrelated to the
+    ///   DW1000.
+    /// - This method disables interrupt handlers. No interrupt handler will be
+    ///   called while this method is active.
+    pub fn wait_for_interrupts<T>(&mut self,
+        nvic:   &mut nrf52::NVIC,
+        gpiote: &mut nrf52::GPIOTE,
+        timer:  &mut Timer<T>,
+    )
+        where T: TimerExt
+    {
+        gpiote.config[0].write(|w| {
+            let w = w
+                .mode().event()
+                .polarity().lo_to_hi();
+
+            unsafe { w.psel().bits(19) }
+        });
+        gpiote.intenset.modify(|_, w| w.in0().set());
+
+        interrupt::free(|_| {
+            nvic.clear_pending(Interrupt::GPIOTE);
+            nvic.clear_pending(T::INTERRUPT);
+
+            nvic.enable(Interrupt::GPIOTE);
+            timer.enable_interrupt(nvic);
+
+            asm::dsb();
+            asm::wfi();
+
+            // If we don't do this, the (probably non-existing) interrupt
+            // handler will be called as soon as we exit this closure.
+            nvic.disable(Interrupt::GPIOTE);
+            timer.disable_interrupt(nvic);
+        });
+
+        gpiote.events_in[0].write(|w| unsafe { w.bits(0) });
+        gpiote.intenclr.modify(|_, w| w.in0().clear());
     }
 }
