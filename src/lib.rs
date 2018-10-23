@@ -56,7 +56,9 @@ use nrf52832_hal::{
         Peripherals,
     },
     spim,
+    twim,
     Timer,
+    Twim,
 };
 
 #[cfg(feature = "dev")]
@@ -91,6 +93,12 @@ pub struct DWM1001 {
 
     /// DW1000 UWB transceiver
     pub DW1000: DW1000<nrf52::SPIM2, dw1000::Uninitialized>,
+
+    /// LIS2DH12 3-axis accelerometer
+    ///
+    /// So far no driver exists for the LIS2DH12, so this provides direct access
+    /// to the I2C bus it's connected to.
+    pub LIS2DH12: Twim<nrf52::TWIM1>,
 
     /// Core peripheral: Cache and branch predictor maintenance operations
     pub CBP: nrf52::CBP,
@@ -175,9 +183,6 @@ pub struct DWM1001 {
 
     /// nRF52 peripheral: SPIS1
     pub SPIS1: nrf52::SPIS1,
-
-    /// nRF52 peripheral: TWIM1
-    pub TWIM1: nrf52::TWIM1,
 
     /// nRF52 peripheral: TWIS1
     pub TWIS1: nrf52::TWIS1,
@@ -355,6 +360,14 @@ impl DWM1001 {
             miso: pins.p0_18.into_floating_input().degrade(),
         });
 
+        let twim1 = p.TWIM1.constrain(
+            twim::Pins {
+                scl: pins.p0_28.into_floating_input().degrade(),
+                sda: pins.p0_29.into_floating_input().degrade(),
+            },
+            twim::Frequency::K250,
+        );
+
         let dw_cs = pins.p0_17.into_push_pull_output(Level::High).degrade();
 
         DWM1001 {
@@ -368,8 +381,6 @@ impl DWM1001 {
                 UART_RX   : pins.p0_11,
                 RESETn    : pins.p0_21,
                 READY     : pins.p0_26,
-                I2C_SCL   : pins.p0_28,
-                I2C_SDA   : pins.p0_29,
 
                 GPIO_8 : pins.p0_08,
                 GPIO_9 : pins.p0_09,
@@ -400,6 +411,8 @@ impl DWM1001 {
             DW_IRQ: DW_IRQ::new(pins.p0_19),
 
             DW1000: DW1000::new(spim2, dw_cs),
+
+            LIS2DH12: twim1,
 
             // Core peripherals
             CBP  : cp.CBP,
@@ -432,7 +445,6 @@ impl DWM1001 {
             TWI0  : p.TWI0,
             SPIM1 : p.SPIM1,
             SPIS1 : p.SPIS1,
-            TWIM1 : p.TWIM1,
             TWIS1 : p.TWIS1,
             SPI1  : p.SPI1,
             TWI1  : p.TWI1,
@@ -513,16 +525,6 @@ pub struct Pins {
 
     /// DWM1001: READY; nRF52: P0.26
     pub READY: p0::P0_26<Input<Floating>>,
-
-    /// DWM1001: I2C_SCL; nRF52: P0.28
-    ///
-    /// Connected to both the accelerometer and an outside pin.
-    pub I2C_SCL: p0::P0_28<Input<Floating>>,
-
-    /// DWM1001: I2C_SDA; nRF52: P0.29
-    ///
-    /// Connected to both the accelerometer and an outside pin.
-    pub I2C_SDA: p0::P0_29<Input<Floating>>,
 
     /// DWM1001: GPIO_8; nRF52: P0.08
     pub GPIO_8: p0::P0_08<Input<Floating>>,
