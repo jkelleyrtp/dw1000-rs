@@ -384,6 +384,12 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
 
         Ok(())
     }
+
+    /// Clear all interrupt flags
+    pub fn clear_interrupts(&mut self) -> Result<(), Error> {
+        self.ll.sys_mask().write(|w| w)?;
+        Ok(())
+    }
 }
 
 impl<SPI, State> DW1000<SPI, State> where SPI: SpimExt {
@@ -425,6 +431,9 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
             return Err(nb::Error::Other(Error::DelayedSendPowerUpWarning));
         }
 
+        // ATTENTION:
+        // If you're changing anything about which SYS_STATUS flags are being
+        // checked in this method, also make sure to update `enable_interrupts`.
         let sys_status = self.0.ll()
             .sys_status()
             .read()
@@ -450,6 +459,14 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
 
         Ok(())
     }
+
+    /// Enables interrupts for the events that `wait` checks
+    ///
+    /// Overwrites any interrupt flags that were previously set.
+    pub fn enable_interrupts(&mut self) -> Result<(), Error> {
+        self.0.ll().sys_mask().write(|w| w.mtxfrs(0b1))?;
+        Ok(())
+    }
 }
 
 
@@ -461,6 +478,9 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
     pub fn wait<'b>(&mut self, buffer: &'b mut [u8])
         -> nb::Result<Message<'b>, Error>
     {
+        // ATTENTION:
+        // If you're changing anything about which SYS_STATUS flags are being
+        // checked in this method, also make sure to update `enable_interrupts`.
         let sys_status = self.0.ll()
             .sys_status()
             .read()
@@ -567,6 +587,28 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
             rx_time,
             frame,
         })
+    }
+
+    /// Enables interrupts for the events that `wait` checks
+    ///
+    /// Overwrites any interrupt flags that were previously set.
+    pub fn enable_interrupts(&mut self) -> Result<(), Error> {
+        self.0.ll()
+            .sys_mask()
+            .write(|w|
+                w
+                    .mrxdfr(0b1)
+                    .mrxfce(0b1)
+                    .mrxphe(0b1)
+                    .mrxrfsl(0b1)
+                    .mrxrfto(0b1)
+                    .mrxovrr(0b1)
+                    .mrxpto(0b1)
+                    .mrxsfdto(0b1)
+                    .mldedone(0b1)
+            )?;
+
+        Ok(())
     }
 }
 
