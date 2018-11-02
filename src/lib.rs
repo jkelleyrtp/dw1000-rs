@@ -716,8 +716,8 @@ impl DW_IRQ {
         gpiote.intenset.modify(|_, w| w.in0().set());
 
         interrupt::free(|_| {
-            nvic.clear_pending(Interrupt::GPIOTE);
-            nvic.clear_pending(T::INTERRUPT);
+            nrf52::NVIC::unpend(Interrupt::GPIOTE);
+            nrf52::NVIC::unpend(T::INTERRUPT);
 
             nvic.enable(Interrupt::GPIOTE);
             timer.enable_interrupt(nvic);
