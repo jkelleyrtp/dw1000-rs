@@ -6,13 +6,11 @@ authors = ["Hanno Braun <hanno@braun-robotics.com>"]
 [dependencies]
 ieee802154   = { git = "https://github.com/braun-robotics/ieee-802.15.4.git" }
 nb           = "0.1.1"
-# This is my fork of nrf52-hal. I'm depending on it for the time being, until
-# work on it has settled down a bit.
 # Ideally we wouldn't need a dependency on nrf52-hal at all, and would depend on
 # embedded-hal instead. Unfortunately nrf52-hal doesn't implement the SPI traits
 # of embedded-hal yet, and we need nRF52 support because it's used on the
 # DWM1001 board.
-nrf52832-hal = { git = "https://github.com/braun-robotics/nrf52-hal.git", default-features = false }
+nrf52832-hal = "0.6.0-beta.1"
 serde        = { version = "1.0.79", default-features = false }
 serde_derive = "1.0.79"
 ssmarshal    = { version = "1.0", default-features = false }
