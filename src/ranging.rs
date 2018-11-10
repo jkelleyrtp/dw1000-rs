@@ -29,14 +29,18 @@
 
 use core::mem::size_of;
 
-use hal::prelude::*;
+use crate::hal::prelude::*;
 use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_derive::{
     Deserialize,
     Serialize,
 };
 use ssmarshal;
 
-use ::{
+use crate::{
     hl,
     mac,
     util,

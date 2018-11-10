@@ -5,7 +5,7 @@
 
 use core::marker::PhantomData;
 
-use hal::{
+use crate::hal::{
     prelude::*,
     gpio::{
         p0,
@@ -238,7 +238,7 @@ macro_rules! impl_register {
                         #[$field_doc]
                         pub fn $field(&self) -> $ty {
                             use core::mem::size_of;
-                            use ll::FromBytes;
+                            use crate::ll::FromBytes;
 
                             // The index (in the register data) of the first
                             // byte that contains a part of this field.
@@ -350,7 +350,7 @@ macro_rules! impl_register {
                     $(
                         #[$field_doc]
                         pub fn $field(&mut self, value: $ty) -> &mut Self {
-                            use ll::ToBytes;
+                            use crate::ll::ToBytes;
 
                             // Convert value into bytes
                             let source = <$ty as ToBytes>::to_bytes(value);

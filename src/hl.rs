@@ -10,7 +10,7 @@ use core::{
     ops::Add,
 };
 
-use hal::{
+use crate::hal::{
     prelude::*,
     gpio::{
         p0,
@@ -21,11 +21,12 @@ use hal::{
     Spim,
 };
 use nb;
+use serde_derive::{Serialize, Deserialize};
 use ssmarshal;
 
-use ll;
-use mac;
-use TIME_MAX;
+use crate::ll;
+use crate::mac;
+use crate::TIME_MAX;
 
 
 /// Entry point to the DW1000 driver API
