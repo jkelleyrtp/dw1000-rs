@@ -333,9 +333,9 @@ macro_rules! impl_register {
 
                 impl fmt::Debug for R {
                     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                        write!(f, "0x");
+                        write!(f, "0x")?;
                         for i in (0 .. $len).rev() {
-                            write!(f, "{:02x}", self.0[HEADER_LEN + i]);
+                            write!(f, "{:02x}", self.0[HEADER_LEN + i])?;
                         }
 
                         Ok(())
@@ -877,9 +877,9 @@ pub mod rx_buffer {
 
     impl fmt::Debug for R {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            write!(f, "0x");
+            write!(f, "0x")?;
             for i in (0 .. LEN).rev() {
-                write!(f, "{:02x}", self.0[HEADER_LEN + i]);
+                write!(f, "{:02x}", self.0[HEADER_LEN + i])?;
             }
 
             Ok(())
