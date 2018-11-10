@@ -14,12 +14,8 @@ embedded-hal         = "0.2.1"
 # work on it has settled down a bit.
 nrf52832-hal         = { git = "https://github.com/braun-robotics/nrf52-hal.git" }
 
-[patch."https://github.com/braun-robotics/nrf52-hal.git"]
-nrf52832-hal = { path = "../nrf52-hal/nrf52832-hal" }
-
-
 [dev-dependencies]
-heapless          = "0.3.7"
+heapless          = "0.4.0"
 nb                = "0.1.1"
 panic-semihosting = "0.5.0"
 
