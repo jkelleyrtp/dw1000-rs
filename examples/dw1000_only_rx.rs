@@ -1,24 +1,18 @@
 //! Waits to receive data and signals status via LEDs
-
-
 #![no_main]
 #![no_std]
 
-#![feature(nll)]
-
-
-#[macro_use] extern crate cortex_m_rt;
-#[macro_use] extern crate dwm1001;
-
-extern crate nb;
-extern crate panic_semihosting;
-
+use cortex_m_rt::entry;
+use nb;
+use panic_semihosting;
 
 use dwm1001::{
-    prelude::*,
+    block_timeout,
     debug,
-    nrf52832_hal::Delay,
     DWM1001,
+    nrf52832_hal::Delay,
+    prelude::*,
+    print,
 };
 
 
