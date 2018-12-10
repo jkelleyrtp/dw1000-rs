@@ -12,8 +12,6 @@ pub use dw1000;
 pub use embedded_hal;
 pub use nrf52832_hal;
 
-use cortex_m_semihosting;
-
 pub use dw1000::{
     block_timeout,
     repeat_timeout,
