@@ -2,17 +2,19 @@
 name    = "dwm1001"
 version = "0.1.0"
 authors = ["Hanno Braun <hanno@braun-robotics.com>"]
-
+edition = "2018"
 
 [dependencies]
 cortex-m             = { version = "0.5.4", features = [ "const-fn" ] }
 cortex-m-rt          = "0.6.3"
 cortex-m-semihosting = "0.3.0"
-dw1000               = { git = "https://github.com/braun-robotics/rust-dw1000.git" }
 embedded-hal         = "0.2.1"
-# This is my fork of nrf52-hal. I'm depending on it for the time being, until
-# work on it has settled down a bit.
-nrf52832-hal         = { git = "https://github.com/braun-robotics/nrf52-hal.git" }
+nrf52832-hal         = "0.6.0"
+
+[dependencies.dw1000]
+git = "https://github.com/braun-robotics/rust-dw1000.git"
+rev = "dfd4494623c248ae51cc766bc361e1e7f262f4a5"
+
 
 [dev-dependencies]
 heapless          = "0.4.0"

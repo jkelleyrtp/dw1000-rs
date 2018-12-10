@@ -1,28 +1,23 @@
 //! Board support crate for the Decawave DWM1001/DWM1001-Dev
 //!
 //! This crate is in early development. Not much to see here, right now.
-
-
 #![no_std]
 
 #![deny(missing_docs)]
 #![deny(warnings)]
 
+pub use cortex_m;
+pub use cortex_m_rt;
+pub use dw1000;
+pub use embedded_hal;
+pub use nrf52832_hal;
 
-pub extern crate cortex_m;
-pub extern crate cortex_m_rt;
-pub extern crate dw1000;
-pub extern crate embedded_hal;
-pub extern crate nrf52832_hal;
-
-extern crate cortex_m_semihosting;
-
+use cortex_m_semihosting;
 
 pub use dw1000::{
     block_timeout,
     repeat_timeout,
 };
-
 
 /// Exports traits that are usually needed when using this crate
 pub mod prelude {
@@ -49,8 +44,8 @@ use nrf52832_hal::{
         Input,
         Level,
     },
-    nrf52::{
-        self,
+    nrf52832_pac::{
+        self as nrf52,
         CorePeripherals,
         Interrupt,
         Peripherals,
