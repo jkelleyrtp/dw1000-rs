@@ -7,13 +7,13 @@ edition = "2018"
 [dependencies]
 ieee802154   = { git = "https://github.com/braun-robotics/ieee-802.15.4.git" }
 nb           = "0.1.1"
-# Ideally we wouldn't need a dependency on nrf52-hal at all, and would depend on
-# embedded-hal instead. Unfortunately nrf52-hal doesn't implement the SPI traits
-# of embedded-hal yet, and we need nRF52 support because it's used on the
-# DWM1001 board.
 serde        = { version = "1.0.79", default-features = false }
 serde_derive = "1.0.79"
 ssmarshal    = { version = "1.0", default-features = false }
 
+# Ideally we wouldn't need a dependency on nrf52-hal at all, and would depend on
+# embedded-hal instead. Unfortunately nrf52-hal doesn't implement the SPI traits
+# of embedded-hal yet, and we need nRF52 support because it's used on the
+# DWM1001 board.
 [dependencies.nrf52832-hal]
-version = "0.6.0-beta.4"
+version = "0.6.0"

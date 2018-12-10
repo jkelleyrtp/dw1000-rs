@@ -1,6 +1,5 @@
 //! Contains utility functions that are useful when working with the DW1000
 
-
 use crate::{
     TIME_MAX,
     Duration,
@@ -49,6 +48,10 @@ macro_rules! block_timeout {
                         unreachable!(),
                 }
 
+                // ::core::sync::atomic::compiler_fence(
+                //     ::core::sync::atomic::Ordering::AcqRel
+                // );
+
                 match $op {
                     Ok(result) =>
                         break Ok(result),
@@ -87,6 +90,10 @@ macro_rules! repeat_timeout {
                     Err(_) =>
                         unreachable!(),
                 }
+
+                // ::core::sync::atomic::compiler_fence(
+                //     ::core::sync::atomic::Ordering::AcqRel
+                // );
 
                 match $op {
                     Ok(result) => {
