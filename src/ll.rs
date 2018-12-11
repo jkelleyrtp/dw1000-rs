@@ -5,7 +5,7 @@
 
 use core::marker::PhantomData;
 
-use hal::{
+use crate::hal::{
     prelude::*,
     gpio::{
         p0,
@@ -238,7 +238,7 @@ macro_rules! impl_register {
                         #[$field_doc]
                         pub fn $field(&self) -> $ty {
                             use core::mem::size_of;
-                            use ll::FromBytes;
+                            use crate::ll::FromBytes;
 
                             // The index (in the register data) of the first
                             // byte that contains a part of this field.
@@ -333,9 +333,9 @@ macro_rules! impl_register {
 
                 impl fmt::Debug for R {
                     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                        write!(f, "0x");
+                        write!(f, "0x")?;
                         for i in (0 .. $len).rev() {
-                            write!(f, "{:02x}", self.0[HEADER_LEN + i]);
+                            write!(f, "{:02x}", self.0[HEADER_LEN + i])?;
                         }
 
                         Ok(())
@@ -350,7 +350,7 @@ macro_rules! impl_register {
                     $(
                         #[$field_doc]
                         pub fn $field(&mut self, value: $ty) -> &mut Self {
-                            use ll::ToBytes;
+                            use crate::ll::ToBytes;
 
                             // Convert value into bytes
                             let source = <$ty as ToBytes>::to_bytes(value);
@@ -877,9 +877,9 @@ pub mod rx_buffer {
 
     impl fmt::Debug for R {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            write!(f, "0x");
+            write!(f, "0x")?;
             for i in (0 .. LEN).rev() {
-                write!(f, "{:02x}", self.0[HEADER_LEN + i]);
+                write!(f, "{:02x}", self.0[HEADER_LEN + i])?;
             }
 
             Ok(())

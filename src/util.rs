@@ -1,7 +1,6 @@
 //! Contains utility functions that are useful when working with the DW1000
 
-
-use ::{
+use crate::{
     TIME_MAX,
     Duration,
     Instant,
