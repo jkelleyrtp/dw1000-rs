@@ -7,21 +7,13 @@
 //! with the rest of the code, this example signals its status via LEDs. If
 //! everything works well, you should see the blue LED blink from time to time
 //! on both boards, signalling a successfully received message.
-
-
 #![no_main]
 #![no_std]
 
-#![feature(nll)]
-
-
-#[macro_use] extern crate cortex_m_rt;
-#[macro_use] extern crate dwm1001;
-
-extern crate heapless;
-extern crate nb;
-extern crate panic_semihosting;
-
+use cortex_m_rt::entry;
+use heapless::FnvIndexSet;
+use nb;
+use panic_semihosting;
 
 use dwm1001::{
     prelude::*,
@@ -32,8 +24,10 @@ use dwm1001::{
     },
     nrf52832_hal::Delay,
     DWM1001,
+    block_timeout,
+    repeat_timeout,
+    print,
 };
-use heapless::FnvIndexSet;
 
 
 #[entry]

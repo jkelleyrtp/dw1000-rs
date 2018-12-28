@@ -1,21 +1,16 @@
 //! Continually sends data using delayed transmission
-
-
 #![no_main]
 #![no_std]
 
-
-#[macro_use] extern crate cortex_m_rt;
-#[macro_use] extern crate dwm1001;
-#[macro_use] extern crate nb;
-
-extern crate panic_semihosting;
-
+use cortex_m_rt::entry;
+use nb::block;
+use panic_semihosting;
 
 use dwm1001::{
     debug,
     dw1000::mac,
     DWM1001,
+    print,
 };
 
 

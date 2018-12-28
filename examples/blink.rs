@@ -1,13 +1,10 @@
 #![no_main]
 #![no_std]
 
-
-#[macro_use] extern crate cortex_m_rt;
-#[macro_use] extern crate nb;
-
-extern crate dwm1001;
-extern crate panic_semihosting;
-
+use cortex_m_rt::entry;
+use dwm1001;
+use nb::block;
+use panic_semihosting;
 
 use dwm1001::{
     nrf52832_hal::{
@@ -35,5 +32,5 @@ fn main() -> ! {
 
 fn delay<T>(timer: &mut Timer<T>, cycles: u32) where T: TimerExt {
     timer.start(cycles);
-    block!(timer.wait());
+    block!(timer.wait()).unwrap();
 }
