@@ -388,7 +388,7 @@ impl DWM1001 {
         #[cfg(feature = "dev")]
         let uarte0 = p.UARTE0.constrain(uarte::Pins {
                 txd: pins.p0_05.into_push_pull_output(Level::High).degrade(),
-                rxd: pins.p0_11.into_push_pull_output(Level::High).degrade(),
+                rxd: pins.p0_11.into_floating_input().degrade(),
                 cts: None,
                 rts: None,
             },
