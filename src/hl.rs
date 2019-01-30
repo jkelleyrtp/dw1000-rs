@@ -271,7 +271,7 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
         self.ll
             .tx_buffer()
             .write(|w| {
-                len += frame.write(&mut w.data(), mac::WriteFooter::No);
+                len += frame.encode(&mut w.data(), mac::WriteFooter::No);
                 w
             })?;
         self.ll
@@ -581,7 +581,7 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
 
         buffer[..len].copy_from_slice(&rx_buffer.data()[..len]);
 
-        let frame = mac::Frame::read(&buffer[..len])
+        let frame = mac::Frame::decode(&buffer[..len])
             .map_err(|error| Error::Frame(error))?;
 
         Ok(Message {
@@ -648,7 +648,7 @@ pub enum Error {
     SfdTimeout,
 
     /// Frame could not be decoded
-    Frame(mac::ReadError),
+    Frame(mac::DecodeError),
 
     /// A delayed frame could not be sent in time
     ///
