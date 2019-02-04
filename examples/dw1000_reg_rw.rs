@@ -1,11 +1,15 @@
 //! Writes to a DW1000 register, reads it back, and verifies its value
 //!
 //! This is a basic test of the DW1000 driver's register access code.
+
 #![no_main]
 #![no_std]
 
+
+extern crate panic_semihosting;
+
+
 use cortex_m_rt::entry;
-use panic_semihosting;
 
 use dwm1001::{
     debug,

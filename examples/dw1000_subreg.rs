@@ -1,9 +1,13 @@
 //! Accesses a DW1000 sub-register and verifies that this worked
+
 #![no_main]
 #![no_std]
 
+
+extern crate panic_semihosting;
+
+
 use cortex_m_rt::entry;
-use panic_semihosting;
 
 use dwm1001::{
     debug,

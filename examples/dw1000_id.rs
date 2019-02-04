@@ -2,11 +2,16 @@
 //!
 //! This example establishes SPI communication with the DW1000, reads its DEV_ID
 //! register, and verifies that all its fields are as expected.
+
+
 #![no_main]
 #![no_std]
 
+
+extern crate panic_semihosting;
+
+
 use cortex_m_rt::entry;
-use panic_semihosting;
 
 use dwm1001::{
     debug,

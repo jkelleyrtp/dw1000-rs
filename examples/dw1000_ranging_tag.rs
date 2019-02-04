@@ -6,13 +6,16 @@
 //! Currently, distance measurements have a highly inaccurate result. One reason
 //! that could account for this is the lack of antenna delay calibration, but
 //! it's possible that there are various hidden bugs that contribute to this.
+
 #![no_main]
 #![no_std]
 
+
+extern crate panic_semihosting;
+
+
 use cortex_m_rt::entry;
-use cortex_m_semihosting;
 use nb::block;
-use panic_semihosting;
 
 use dwm1001::{
     prelude::*,

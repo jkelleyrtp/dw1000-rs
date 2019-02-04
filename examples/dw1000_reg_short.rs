@@ -4,11 +4,15 @@
 //! fields. For example, a register migth be 40 bits wide, but have a field that
 //! is represented by a `u64`. This example makes sure to exercise the register
 //! read/write infrastructure using such a field.
+
 #![no_main]
 #![no_std]
 
+
+extern crate panic_semihosting;
+
+
 use cortex_m_rt::entry;
-use panic_semihosting;
 
 use dwm1001::{
     debug,
