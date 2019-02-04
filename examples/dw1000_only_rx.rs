@@ -1,10 +1,14 @@
 //! Waits to receive data and signals status via LEDs
+
 #![no_main]
 #![no_std]
 
+
+extern crate panic_semihosting;
+
+
 use cortex_m_rt::entry;
 use nb;
-use panic_semihosting;
 
 use dwm1001::{
     block_timeout,

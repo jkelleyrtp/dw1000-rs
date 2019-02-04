@@ -1,9 +1,13 @@
 //! Accesses the LIS2DH12 3-axis accelerometer
+
 #![no_main]
 #![no_std]
 
+
+extern crate panic_semihosting;
+
+
 use cortex_m_rt::entry;
-use panic_semihosting;
 
 use dwm1001::{
     debug,

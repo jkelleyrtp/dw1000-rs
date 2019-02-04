@@ -1,10 +1,14 @@
 //! Continually sends data using delayed transmission
+
 #![no_main]
 #![no_std]
 
+
+extern crate panic_semihosting;
+
+
 use cortex_m_rt::entry;
 use nb::block;
-use panic_semihosting;
 
 use dwm1001::{
     debug,

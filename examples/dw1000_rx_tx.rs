@@ -7,13 +7,17 @@
 //! with the rest of the code, this example signals its status via LEDs. If
 //! everything works well, you should see the blue LED blink from time to time
 //! on both boards, signalling a successfully received message.
+
 #![no_main]
 #![no_std]
+
+
+extern crate panic_semihosting;
+
 
 use cortex_m_rt::entry;
 use heapless::FnvIndexSet;
 use nb;
-use panic_semihosting;
 
 use dwm1001::{
     prelude::*,

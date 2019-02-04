@@ -3,11 +3,15 @@
 //! The main difference between this example and `dw1000_subreg.rs` is that
 //! we're accessing a register with an extended address here, which means we use
 //! a 3-byte header.
+
 #![no_main]
 #![no_std]
 
+
+extern crate panic_semihosting;
+
+
 use cortex_m_rt::entry;
-use panic_semihosting;
 
 use dwm1001::{
     debug,
