@@ -1,10 +1,11 @@
 //! Board support crate for the Decawave DWM1001/DWM1001-Dev
 //!
 //! This crate is in early development. Not much to see here, right now.
+
 #![no_std]
 
 #![deny(missing_docs)]
-#![deny(warnings)]
+
 
 pub use cortex_m;
 pub use cortex_m_rt;
