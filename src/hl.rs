@@ -402,7 +402,7 @@ impl<SPI, State> DW1000<SPI, State> where SPI: SpimExt {
 
 
 /// Represents a TX operation that might not have completed
-pub struct TxFuture<'r, SPI: 'r>(&'r mut DW1000<SPI, Ready>);
+pub struct TxFuture<'r, SPI>(&'r mut DW1000<SPI, Ready>);
 
 impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
     /// Wait for the data to be sent
@@ -472,7 +472,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
 
 
 /// Represents an RX operation that might not have finished
-pub struct RxFuture<'r, SPI: 'r>(&'r mut DW1000<SPI, Ready>);
+pub struct RxFuture<'r, SPI>(&'r mut DW1000<SPI, Ready>);
 
 impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
     /// Wait for data to be available

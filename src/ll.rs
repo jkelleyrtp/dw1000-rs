@@ -45,7 +45,7 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 /// Provides access to a register
 ///
 /// Please refer to [`DW1000`] for more information.
-pub struct RegAccessor<'s, R, SPI: 's>(&'s mut DW1000<SPI>, PhantomData<R>);
+pub struct RegAccessor<'s, R, SPI>(&'s mut DW1000<SPI>, PhantomData<R>);
 
 impl<'s, R, SPI> RegAccessor<'s, R, SPI> where SPI: SpimExt {
     /// Read from a register
