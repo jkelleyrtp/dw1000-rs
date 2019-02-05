@@ -53,16 +53,14 @@ impl<'s, R, SPI> RegAccessor<'s, R, SPI> where SPI: SpimExt {
         where
             R: Register + Readable,
     {
-        let mut tx_buffer = [0; 3]; // 3 is the maximum header length
-        let header_len = init_header::<R>(false, &mut tx_buffer);
+        let mut r      = R::read();
+        let mut buffer = R::buffer(&mut r);
 
-        let mut r = R::read();
+        init_header::<R>(false, &mut buffer);
 
-        self.0.spim.read(
-            &mut self.0.chip_select,
-            &tx_buffer[0 .. header_len],
-            R::buffer(&mut r),
-        )?;
+        self.0.chip_select.set_low();
+        self.0.spim.transfer(buffer)?;
+        self.0.chip_select.set_high();
 
         Ok(r)
     }
