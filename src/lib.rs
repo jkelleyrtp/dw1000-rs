@@ -3,7 +3,7 @@
 #![no_std]
 
 #![deny(missing_docs)]
-#![deny(warnings)]
+
 
 pub use nrf52832_hal as hal;
 
