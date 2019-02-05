@@ -5,6 +5,8 @@
 
 use core::marker::PhantomData;
 
+use embedded_hal::blocking::spi;
+
 use crate::hal::{
     prelude::*,
     gpio::{
@@ -73,10 +75,13 @@ impl<'s, R, SPI> RegAccessor<'s, R, SPI> where SPI: SpimExt {
     {
         let mut w = R::write();
         f(&mut w);
-        let tx_buffer = R::buffer(&mut w);
-        init_header::<R>(true, tx_buffer);
 
-        self.0.spim.write(&mut self.0.chip_select, &tx_buffer)?;
+        let buffer = R::buffer(&mut w);
+        init_header::<R>(true, buffer);
+
+        self.0.chip_select.set_low();
+        <Spim<SPI> as spi::Write<u8>>::write(&mut self.0.spim, buffer)?;
+        self.0.chip_select.set_high();
 
         Ok(())
     }
