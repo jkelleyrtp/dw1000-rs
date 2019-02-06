@@ -3,7 +3,10 @@
 //! This module implements a register-level interface to the DW1000.
 
 
-use core::marker::PhantomData;
+use core::{
+    fmt,
+    marker::PhantomData,
+};
 
 use embedded_hal::blocking::spi;
 
@@ -14,24 +17,22 @@ use crate::hal::{
         Output,
         PushPull,
     },
-    spim,
-    Spim,
 };
 
 
 /// Entry point to the DW1000 driver API
 pub struct DW1000<SPI> {
-    spim       : Spim<SPI>,
+    spim       : SPI,
     chip_select: p0::P0_Pin<Output<PushPull>>,
 }
 
-impl<SPI> DW1000<SPI> where SPI: SpimExt {
+impl<SPI> DW1000<SPI> {
     /// Create a new instance of `DW1000`
     ///
     /// Requires the SPI peripheral and the chip select pin that are connected
     /// to the DW1000.
     pub fn new(
-        spim       : Spim<SPI>,
+        spim       : SPI,
         chip_select: p0::P0_Pin<Output<PushPull>>
     )
         -> Self
@@ -49,9 +50,12 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 /// Please refer to [`DW1000`] for more information.
 pub struct RegAccessor<'s, R, SPI>(&'s mut DW1000<SPI>, PhantomData<R>);
 
-impl<'s, R, SPI> RegAccessor<'s, R, SPI> where SPI: SpimExt {
+impl<'s, R, SPI> RegAccessor<'s, R, SPI>
+    where SPI: spi::Transfer<u8> + spi::Write<u8>
+{
     /// Read from a register
-    pub fn read(&mut self) -> Result<R::Read, spim::Error>
+    pub fn read(&mut self)
+        -> Result<R::Read, Error<SPI>>
         where
             R: Register + Readable,
     {
@@ -61,14 +65,16 @@ impl<'s, R, SPI> RegAccessor<'s, R, SPI> where SPI: SpimExt {
         init_header::<R>(false, &mut buffer);
 
         self.0.chip_select.set_low();
-        self.0.spim.transfer(buffer)?;
+        self.0.spim.transfer(buffer)
+            .map_err(|err| Error::Transfer(err))?;
         self.0.chip_select.set_high();
 
         Ok(r)
     }
 
     /// Write to a register
-    pub fn write<F>(&mut self, f: F) -> Result<(), spim::Error>
+    pub fn write<F>(&mut self, f: F)
+        -> Result<(), Error<SPI>>
         where
             R: Register + Writable,
             F: FnOnce(&mut R::Write) -> &mut R::Write,
@@ -80,14 +86,16 @@ impl<'s, R, SPI> RegAccessor<'s, R, SPI> where SPI: SpimExt {
         init_header::<R>(true, buffer);
 
         self.0.chip_select.set_low();
-        <Spim<SPI> as spi::Write<u8>>::write(&mut self.0.spim, buffer)?;
+        <SPI as spi::Write<u8>>::write(&mut self.0.spim, buffer)
+            .map_err(|err| Error::Write(err))?;
         self.0.chip_select.set_high();
 
         Ok(())
     }
 
     /// Modify a register
-    pub fn modify<F>(&mut self, f: F) -> Result<(), spim::Error>
+    pub fn modify<F>(&mut self, f: F)
+        -> Result<(), Error<SPI>>
         where
             R: Register + Readable + Writable,
             F: for<'r>
@@ -105,10 +113,39 @@ impl<'s, R, SPI> RegAccessor<'s, R, SPI> where SPI: SpimExt {
         init_header::<R>(true, buffer);
 
         self.0.chip_select.set_low();
-        <Spim<SPI> as spi::Write<u8>>::write(&mut self.0.spim, buffer)?;
+        <SPI as spi::Write<u8>>::write(&mut self.0.spim, buffer)
+            .map_err(|err| Error::Write(err))?;
         self.0.chip_select.set_high();
 
         Ok(())
+    }
+}
+
+
+/// An SPI error that can occure while communicating with the DW1000
+pub enum Error<SPI>
+    where SPI: spi::Transfer<u8> + spi::Write<u8>
+{
+    /// SPI error occured during a transfer transaction
+    Transfer(<SPI as spi::Transfer<u8>>::Error),
+
+    /// SPI error occured during a write transaction
+    Write(<SPI as spi::Write<u8>>::Error),
+}
+
+// We can't derive this implementation, as the compiler will complain that the
+// associated error type don't implement `Debug`.
+impl<SPI> fmt::Debug for Error<SPI>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        <SPI as spi::Transfer<u8>>::Error: fmt::Debug,
+        <SPI as spi::Write<u8>>::Error: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::Transfer(error) => write!(f, "Transfer({:?})", error),
+            Error::Write(error)    => write!(f, "Write({:?})", error),
+        }
     }
 }
 

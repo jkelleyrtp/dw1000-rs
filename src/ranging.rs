@@ -29,7 +29,7 @@
 
 use core::mem::size_of;
 
-use crate::hal::prelude::*;
+use embedded_hal::blocking::spi;
 use serde::{
     Deserialize,
     Serialize,
@@ -89,8 +89,8 @@ pub trait Message: Sized {
 
     /// Send this message
     fn send<'r, SPI>(&self, dw1000: &'r mut DW1000<SPI, Ready>)
-        -> Result<TxFuture<'r, SPI>, Error>
-        where SPI: SpimExt
+        -> Result<TxFuture<'r, SPI>, Error<SPI>>
+        where SPI: spi::Transfer<u8> + spi::Write<u8>
     {
         // Create a buffer that fits the biggest message currently implemented.
         // This is a really ugly hack. The size of the buffer should just be
@@ -113,7 +113,10 @@ pub trait Message: Sized {
     }
 
     /// Decodes a received message of this type
-    fn decode(message: &hl::Message) -> Result<Option<RxMessage<Self>>, Error> {
+    fn decode<SPI>(message: &hl::Message)
+        -> Result<Option<RxMessage<Self>>, Error<SPI>>
+        where SPI: spi::Transfer<u8> + spi::Write<u8>
+    {
         if !message.frame.payload.starts_with(Self::PRELUDE.0) {
             // Not a request of this type
             return Ok(None);
@@ -181,8 +184,9 @@ pub struct PingData {
 
 impl Ping {
     /// Creates a new ping message
-    pub fn initiate<SPI>(dw1000: &mut DW1000<SPI, Ready>) -> Result<Self, Error>
-        where SPI: SpimExt
+    pub fn initiate<SPI>(dw1000: &mut DW1000<SPI, Ready>)
+        -> Result<Self, Error<SPI>>
+        where SPI: spi::Transfer<u8> + spi::Write<u8>
     {
         let tx_antenna_delay = dw1000.get_tx_antenna_delay()?;
         let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
@@ -249,8 +253,8 @@ impl Request {
         dw1000: &mut DW1000<SPI, Ready>,
         ping:   RxMessage<Ping>,
     )
-        -> Result<Self, Error>
-        where SPI: SpimExt
+        -> Result<Self, Error<SPI>>
+        where SPI: spi::Transfer<u8> + spi::Write<u8>
     {
         let tx_antenna_delay = dw1000.get_tx_antenna_delay()?;
         let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
@@ -328,8 +332,8 @@ impl Response {
         dw1000:  &mut DW1000<SPI, Ready>,
         request: RxMessage<Request>,
     )
-        -> Result<Self, Error>
-        where SPI: SpimExt
+        -> Result<Self, Error<SPI>>
+        where SPI: spi::Transfer<u8> + spi::Write<u8>
     {
         let tx_antenna_delay = dw1000.get_tx_antenna_delay()?;
         let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
