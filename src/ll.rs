@@ -22,7 +22,7 @@ use crate::hal::{
 
 /// Entry point to the DW1000 driver API
 pub struct DW1000<SPI> {
-    spim       : SPI,
+    spi        : SPI,
     chip_select: p0::P0_Pin<Output<PushPull>>,
 }
 
@@ -32,13 +32,13 @@ impl<SPI> DW1000<SPI> {
     /// Requires the SPI peripheral and the chip select pin that are connected
     /// to the DW1000.
     pub fn new(
-        spim       : SPI,
+        spi        : SPI,
         chip_select: p0::P0_Pin<Output<PushPull>>
     )
         -> Self
     {
         DW1000 {
-            spim,
+            spi,
             chip_select,
         }
     }
@@ -65,7 +65,7 @@ impl<'s, R, SPI> RegAccessor<'s, R, SPI>
         init_header::<R>(false, &mut buffer);
 
         self.0.chip_select.set_low();
-        self.0.spim.transfer(buffer)
+        self.0.spi.transfer(buffer)
             .map_err(|err| Error::Transfer(err))?;
         self.0.chip_select.set_high();
 
@@ -86,7 +86,7 @@ impl<'s, R, SPI> RegAccessor<'s, R, SPI>
         init_header::<R>(true, buffer);
 
         self.0.chip_select.set_low();
-        <SPI as spi::Write<u8>>::write(&mut self.0.spim, buffer)
+        <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
             .map_err(|err| Error::Write(err))?;
         self.0.chip_select.set_high();
 
@@ -113,7 +113,7 @@ impl<'s, R, SPI> RegAccessor<'s, R, SPI>
         init_header::<R>(true, buffer);
 
         self.0.chip_select.set_low();
-        <SPI as spi::Write<u8>>::write(&mut self.0.spim, buffer)
+        <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
             .map_err(|err| Error::Write(err))?;
         self.0.chip_select.set_high();
 
