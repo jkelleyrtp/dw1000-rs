@@ -413,7 +413,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
         let evc_hpw = self.0.ll()
             .evc_hpw()
             .read()
-            .map_err(|error| Error::Spi(error))?
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?
             .value();
         if evc_hpw != 0 {
             return Err(nb::Error::Other(Error::DelayedSendTooLate));
@@ -426,7 +426,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
         let evc_tpw = self.0.ll()
             .evc_tpw()
             .read()
-            .map_err(|error| Error::Spi(error))?
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?
             .value();
         if evc_tpw != 0 {
             return Err(nb::Error::Other(Error::DelayedSendPowerUpWarning));
@@ -438,7 +438,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
         let sys_status = self.0.ll()
             .sys_status()
             .read()
-            .map_err(|error| Error::Spi(error))?;
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
 
         // Has the frame been sent?
         if sys_status.txfrs() == 0b0 {
@@ -456,7 +456,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
                     .txphs(0b1) // Transmit PHY Header Sent
                     .txfrs(0b1) // Transmit Frame Sent
             )
-            .map_err(|error| Error::Spi(error))?;
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
 
         Ok(())
     }
@@ -485,7 +485,7 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
         let sys_status = self.0.ll()
             .sys_status()
             .read()
-            .map_err(|error| Error::Spi(error))?;
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
 
         // Is a frame ready?
         if sys_status.rxdfr() == 0b0 {
@@ -532,7 +532,7 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
         let rx_time = self.0.ll()
             .rx_time()
             .read()
-            .map_err(|error| Error::Spi(error))?
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?
             .rx_stamp();
         let rx_time = Instant(rx_time);
 
@@ -559,17 +559,17 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
                     .rxrscs(0b1)  // Receiver Reed-Solomon Correction Status
                     .rxprej(0b1)  // Receiver Preamble Rejection
             )
-            .map_err(|error| Error::Spi(error))?;
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
 
         // Read received frame
         let rx_finfo = self.0.ll()
             .rx_finfo()
             .read()
-            .map_err(|error| Error::Spi(error))?;
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
         let rx_buffer = self.0.ll()
             .rx_buffer()
             .read()
-            .map_err(|error| Error::Spi(error))?;
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
 
         let len = rx_finfo.rxflen() as usize;
 
@@ -582,7 +582,7 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
         buffer[..len].copy_from_slice(&rx_buffer.data()[..len]);
 
         let frame = mac::Frame::decode(&buffer[..len])
-            .map_err(|error| Error::Frame(error))?;
+            .map_err(|error| nb::Error::Other(Error::Frame(error)))?;
 
         Ok(Message {
             rx_time,
@@ -676,12 +676,6 @@ impl From<spim::Error> for Error {
 impl From<ssmarshal::Error> for Error {
     fn from(error: ssmarshal::Error) -> Self {
         Error::Ssmarshal(error)
-    }
-}
-
-impl From<Error> for nb::Error<Error> {
-    fn from(error: Error) -> Self {
-        nb::Error::Other(error.into())
     }
 }
 
