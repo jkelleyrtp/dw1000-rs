@@ -43,13 +43,13 @@ impl<SPI> DW1000<SPI, Uninitialized>
     /// Requires the SPI peripheral and the chip select pin that are connected
     /// to the DW1000.
     pub fn new(
-        spim       : SPI,
+        spi        : SPI,
         chip_select: p0::P0_Pin<Output<PushPull>>
     )
         -> Self
     {
         DW1000 {
-            ll:     ll::DW1000::new(spim, chip_select),
+            ll:     ll::DW1000::new(spi, chip_select),
             seq:    Wrapping(0),
             _state: Uninitialized,
         }
