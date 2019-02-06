@@ -35,13 +35,11 @@ use embedded_hal::blocking::delay::DelayMs;
 use nrf52832_hal::{
     prelude::*,
     gpio::{
-        p0::{
-            self,
-            OpenDrainConfig,
-        },
+        p0,
         Floating,
         Input,
         Level,
+        OpenDrainConfig,
     },
     nrf52832_pac::{
         self as nrf52,
@@ -58,8 +56,8 @@ use nrf52832_hal::{
 #[cfg(feature = "dev")]
 use nrf52832_hal::{
     gpio::{
-        p0::P0_Pin,
         Output,
+        Pin,
         PushPull,
     },
     uarte::{
@@ -365,8 +363,8 @@ impl DWM1001 {
         //   handle.
         let spim2 = p.SPIM2.constrain(spim::Pins {
             sck : pins.p0_16.into_push_pull_output(Level::Low).degrade(),
-            mosi: pins.p0_20.into_push_pull_output(Level::Low).degrade(),
-            miso: pins.p0_18.into_floating_input().degrade(),
+            mosi: Some(pins.p0_20.into_push_pull_output(Level::Low).degrade()),
+            miso: Some(pins.p0_18.into_floating_input().degrade()),
         });
 
         let twim1 = p.TWIM1.constrain(
@@ -389,7 +387,7 @@ impl DWM1001 {
         #[cfg(feature = "dev")]
         let uarte0 = p.UARTE0.constrain(uarte::Pins {
                 txd: pins.p0_05.into_push_pull_output(Level::High).degrade(),
-                rxd: pins.p0_11.into_push_pull_output(Level::High).degrade(),
+                rxd: pins.p0_11.into_floating_input().degrade(),
                 cts: None,
                 rts: None,
             },
@@ -658,11 +656,11 @@ pub struct Leds {
 ///
 /// This struct is only available, if the `dev` feature is enabled.
 #[cfg(feature = "dev")]
-pub struct Led(p0::P0_Pin<Output<PushPull>>);
+pub struct Led(Pin<Output<PushPull>>);
 
 #[cfg(feature = "dev")]
 impl Led {
-    fn new<Mode>(pin: P0_Pin<Mode>) -> Self {
+    fn new<Mode>(pin: Pin<Mode>) -> Self {
         Led(pin.into_push_pull_output(Level::High))
     }
 
