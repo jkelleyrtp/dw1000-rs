@@ -13,8 +13,8 @@ use core::{
 
 use crate::hal::{
     gpio::{
-        p0,
         Output,
+        Pin,
         PushPull,
     },
 };
@@ -44,7 +44,7 @@ impl<SPI> DW1000<SPI, Uninitialized>
     /// to the DW1000.
     pub fn new(
         spi        : SPI,
-        chip_select: p0::P0_Pin<Output<PushPull>>
+        chip_select: Pin<Output<PushPull>>
     )
         -> Self
     {

@@ -13,8 +13,8 @@ use embedded_hal::blocking::spi;
 use crate::hal::{
     prelude::*,
     gpio::{
-        p0,
         Output,
+        Pin,
         PushPull,
     },
 };
@@ -23,7 +23,7 @@ use crate::hal::{
 /// Entry point to the DW1000 driver API
 pub struct DW1000<SPI> {
     spi        : SPI,
-    chip_select: p0::P0_Pin<Output<PushPull>>,
+    chip_select: Pin<Output<PushPull>>,
 }
 
 impl<SPI> DW1000<SPI> {
@@ -33,7 +33,7 @@ impl<SPI> DW1000<SPI> {
     /// to the DW1000.
     pub fn new(
         spi        : SPI,
-        chip_select: p0::P0_Pin<Output<PushPull>>
+        chip_select: Pin<Output<PushPull>>
     )
         -> Self
     {
