@@ -11,14 +11,10 @@ use core::{
     ops::Add,
 };
 
-use crate::hal::{
-    gpio::{
-        Output,
-        Pin,
-        PushPull,
-    },
+use embedded_hal::{
+    blocking::spi,
+    digital::OutputPin,
 };
-use embedded_hal::blocking::spi;
 use nb;
 use serde_derive::{Serialize, Deserialize};
 use ssmarshal;
@@ -29,14 +25,16 @@ use crate::TIME_MAX;
 
 
 /// Entry point to the DW1000 driver API
-pub struct DW1000<SPI, State> {
-    ll:     ll::DW1000<SPI>,
+pub struct DW1000<SPI, CS, State> {
+    ll:     ll::DW1000<SPI, CS>,
     seq:    Wrapping<u8>,
     _state: State,
 }
 
-impl<SPI> DW1000<SPI, Uninitialized>
-    where SPI: spi::Transfer<u8> + spi::Write<u8>
+impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
 {
     /// Create a new instance of `DW1000`
     ///
@@ -44,7 +42,7 @@ impl<SPI> DW1000<SPI, Uninitialized>
     /// to the DW1000.
     pub fn new(
         spi        : SPI,
-        chip_select: Pin<Output<PushPull>>
+        chip_select: CS,
     )
         -> Self
     {
@@ -65,7 +63,7 @@ impl<SPI> DW1000<SPI, Uninitialized>
     /// Please note that this method assumes that you kept the default
     /// configuration. It is generally recommended not to change configuration
     /// before calling this method.
-    pub fn init(mut self) -> Result<DW1000<SPI, Ready>, Error<SPI>> {
+    pub fn init(mut self) -> Result<DW1000<SPI, CS, Ready>, Error<SPI>> {
         // Set AGC_TUNE1. See user manual, section 2.5.5.1.
         self.ll.agc_tune1().write(|w| w.value(0x8870))?;
 
@@ -136,8 +134,10 @@ impl<SPI> DW1000<SPI, Uninitialized>
     }
 }
 
-impl<SPI> DW1000<SPI, Ready>
-    where SPI: spi::Transfer<u8> + spi::Write<u8>
+impl<SPI, CS> DW1000<SPI, CS, Ready>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
 {
     /// Sets the RX and TX antenna delays
     pub fn set_antenna_delay(&mut self, rx_delay: u16, tx_delay: u16)
@@ -232,7 +232,7 @@ impl<SPI> DW1000<SPI, Ready>
         destination:  mac::Address,
         delayed_time: Option<Instant>,
     )
-        -> Result<TxFuture<SPI>, Error<SPI>>
+        -> Result<TxFuture<SPI, CS>, Error<SPI>>
     {
         // Clear event counters
         self.ll.evc_ctrl().write(|w| w.evc_clr(0b1))?;
@@ -306,7 +306,7 @@ impl<SPI> DW1000<SPI, Ready>
 
     /// Attempt to receive a frame
     pub fn receive(&mut self)
-        -> Result<RxFuture<SPI>, Error<SPI>>
+        -> Result<RxFuture<SPI, CS>, Error<SPI>>
     {
         // For unknown reasons, the DW1000 gets stuck in RX mode without ever
         // receiving anything, after receiving one good frame. Reset the
@@ -408,19 +408,21 @@ impl<SPI> DW1000<SPI, Ready>
     }
 }
 
-impl<SPI, State> DW1000<SPI, State> {
+impl<SPI, CS, State> DW1000<SPI, CS, State> {
     /// Provides direct access to the register-level API
-    pub fn ll(&mut self) -> &mut ll::DW1000<SPI> {
+    pub fn ll(&mut self) -> &mut ll::DW1000<SPI, CS> {
         &mut self.ll
     }
 }
 
 
 /// Represents a TX operation that might not have completed
-pub struct TxFuture<'r, SPI>(&'r mut DW1000<SPI, Ready>);
+pub struct TxFuture<'r, SPI, CS>(&'r mut DW1000<SPI, CS, Ready>);
 
-impl<'r, SPI> TxFuture<'r, SPI>
-    where SPI: spi::Transfer<u8> + spi::Write<u8>
+impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
 {
     /// Wait for the data to be sent
     pub fn wait(&mut self)
@@ -493,10 +495,12 @@ impl<'r, SPI> TxFuture<'r, SPI>
 
 
 /// Represents an RX operation that might not have finished
-pub struct RxFuture<'r, SPI>(&'r mut DW1000<SPI, Ready>);
+pub struct RxFuture<'r, SPI, CS>(&'r mut DW1000<SPI, CS, Ready>);
 
-impl<'r, SPI> RxFuture<'r, SPI>
-    where SPI: spi::Transfer<u8> + spi::Write<u8>
+impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
 {
     /// Wait for data to be available
     pub fn wait<'b>(&mut self, buffer: &'b mut [u8])

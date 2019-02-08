@@ -8,32 +8,26 @@ use core::{
     marker::PhantomData,
 };
 
-use embedded_hal::blocking::spi;
-
-use crate::hal::{
-    prelude::*,
-    gpio::{
-        Output,
-        Pin,
-        PushPull,
-    },
+use embedded_hal::{
+    blocking::spi,
+    digital::OutputPin,
 };
 
 
 /// Entry point to the DW1000 driver API
-pub struct DW1000<SPI> {
+pub struct DW1000<SPI, CS> {
     spi        : SPI,
-    chip_select: Pin<Output<PushPull>>,
+    chip_select: CS,
 }
 
-impl<SPI> DW1000<SPI> {
+impl<SPI, CS> DW1000<SPI, CS> {
     /// Create a new instance of `DW1000`
     ///
     /// Requires the SPI peripheral and the chip select pin that are connected
     /// to the DW1000.
     pub fn new(
         spi        : SPI,
-        chip_select: Pin<Output<PushPull>>
+        chip_select: CS,
     )
         -> Self
     {
@@ -48,10 +42,12 @@ impl<SPI> DW1000<SPI> {
 /// Provides access to a register
 ///
 /// Please refer to [`DW1000`] for more information.
-pub struct RegAccessor<'s, R, SPI>(&'s mut DW1000<SPI>, PhantomData<R>);
+pub struct RegAccessor<'s, R, SPI, CS>(&'s mut DW1000<SPI, CS>, PhantomData<R>);
 
-impl<'s, R, SPI> RegAccessor<'s, R, SPI>
-    where SPI: spi::Transfer<u8> + spi::Write<u8>
+impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
 {
     /// Read from a register
     pub fn read(&mut self)
@@ -511,10 +507,10 @@ macro_rules! impl_register {
         )*
 
 
-        impl<SPI> DW1000<SPI> {
+        impl<SPI, CS> DW1000<SPI, CS> {
             $(
                 #[$doc]
-                pub fn $name_lower(&mut self) -> RegAccessor<$name, SPI> {
+                pub fn $name_lower(&mut self) -> RegAccessor<$name, SPI, CS> {
                     RegAccessor(self, PhantomData)
                 }
             )*
@@ -843,9 +839,9 @@ impl Writable for TX_BUFFER {
     }
 }
 
-impl<SPI> DW1000<SPI> {
+impl<SPI, CS> DW1000<SPI, CS> {
     /// Transmit Data Buffer
-    pub fn tx_buffer(&mut self) -> RegAccessor<TX_BUFFER, SPI> {
+    pub fn tx_buffer(&mut self) -> RegAccessor<TX_BUFFER, SPI, CS> {
         RegAccessor(self, PhantomData)
     }
 }
@@ -890,9 +886,9 @@ impl Readable for RX_BUFFER {
     }
 }
 
-impl<SPI> DW1000<SPI> {
+impl<SPI, CS> DW1000<SPI, CS> {
     /// Receive Data Buffer
-    pub fn rx_buffer(&mut self) -> RegAccessor<RX_BUFFER, SPI> {
+    pub fn rx_buffer(&mut self) -> RegAccessor<RX_BUFFER, SPI, CS> {
         RegAccessor(self, PhantomData)
     }
 }
