@@ -36,7 +36,11 @@ pub fn duration_between(earlier: Instant, later: Instant) -> Duration {
 macro_rules! block_timeout {
     ($timer:expr, $op:expr) => {
         {
-            use $crate::hal::prelude::TimerExt;
+            // Make sure the timer has the right type. If it isn't, the user
+            // should at least get a good error message.
+            fn check_type<T>(_: &mut T)
+                where T: embedded_hal::timer::CountDown {}
+            check_type($timer);
 
             loop {
                 match $timer.wait() {
@@ -75,7 +79,11 @@ macro_rules! block_timeout {
 macro_rules! repeat_timeout {
     ($timer:expr, $op:expr, $on_success:expr, $on_error:expr,) => {
         {
-            use $crate::hal::prelude::TimerExt;
+            // Make sure the timer has the right type. If it isn't, the user
+            // should at least get a good error message.
+            fn check_type<T>(_: &mut T)
+                where T: embedded_hal::timer::CountDown {}
+            check_type($timer);
 
             loop {
                 match $timer.wait() {
