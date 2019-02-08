@@ -40,6 +40,8 @@ use nrf52832_hal::{
         Input,
         Level,
         OpenDrainConfig,
+        Output,
+        PushPull,
     },
     nrf52832_pac::{
         self as nrf52,
@@ -50,16 +52,13 @@ use nrf52832_hal::{
     spim,
     twim,
     Timer,
+    Spim,
     Twim,
 };
 
 #[cfg(feature = "dev")]
 use nrf52832_hal::{
-    gpio::{
-        Output,
-        Pin,
-        PushPull,
-    },
+    gpio::Pin,
     uarte::{
         self,
         Uarte,
@@ -98,7 +97,11 @@ pub struct DWM1001 {
     pub DW_IRQ: DW_IRQ,
 
     /// DW1000 UWB transceiver
-    pub DW1000: DW1000<nrf52::SPIM2, dw1000::Uninitialized>,
+    pub DW1000: DW1000<
+        Spim<nrf52::SPIM2>,
+        p0::P0_17<Output<PushPull>>,
+        dw1000::Uninitialized
+    >,
 
     /// LIS2DH12 3-axis accelerometer
     ///
@@ -375,7 +378,7 @@ impl DWM1001 {
             twim::Frequency::K250,
         );
 
-        let dw_cs = pins.p0_17.into_push_pull_output(Level::High).degrade();
+        let dw_cs = pins.p0_17.into_push_pull_output(Level::High);
 
         // Some notes about the hardcoded configuration of `Uarte`:
         // - On the DWM1001-DEV board, the UART is connected (without CTS/RTS flow control)
