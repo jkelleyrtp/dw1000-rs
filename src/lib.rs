@@ -5,8 +5,6 @@
 #![deny(missing_docs)]
 
 
-pub use nrf52832_hal as hal;
-
 pub mod ll;
 pub mod hl;
 pub mod ranging;

@@ -6,19 +6,14 @@
 
 
 use core::{
+    fmt,
     num::Wrapping,
     ops::Add,
 };
 
-use crate::hal::{
-    prelude::*,
-    gpio::{
-        p0,
-        Output,
-        PushPull,
-    },
-    spim,
-    Spim,
+use embedded_hal::{
+    blocking::spi,
+    digital::OutputPin,
 };
 use nb;
 use serde_derive::{Serialize, Deserialize};
@@ -30,25 +25,29 @@ use crate::TIME_MAX;
 
 
 /// Entry point to the DW1000 driver API
-pub struct DW1000<SPI, State> {
-    ll:     ll::DW1000<SPI>,
+pub struct DW1000<SPI, CS, State> {
+    ll:     ll::DW1000<SPI, CS>,
     seq:    Wrapping<u8>,
     _state: State,
 }
 
-impl<SPI> DW1000<SPI, Uninitialized> where SPI: SpimExt {
+impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
+{
     /// Create a new instance of `DW1000`
     ///
     /// Requires the SPI peripheral and the chip select pin that are connected
     /// to the DW1000.
     pub fn new(
-        spim       : Spim<SPI>,
-        chip_select: p0::P0_Pin<Output<PushPull>>
+        spi        : SPI,
+        chip_select: CS,
     )
         -> Self
     {
         DW1000 {
-            ll:     ll::DW1000::new(spim, chip_select),
+            ll:     ll::DW1000::new(spi, chip_select),
             seq:    Wrapping(0),
             _state: Uninitialized,
         }
@@ -64,7 +63,7 @@ impl<SPI> DW1000<SPI, Uninitialized> where SPI: SpimExt {
     /// Please note that this method assumes that you kept the default
     /// configuration. It is generally recommended not to change configuration
     /// before calling this method.
-    pub fn init(mut self) -> Result<DW1000<SPI, Ready>, Error> {
+    pub fn init(mut self) -> Result<DW1000<SPI, CS, Ready>, Error<SPI>> {
         // Set AGC_TUNE1. See user manual, section 2.5.5.1.
         self.ll.agc_tune1().write(|w| w.value(0x8870))?;
 
@@ -135,10 +134,14 @@ impl<SPI> DW1000<SPI, Uninitialized> where SPI: SpimExt {
     }
 }
 
-impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
+impl<SPI, CS> DW1000<SPI, CS, Ready>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
+{
     /// Sets the RX and TX antenna delays
     pub fn set_antenna_delay(&mut self, rx_delay: u16, tx_delay: u16)
-        -> Result<(), Error>
+        -> Result<(), Error<SPI>>
     {
         self.ll
             .lde_rxantd()
@@ -151,14 +154,16 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
     }
 
     /// Returns the TX antenna delay
-    pub fn get_tx_antenna_delay(&mut self) -> Result<Duration, Error> {
+    pub fn get_tx_antenna_delay(&mut self)
+        -> Result<Duration, Error<SPI>>
+    {
         let tx_antenna_delay = self.ll.tx_antd().read()?.value();
         Ok(Duration(tx_antenna_delay as u64))
     }
 
     /// Sets the network id and address used for sending and receiving
     pub fn set_address(&mut self, address: mac::Address)
-        -> Result<(), Error>
+        -> Result<(), Error<SPI>>
     {
         self.ll
             .panadr()
@@ -172,7 +177,9 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
     }
 
     /// Returns the network id and address used for sending and receiving
-    pub fn get_address(&mut self) -> Result<mac::Address, Error> {
+    pub fn get_address(&mut self)
+        -> Result<mac::Address, Error<SPI>>
+    {
         let panadr = self.ll.panadr().read()?;
 
         Ok(mac::Address {
@@ -189,7 +196,9 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
     ///
     /// The result will fit within 40 bits, which means it will always be a
     /// valid timer value.
-    pub fn time_from_delay(&mut self, delay_ns: u32) -> Result<Instant, Error> {
+    pub fn time_from_delay(&mut self, delay_ns: u32)
+        -> Result<Instant, Error<SPI>>
+    {
         let sys_time = self.ll.sys_time().read()?.value();
 
         // This should always be the case, unless we're getting crap back from
@@ -223,7 +232,7 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
         destination:  mac::Address,
         delayed_time: Option<Instant>,
     )
-        -> Result<TxFuture<SPI>, Error>
+        -> Result<TxFuture<SPI, CS>, Error<SPI>>
     {
         // Clear event counters
         self.ll.evc_ctrl().write(|w| w.evc_clr(0b1))?;
@@ -296,7 +305,9 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
     }
 
     /// Attempt to receive a frame
-    pub fn receive(&mut self) -> Result<RxFuture<SPI>, Error> {
+    pub fn receive(&mut self)
+        -> Result<RxFuture<SPI, CS>, Error<SPI>>
+    {
         // For unknown reasons, the DW1000 gets stuck in RX mode without ever
         // receiving anything, after receiving one good frame. Reset the
         // receiver to make sure its in a valid state before attempting to
@@ -379,7 +390,9 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
     /// Force the DW1000 into IDLE mode
     ///
     /// Any ongoing RX/TX operations will be aborted.
-    pub fn force_idle(&mut self) -> Result<(), Error> {
+    pub fn force_idle(&mut self)
+        -> Result<(), Error<SPI>>
+    {
         self.ll.sys_ctrl().write(|w| w.trxoff(0b1))?;
         while self.ll.sys_ctrl().read()?.trxoff() == 0b1 {}
 
@@ -387,33 +400,41 @@ impl<SPI> DW1000<SPI, Ready> where SPI: SpimExt {
     }
 
     /// Clear all interrupt flags
-    pub fn clear_interrupts(&mut self) -> Result<(), Error> {
+    pub fn clear_interrupts(&mut self)
+        -> Result<(), Error<SPI>>
+    {
         self.ll.sys_mask().write(|w| w)?;
         Ok(())
     }
 }
 
-impl<SPI, State> DW1000<SPI, State> where SPI: SpimExt {
+impl<SPI, CS, State> DW1000<SPI, CS, State> {
     /// Provides direct access to the register-level API
-    pub fn ll(&mut self) -> &mut ll::DW1000<SPI> {
+    pub fn ll(&mut self) -> &mut ll::DW1000<SPI, CS> {
         &mut self.ll
     }
 }
 
 
 /// Represents a TX operation that might not have completed
-pub struct TxFuture<'r, SPI: 'r>(&'r mut DW1000<SPI, Ready>);
+pub struct TxFuture<'r, SPI, CS>(&'r mut DW1000<SPI, CS, Ready>);
 
-impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
+impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
+{
     /// Wait for the data to be sent
-    pub fn wait(&mut self) -> nb::Result<(), Error> {
+    pub fn wait(&mut self)
+        -> nb::Result<(), Error<SPI>>
+    {
         // Check Half Period Warning Counter. If this is a delayed transmission,
         // this will indicate that the delay was too short, and the frame was
         // sent too late.
         let evc_hpw = self.0.ll()
             .evc_hpw()
             .read()
-            .map_err(|error| Error::Spi(error))?
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?
             .value();
         if evc_hpw != 0 {
             return Err(nb::Error::Other(Error::DelayedSendTooLate));
@@ -426,7 +447,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
         let evc_tpw = self.0.ll()
             .evc_tpw()
             .read()
-            .map_err(|error| Error::Spi(error))?
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?
             .value();
         if evc_tpw != 0 {
             return Err(nb::Error::Other(Error::DelayedSendPowerUpWarning));
@@ -438,7 +459,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
         let sys_status = self.0.ll()
             .sys_status()
             .read()
-            .map_err(|error| Error::Spi(error))?;
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
 
         // Has the frame been sent?
         if sys_status.txfrs() == 0b0 {
@@ -456,7 +477,7 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
                     .txphs(0b1) // Transmit PHY Header Sent
                     .txfrs(0b1) // Transmit Frame Sent
             )
-            .map_err(|error| Error::Spi(error))?;
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
 
         Ok(())
     }
@@ -464,7 +485,9 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
     /// Enables interrupts for the events that `wait` checks
     ///
     /// Overwrites any interrupt flags that were previously set.
-    pub fn enable_interrupts(&mut self) -> Result<(), Error> {
+    pub fn enable_interrupts(&mut self)
+        -> Result<(), Error<SPI>>
+    {
         self.0.ll().sys_mask().write(|w| w.mtxfrs(0b1))?;
         Ok(())
     }
@@ -472,12 +495,16 @@ impl<'r, SPI> TxFuture<'r, SPI> where SPI: SpimExt {
 
 
 /// Represents an RX operation that might not have finished
-pub struct RxFuture<'r, SPI: 'r>(&'r mut DW1000<SPI, Ready>);
+pub struct RxFuture<'r, SPI, CS>(&'r mut DW1000<SPI, CS, Ready>);
 
-impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
+impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
+{
     /// Wait for data to be available
     pub fn wait<'b>(&mut self, buffer: &'b mut [u8])
-        -> nb::Result<Message<'b>, Error>
+        -> nb::Result<Message<'b>, Error<SPI>>
     {
         // ATTENTION:
         // If you're changing anything about which SYS_STATUS flags are being
@@ -485,7 +512,7 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
         let sys_status = self.0.ll()
             .sys_status()
             .read()
-            .map_err(|error| Error::Spi(error))?;
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
 
         // Is a frame ready?
         if sys_status.rxdfr() == 0b0 {
@@ -532,7 +559,7 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
         let rx_time = self.0.ll()
             .rx_time()
             .read()
-            .map_err(|error| Error::Spi(error))?
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?
             .rx_stamp();
         let rx_time = Instant(rx_time);
 
@@ -559,17 +586,17 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
                     .rxrscs(0b1)  // Receiver Reed-Solomon Correction Status
                     .rxprej(0b1)  // Receiver Preamble Rejection
             )
-            .map_err(|error| Error::Spi(error))?;
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
 
         // Read received frame
         let rx_finfo = self.0.ll()
             .rx_finfo()
             .read()
-            .map_err(|error| Error::Spi(error))?;
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
         let rx_buffer = self.0.ll()
             .rx_buffer()
             .read()
-            .map_err(|error| Error::Spi(error))?;
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
 
         let len = rx_finfo.rxflen() as usize;
 
@@ -582,7 +609,7 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
         buffer[..len].copy_from_slice(&rx_buffer.data()[..len]);
 
         let frame = mac::Frame::decode(&buffer[..len])
-            .map_err(|error| Error::Frame(error))?;
+            .map_err(|error| nb::Error::Other(Error::Frame(error)))?;
 
         Ok(Message {
             rx_time,
@@ -593,7 +620,9 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
     /// Enables interrupts for the events that `wait` checks
     ///
     /// Overwrites any interrupt flags that were previously set.
-    pub fn enable_interrupts(&mut self) -> Result<(), Error> {
+    pub fn enable_interrupts(&mut self)
+        -> Result<(), Error<SPI>>
+    {
         self.0.ll()
             .sys_mask()
             .write(|w|
@@ -615,10 +644,11 @@ impl<'r, SPI> RxFuture<'r, SPI> where SPI: SpimExt {
 
 
 /// An error that can occur when sending or receiving data
-#[derive(Debug)]
-pub enum Error {
+pub enum Error<SPI>
+    where SPI: spi::Transfer<u8> + spi::Write<u8>
+{
     /// Error occured while using SPI bus
-    Spi(spim::Error),
+    Spi(ll::Error<SPI>),
 
     /// Receiver FCS error
     Fcs,
@@ -667,21 +697,63 @@ pub enum Error {
     Ssmarshal(ssmarshal::Error),
 }
 
-impl From<spim::Error> for Error {
-    fn from(error: spim::Error) -> Self {
+impl<SPI> From<ll::Error<SPI>> for Error<SPI>
+    where SPI: spi::Transfer<u8> + spi::Write<u8>
+{
+    fn from(error: ll::Error<SPI>) -> Self {
         Error::Spi(error)
     }
 }
 
-impl From<ssmarshal::Error> for Error {
+impl<SPI> From<ssmarshal::Error> for Error<SPI>
+    where SPI: spi::Transfer<u8> + spi::Write<u8>
+{
     fn from(error: ssmarshal::Error) -> Self {
         Error::Ssmarshal(error)
     }
 }
 
-impl From<Error> for nb::Error<Error> {
-    fn from(error: Error) -> Self {
-        nb::Error::Other(error.into())
+// We can't derive this implementation, as `Debug` is only implemented
+// conditionally for `ll::Debug`.
+impl<SPI> fmt::Debug for Error<SPI>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        <SPI as spi::Transfer<u8>>::Error: fmt::Debug,
+        <SPI as spi::Write<u8>>::Error: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::Spi(error) =>
+                write!(f, "Spi({:?})", error),
+            Error::Fcs =>
+                write!(f, "Fcs"),
+            Error::Phy =>
+                write!(f, "Phy"),
+            Error::BufferTooSmall { required_len } =>
+                write!(
+                    f,
+                    "BufferTooSmall {{ required_len: {:?} }}",
+                    required_len,
+                ),
+            Error::ReedSolomon =>
+                write!(f, "ReedSolomon"),
+            Error::FrameWaitTimeout =>
+                write!(f, "FrameWaitTimeout"),
+            Error::Overrun =>
+                write!(f, "Overrun"),
+            Error::PreambleDetectionTimeout =>
+                write!(f, "PreambleDetectionTimeout"),
+            Error::SfdTimeout =>
+                write!(f, "SfdTimeout"),
+            Error::Frame(error) =>
+                write!(f, "Frame({:?})", error),
+            Error::DelayedSendTooLate =>
+                write!(f, "DelayedSendTooLate"),
+            Error::DelayedSendPowerUpWarning =>
+                write!(f, "DelayedSendPowerUpWarning"),
+            Error::Ssmarshal(error) =>
+                write!(f, "Ssmarshal({:?})", error),
+        }
     }
 }
 

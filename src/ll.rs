@@ -3,39 +3,36 @@
 //! This module implements a register-level interface to the DW1000.
 
 
-use core::marker::PhantomData;
+use core::{
+    fmt,
+    marker::PhantomData,
+};
 
-use crate::hal::{
-    prelude::*,
-    gpio::{
-        p0,
-        Output,
-        PushPull,
-    },
-    spim,
-    Spim,
+use embedded_hal::{
+    blocking::spi,
+    digital::OutputPin,
 };
 
 
 /// Entry point to the DW1000 driver API
-pub struct DW1000<SPI> {
-    spim       : Spim<SPI>,
-    chip_select: p0::P0_Pin<Output<PushPull>>,
+pub struct DW1000<SPI, CS> {
+    spi        : SPI,
+    chip_select: CS,
 }
 
-impl<SPI> DW1000<SPI> where SPI: SpimExt {
+impl<SPI, CS> DW1000<SPI, CS> {
     /// Create a new instance of `DW1000`
     ///
     /// Requires the SPI peripheral and the chip select pin that are connected
     /// to the DW1000.
     pub fn new(
-        spim       : Spim<SPI>,
-        chip_select: p0::P0_Pin<Output<PushPull>>
+        spi        : SPI,
+        chip_select: CS,
     )
         -> Self
     {
         DW1000 {
-            spim,
+            spi,
             chip_select,
         }
     }
@@ -45,46 +42,56 @@ impl<SPI> DW1000<SPI> where SPI: SpimExt {
 /// Provides access to a register
 ///
 /// Please refer to [`DW1000`] for more information.
-pub struct RegAccessor<'s, R, SPI: 's>(&'s mut DW1000<SPI>, PhantomData<R>);
+pub struct RegAccessor<'s, R, SPI, CS>(&'s mut DW1000<SPI, CS>, PhantomData<R>);
 
-impl<'s, R, SPI> RegAccessor<'s, R, SPI> where SPI: SpimExt {
+impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
+{
     /// Read from a register
-    pub fn read(&mut self) -> Result<R::Read, spim::Error>
+    pub fn read(&mut self)
+        -> Result<R::Read, Error<SPI>>
         where
             R: Register + Readable,
     {
-        let mut tx_buffer = [0; 3]; // 3 is the maximum header length
-        let header_len = init_header::<R>(false, &mut tx_buffer);
+        let mut r      = R::read();
+        let mut buffer = R::buffer(&mut r);
 
-        let mut r = R::read();
+        init_header::<R>(false, &mut buffer);
 
-        self.0.spim.read(
-            &mut self.0.chip_select,
-            &tx_buffer[0 .. header_len],
-            R::buffer(&mut r),
-        )?;
+        self.0.chip_select.set_low();
+        self.0.spi.transfer(buffer)
+            .map_err(|err| Error::Transfer(err))?;
+        self.0.chip_select.set_high();
 
         Ok(r)
     }
 
     /// Write to a register
-    pub fn write<F>(&mut self, f: F) -> Result<(), spim::Error>
+    pub fn write<F>(&mut self, f: F)
+        -> Result<(), Error<SPI>>
         where
             R: Register + Writable,
             F: FnOnce(&mut R::Write) -> &mut R::Write,
     {
         let mut w = R::write();
         f(&mut w);
-        let tx_buffer = R::buffer(&mut w);
-        init_header::<R>(true, tx_buffer);
 
-        self.0.spim.write(&mut self.0.chip_select, &tx_buffer)?;
+        let buffer = R::buffer(&mut w);
+        init_header::<R>(true, buffer);
+
+        self.0.chip_select.set_low();
+        <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
+            .map_err(|err| Error::Write(err))?;
+        self.0.chip_select.set_high();
 
         Ok(())
     }
 
     /// Modify a register
-    pub fn modify<F>(&mut self, f: F) -> Result<(), spim::Error>
+    pub fn modify<F>(&mut self, f: F)
+        -> Result<(), Error<SPI>>
         where
             R: Register + Readable + Writable,
             F: for<'r>
@@ -98,12 +105,43 @@ impl<'s, R, SPI> RegAccessor<'s, R, SPI> where SPI: SpimExt {
 
         f(&mut r, &mut w);
 
-        let tx_buffer = <R as Writable>::buffer(&mut w);
-        init_header::<R>(true, tx_buffer);
+        let buffer = <R as Writable>::buffer(&mut w);
+        init_header::<R>(true, buffer);
 
-        self.0.spim.write(&mut self.0.chip_select, &tx_buffer)?;
+        self.0.chip_select.set_low();
+        <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
+            .map_err(|err| Error::Write(err))?;
+        self.0.chip_select.set_high();
 
         Ok(())
+    }
+}
+
+
+/// An SPI error that can occure while communicating with the DW1000
+pub enum Error<SPI>
+    where SPI: spi::Transfer<u8> + spi::Write<u8>
+{
+    /// SPI error occured during a transfer transaction
+    Transfer(<SPI as spi::Transfer<u8>>::Error),
+
+    /// SPI error occured during a write transaction
+    Write(<SPI as spi::Write<u8>>::Error),
+}
+
+// We can't derive this implementation, as the compiler will complain that the
+// associated error type don't implement `Debug`.
+impl<SPI> fmt::Debug for Error<SPI>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        <SPI as spi::Transfer<u8>>::Error: fmt::Debug,
+        <SPI as spi::Write<u8>>::Error: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::Transfer(error) => write!(f, "Transfer({:?})", error),
+            Error::Write(error)    => write!(f, "Write({:?})", error),
+        }
     }
 }
 
@@ -469,10 +507,10 @@ macro_rules! impl_register {
         )*
 
 
-        impl<SPI> DW1000<SPI> {
+        impl<SPI, CS> DW1000<SPI, CS> {
             $(
                 #[$doc]
-                pub fn $name_lower(&mut self) -> RegAccessor<$name, SPI> {
+                pub fn $name_lower(&mut self) -> RegAccessor<$name, SPI, CS> {
                     RegAccessor(self, PhantomData)
                 }
             )*
@@ -801,9 +839,9 @@ impl Writable for TX_BUFFER {
     }
 }
 
-impl<SPI> DW1000<SPI> {
+impl<SPI, CS> DW1000<SPI, CS> {
     /// Transmit Data Buffer
-    pub fn tx_buffer(&mut self) -> RegAccessor<TX_BUFFER, SPI> {
+    pub fn tx_buffer(&mut self) -> RegAccessor<TX_BUFFER, SPI, CS> {
         RegAccessor(self, PhantomData)
     }
 }
@@ -848,9 +886,9 @@ impl Readable for RX_BUFFER {
     }
 }
 
-impl<SPI> DW1000<SPI> {
+impl<SPI, CS> DW1000<SPI, CS> {
     /// Receive Data Buffer
-    pub fn rx_buffer(&mut self) -> RegAccessor<RX_BUFFER, SPI> {
+    pub fn rx_buffer(&mut self) -> RegAccessor<RX_BUFFER, SPI, CS> {
         RegAccessor(self, PhantomData)
     }
 }
