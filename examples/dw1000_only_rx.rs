@@ -44,7 +44,7 @@ fn main() -> ! {
         let mut buffer = [0; 1024];
 
         // Set timer for timeout
-        timer.start(5_000_000);
+        timer.start(5_000_000u32);
 
         let message = match block_timeout!(&mut timer, rx.wait(&mut buffer)) {
             Ok(message) => {

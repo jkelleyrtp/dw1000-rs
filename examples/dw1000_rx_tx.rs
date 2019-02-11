@@ -68,7 +68,7 @@ fn main() -> ! {
 
     let receive_time = 500_000 + (rng.random_u32() % 500_000);
 
-    output_timer.start(5_000_000);
+    output_timer.start(5_000_000u32);
 
     loop {
         let mut buffer = [0u8; 1024];
@@ -82,7 +82,7 @@ fn main() -> ! {
                     .receive()
                     .expect("Failed to receive");
 
-                timeout_timer.start(100_000);
+                timeout_timer.start(100_000u32);
                 block_timeout!(&mut timeout_timer, future.wait(&mut buffer))
             },
             |message: Message| {
@@ -103,7 +103,7 @@ fn main() -> ! {
             |_| {},
         );
 
-        task_timer.start(50_000);
+        task_timer.start(50_000u32);
         repeat_timeout!(
             &mut task_timer,
             {
@@ -115,7 +115,7 @@ fn main() -> ! {
                     )
                     .expect("Failed to broadcast ping");
 
-                timeout_timer.start(10_000);
+                timeout_timer.start(10_000u32);
                 block_timeout!(&mut timeout_timer, future.wait())
             },
             |_| {},
@@ -131,7 +131,7 @@ fn main() -> ! {
                 );
             }
 
-            output_timer.start(5_000_000);
+            output_timer.start(5_000_000u32);
         }
     }
 }

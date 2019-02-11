@@ -35,13 +35,13 @@ use embedded_hal::blocking::delay::DelayMs;
 use nrf52832_hal::{
     prelude::*,
     gpio::{
-        p0::{
-            self,
-            OpenDrainConfig,
-        },
+        p0,
         Floating,
         Input,
         Level,
+        OpenDrainConfig,
+        Output,
+        PushPull,
     },
     nrf52832_pac::{
         self as nrf52,
@@ -52,16 +52,13 @@ use nrf52832_hal::{
     spim,
     twim,
     Timer,
+    Spim,
     Twim,
 };
 
 #[cfg(feature = "dev")]
 use nrf52832_hal::{
-    gpio::{
-        p0::P0_Pin,
-        Output,
-        PushPull,
-    },
+    gpio::Pin,
     uarte::{
         self,
         Uarte,
@@ -100,7 +97,11 @@ pub struct DWM1001 {
     pub DW_IRQ: DW_IRQ,
 
     /// DW1000 UWB transceiver
-    pub DW1000: DW1000<nrf52::SPIM2, dw1000::Uninitialized>,
+    pub DW1000: DW1000<
+        Spim<nrf52::SPIM2>,
+        p0::P0_17<Output<PushPull>>,
+        dw1000::Uninitialized
+    >,
 
     /// LIS2DH12 3-axis accelerometer
     ///
@@ -365,8 +366,8 @@ impl DWM1001 {
         //   handle.
         let spim2 = p.SPIM2.constrain(spim::Pins {
             sck : pins.p0_16.into_push_pull_output(Level::Low).degrade(),
-            mosi: pins.p0_20.into_push_pull_output(Level::Low).degrade(),
-            miso: pins.p0_18.into_floating_input().degrade(),
+            mosi: Some(pins.p0_20.into_push_pull_output(Level::Low).degrade()),
+            miso: Some(pins.p0_18.into_floating_input().degrade()),
         });
 
         let twim1 = p.TWIM1.constrain(
@@ -377,7 +378,7 @@ impl DWM1001 {
             twim::Frequency::K250,
         );
 
-        let dw_cs = pins.p0_17.into_push_pull_output(Level::High).degrade();
+        let dw_cs = pins.p0_17.into_push_pull_output(Level::High);
 
         // Some notes about the hardcoded configuration of `Uarte`:
         // - On the DWM1001-DEV board, the UART is connected (without CTS/RTS flow control)
@@ -389,7 +390,7 @@ impl DWM1001 {
         #[cfg(feature = "dev")]
         let uarte0 = p.UARTE0.constrain(uarte::Pins {
                 txd: pins.p0_05.into_push_pull_output(Level::High).degrade(),
-                rxd: pins.p0_11.into_push_pull_output(Level::High).degrade(),
+                rxd: pins.p0_11.into_floating_input().degrade(),
                 cts: None,
                 rts: None,
             },
@@ -658,11 +659,11 @@ pub struct Leds {
 ///
 /// This struct is only available, if the `dev` feature is enabled.
 #[cfg(feature = "dev")]
-pub struct Led(p0::P0_Pin<Output<PushPull>>);
+pub struct Led(Pin<Output<PushPull>>);
 
 #[cfg(feature = "dev")]
 impl Led {
-    fn new<Mode>(pin: P0_Pin<Mode>) -> Self {
+    fn new<Mode>(pin: Pin<Mode>) -> Self {
         Led(pin.into_push_pull_output(Level::High))
     }
 

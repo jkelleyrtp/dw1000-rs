@@ -29,7 +29,11 @@ use dwm1001::{
         },
         Message,
     },
-    nrf52832_hal::Delay,
+    nrf52832_hal::{
+        nrf52832_pac::SPIM2,
+        Delay,
+        Spim,
+    },
     DWM1001,
     block_timeout,
     repeat_timeout,
@@ -81,7 +85,7 @@ fn main() -> ! {
         let mut buf = [0; 128];
 
         // Listen for ranging requests
-        task_timer.start(100_000);
+        task_timer.start(100_000u32);
         repeat_timeout!(
             &mut task_timer,
             {
@@ -91,8 +95,8 @@ fn main() -> ! {
                 future.enable_interrupts()
                     .expect("Failed to enable interrupts");
 
-                timeout_timer.start(100_000);
-                block_timeout!(timeout_timer, {
+                timeout_timer.start(100_000u32);
+                block_timeout!(&mut timeout_timer, {
                     dw_irq.wait_for_interrupts(
                         &mut nvic,
                         &mut gpiote,
@@ -102,7 +106,7 @@ fn main() -> ! {
                 })
             },
             |message: Message| {
-                let request = ranging::Request::decode(&message);
+                let request = ranging::Request::decode::<Spim<SPIM2>>(&message);
 
                 let request = match request {
                     Ok(Some(request)) =>
@@ -121,7 +125,7 @@ fn main() -> ! {
                     .expect("Failed to initiate response transmission");
                 future.enable_interrupts()
                     .expect("Failed to enable interrupts");
-                timeout_timer.start(100_000);
+                timeout_timer.start(100_000u32);
                 block!({
                     dw_irq.wait_for_interrupts(
                         &mut nvic,
@@ -145,7 +149,7 @@ fn main() -> ! {
             .expect("Failed to initiate ping transmission");
         future.enable_interrupts()
             .expect("Failed to enable interrupts");
-        timeout_timer.start(100_000);
+        timeout_timer.start(100_000u32);
         block!({
             dw_irq.wait_for_interrupts(
                 &mut nvic,
