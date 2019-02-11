@@ -25,6 +25,10 @@
 //! having the distance information. Possible variations include the tag
 //! initiating the request and the anchor calculating the distance, or a
 //! peer-to-peer scheme without dedicated tags and anchors.
+//!
+//! [`Ping`]: struct.Ping.html
+//! [`Request`]: struct.Request.html
+//! [`Response`]: struct.Response.html
 
 
 use core::mem::size_of;
