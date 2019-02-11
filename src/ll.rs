@@ -1,6 +1,11 @@
 //! Low-level interface to the DW1000
 //!
 //! This module implements a register-level interface to the DW1000.
+//!
+//! **NOTE**: Many field access methods accept types that have a larger number
+//! of bits than the field actually consists of. If you use such a method to
+//! pass a value that is too large to be written to the field, it will be
+//! silently truncated.
 
 
 use core::{
