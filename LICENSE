@@ -1,4 +1,4 @@
-Copyright (c) 2018 Hanno Braun <hanno@braun-robotics.com> and contributors
+Copyright (c) Hanno Braun <hanno@braun-robotics.com> and contributors
 
 Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted.
 
