@@ -16,14 +16,14 @@ use crate::{
 ///
 /// Panics, if the time stamps passed don't fit within 40 bits.
 pub fn duration_between(earlier: Instant, later: Instant) -> Duration {
-    assert!(earlier.0 <= TIME_MAX);
-    assert!(later.0   <= TIME_MAX);
+    assert!(earlier.value() <= TIME_MAX);
+    assert!(later.value()   <= TIME_MAX);
 
-    if later.0 >= earlier.0 {
-        Duration(later.0 - earlier.0)
+    if later.value() >= earlier.value() {
+        Duration(later.value() - earlier.value())
     }
     else {
-        Duration(TIME_MAX - earlier.0 + later.0 + 1)
+        Duration(TIME_MAX - earlier.value() + later.value() + 1)
     }
 }
 
