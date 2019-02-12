@@ -1,8 +1,8 @@
-# DW1000
+# Rust DW1000 Driver
 
 ## Introduction
 
-Driver for the Decawave [DW1000] UWB transceiver, written in the [Rust] programming language. If you're using the DW1000 with a DWM1001 module or'a DWM1001-Dev board, please check out the [DWM1001 crate].
+Driver for the Decawave [DW1000] UWB transceiver, written in the [Rust] programming language. If you're using the DW1000 with a DWM1001 module or a DWM1001-Dev board, please check out the [DWM1001 crate].
 
 [DW1000]: https://www.decawave.com/products/dw1000
 [Rust]: https://www.rust-lang.org/
@@ -11,12 +11,32 @@ Driver for the Decawave [DW1000] UWB transceiver, written in the [Rust] programm
 
 ## Status
 
-This crate is in very early development. The crate currently depends on [nrf52-hal], the HAL API for the nRF52, which is used on the DWM1001 module. This is fine if you're using the DW1000 with the DWM1001, but unfortunately it means you can't use this crate with any other microcontroller right now.
+This driver covers the main features of the DW1000, wireless communication and distance measurement, although the distance measurement is currently lacking range bias compensation, making it somewhat imprecise.
 
-This is a temporary state, until the [embedded-hal] support of nrf52-hal improves to the point where this crate can depend on embedded-hal instead.
+As of this writing, the driver is well-tested ([examples] are available in the rust-dwm1001 repository), but has yet to be proven in real-world use cases.
 
-[nrf52-hal]: https://github.com/jamesmunns/nrf52-hal
-[embedded-hal]: https://github.com/rust-embedded/embedded-hal
+This project is still in development. No guarantee of API stability is made, so expect future versions to require updates in your code.
+
+[examples]: https://github.com/braun-robotics/rust-dwm1001/tree/master/examples
+
+
+## Usage
+
+Include this crate in your Cargo project by adding the following to `Cargo.toml`:
+```toml
+[dependencies]
+version = "0.1"
+```
+
+
+## Documentation
+
+Please refer to the **[API Reference]**.
+
+[Example programs] are available in the rust-dwm1001 repository.
+
+[API Reference]: https://docs.rs/dw1000
+[Example programs]: https://github.com/braun-robotics/rust-dwm1001/tree/master/examples
 
 
 ## License
@@ -29,5 +49,5 @@ See [LICENSE] for full details.
 [LICENSE]: https://github.com/braun-robotics/rust-dwm1001/blob/master/LICENSE
 
 
-**Created by [Braun Robotics](https://braun-robotics.com/)**<br />
+**Created by [Braun Robotics](https://braun-robotics.com/)** <br />
 **Initial development sponsored by [Ferrous Systems](https://ferrous-systems.com/)**
