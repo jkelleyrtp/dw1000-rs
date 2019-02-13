@@ -1,4 +1,4 @@
-//! Contains utility functions that are useful when working with the DW1000
+//! Contains some macros that are useful for working with this crate
 
 
 /// Blocks on a non-blocking operation until a timer times out
@@ -18,7 +18,7 @@ macro_rules! block_timeout {
             loop {
                 match $timer.wait() {
                     Ok(()) =>
-                        break Err($crate::util::TimeoutError::Timeout),
+                        break Err($crate::macros::TimeoutError::Timeout),
                     Err(nb::Error::WouldBlock) =>
                         (),
                     Err(_) =>
@@ -31,7 +31,7 @@ macro_rules! block_timeout {
                     Err(nb::Error::WouldBlock) =>
                         (),
                     Err(nb::Error::Other(error)) =>
-                        break Err($crate::util::TimeoutError::Other(error)),
+                        break Err($crate::macros::TimeoutError::Other(error)),
                 }
             }
         }

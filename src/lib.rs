@@ -8,9 +8,9 @@
 
 pub mod ll;
 pub mod hl;
+pub mod macros;
 pub mod ranging;
 pub mod time;
-pub mod util;
 
 
 pub use ieee802154::mac;
