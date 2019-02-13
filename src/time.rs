@@ -82,12 +82,12 @@ impl Instant {
     /// // Works as expected, if the later timestamp is larger than the earlier
     /// // one.
     /// let duration = instant_2.duration_since(instant_1);
-    /// assert_eq!(duration.0, 50);
+    /// assert_eq!(duration.value(), 50);
     ///
     /// // Still works as expected, if the later timestamp is the numerically
     /// // smaller value.
     /// let duration = instant_3.duration_since(instant_2);
-    /// assert_eq!(duration.0, 50);
+    /// assert_eq!(duration.value(), 50);
     /// ```
     pub fn duration_since(&self, earlier: Instant) -> Duration {
         if self.value() >= earlier.value() {
@@ -99,13 +99,54 @@ impl Instant {
     }
 }
 
-/// A duration between two DW1000 system time instants
+
+/// A duration between two instants in DW1000 system time
 ///
-/// DW1000 timestamps are 40-bit numbers. Creating a `Duration` with a value
-/// larger than 2^40 - 1 can lead to undefined behavior.
+/// Internally uses the same 40-bit timestamps that the DW1000 uses.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[repr(C)]
-pub struct Duration(pub u64);
+pub struct Duration(u64);
+
+impl Duration {
+    /// Creates a new instance of `Duration`
+    ///
+    /// The given value must fit in a 40-bit timestamp, so:
+    /// 0 <= `value` <= 2^40 - 1
+    ///
+    /// Returns `Some(...)`, if `value` is within the valid range, `None` if it
+    /// isn't.
+    ///
+    /// # Example
+    ///
+    /// ``` rust
+    /// use dw1000::{
+    ///     time::Duration,
+    ///     TIME_MAX,
+    /// };
+    ///
+    /// let valid_duration   = Duration::new(TIME_MAX);
+    /// let invalid_duration = Duration::new(TIME_MAX + 1);
+    ///
+    /// assert!(valid_duration.is_some());
+    /// assert!(invalid_duration.is_none());
+    /// ```
+    pub fn new(value: u64) -> Option<Self> {
+        if value <= TIME_MAX {
+            Some(Duration(value))
+        }
+        else {
+            None
+        }
+    }
+
+    /// Returns the raw 40-bit timestamp
+    ///
+    /// The returned value is guaranteed to be in the following range:
+    /// 0 <= `value` <= 2^40 - 1
+    pub fn value(&self) -> u64 {
+        self.0
+    }
+}
 
 impl Add<Duration> for Instant {
     type Output = Instant;

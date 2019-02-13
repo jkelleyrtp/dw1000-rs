@@ -162,7 +162,11 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         -> Result<Duration, Error<SPI>>
     {
         let tx_antenna_delay = self.ll.tx_antd().read()?.value();
-        Ok(Duration(tx_antenna_delay as u64))
+
+        // Since `tx_antenna_delay` is `u16`, the following will never panic.
+        let tx_antenna_delay = Duration::new(tx_antenna_delay.into()).unwrap();
+
+        Ok(tx_antenna_delay)
     }
 
     /// Sets the network id and address used for sending and receiving

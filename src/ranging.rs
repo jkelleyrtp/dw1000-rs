@@ -403,16 +403,16 @@ pub fn compute_distance_mm(response: &RxMessage<Response>) -> Option<u64> {
     // Compute time of flight according to the formula given in the DW1000 user
     // manual, section 12.3.2.
     let rtt_product =
-        response.data.ping_round_trip_time.0 *
-        request_round_trip_time.0;
+        response.data.ping_round_trip_time.value() *
+        request_round_trip_time.value();
     let reply_time_product =
-        response.data.ping_reply_time.0 *
-        response.data.request_reply_time.0;
+        response.data.ping_reply_time.value() *
+        response.data.request_reply_time.value();
     let complete_sum =
-        response.data.ping_round_trip_time.0 +
-        request_round_trip_time.0 +
-        response.data.ping_reply_time.0 +
-        response.data.request_reply_time.0;
+        response.data.ping_round_trip_time.value() +
+        request_round_trip_time.value() +
+        response.data.ping_reply_time.value() +
+        response.data.request_reply_time.value();
     let time_of_flight = (rtt_product - reply_time_product) / complete_sum;
 
     // Nominally, all time units are based on a 64 Ghz clock, meaning each time
