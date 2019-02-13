@@ -221,7 +221,11 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
             tx_time
         };
 
-        Ok(Instant(tx_time))
+        // Since we made sure that `tx_time <= TIME_MAX`, the following should
+        // never panic.
+        let tx_time = Instant::new(tx_time).unwrap();
+
+        Ok(tx_time)
     }
 
     /// Broadcast raw data
@@ -271,7 +275,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
             self.ll
                 .dx_time()
                 .write(|w|
-                    w.value(time.0)
+                    w.value(time.value())
                 )
         });
 
@@ -561,7 +565,11 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?
             .rx_stamp();
-        let rx_time = Instant(rx_time);
+
+        // `rx_time` comes directly from the register, which should always
+        // contain a 40-bit timestampt. Unless the hardware or its documentation
+        // are buggy, the following should never panic.
+        let rx_time = Instant::new(rx_time).unwrap();
 
         // Reset status bits. This is not strictly necessary, but it helps, if
         // you have to inspect SYS_STATUS manually during debugging.
