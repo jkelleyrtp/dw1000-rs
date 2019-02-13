@@ -50,10 +50,12 @@ use ssmarshal;
 use crate::{
     hl,
     mac,
-    Duration,
+    time::{
+        Duration,
+        Instant,
+    },
     DW1000,
     Error,
-    Instant,
     Ready,
     TxFuture,
 };

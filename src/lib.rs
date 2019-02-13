@@ -9,16 +9,15 @@
 pub mod ll;
 pub mod hl;
 pub mod ranging;
+pub mod time;
 pub mod util;
 
 
 pub use ieee802154::mac;
 
 pub use crate::hl::{
-    Duration,
     DW1000,
     Error,
-    Instant,
     Message,
     Ready,
     TxFuture,
