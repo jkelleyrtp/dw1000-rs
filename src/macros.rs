@@ -9,6 +9,8 @@
 macro_rules! block_timeout {
     ($timer:expr, $op:expr) => {
         {
+            use embedded_hal::prelude::*;
+
             // Make sure the timer has the right type. If it isn't, the user
             // should at least get a good error message.
             fn check_type<T>(_: &mut T)
@@ -52,6 +54,8 @@ macro_rules! block_timeout {
 macro_rules! repeat_timeout {
     ($timer:expr, $op:expr, $on_success:expr, $on_error:expr,) => {
         {
+            use embedded_hal::prelude::*;
+
             // Make sure the timer has the right type. If it isn't, the user
             // should at least get a good error message.
             fn check_type<T>(_: &mut T)
