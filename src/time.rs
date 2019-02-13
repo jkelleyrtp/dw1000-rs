@@ -99,6 +99,16 @@ impl Instant {
     }
 }
 
+impl Add<Duration> for Instant {
+    type Output = Instant;
+
+    fn add(self, rhs: Duration) -> Self::Output {
+        // Both `Instant` and `Duration` contain 40-bit numbers, so this
+        // addition should never overflow.
+        Instant((self.0 + rhs.0) % (TIME_MAX + 1))
+    }
+}
+
 
 /// A duration between two instants in DW1000 system time
 ///
@@ -145,15 +155,5 @@ impl Duration {
     /// 0 <= `value` <= 2^40 - 1
     pub fn value(&self) -> u64 {
         self.0
-    }
-}
-
-impl Add<Duration> for Instant {
-    type Output = Instant;
-
-    fn add(self, rhs: Duration) -> Self::Output {
-        // Both `Instant` and `Duration` contain 40-bit numbers, so this
-        // addition should never overflow.
-        Instant((self.0 + rhs.0) % (TIME_MAX + 1))
     }
 }
