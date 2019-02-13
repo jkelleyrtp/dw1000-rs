@@ -103,9 +103,13 @@ impl Add<Duration> for Instant {
     type Output = Instant;
 
     fn add(self, rhs: Duration) -> Self::Output {
-        // Both `Instant` and `Duration` contain 40-bit numbers, so this
-        // addition should never overflow.
-        Instant((self.0 + rhs.0) % (TIME_MAX + 1))
+        // Both `Instant` and `Duration` are guaranteed to contain 40-bit
+        // numbers, so this addition will never overflow.
+        let value = (self.value() + rhs.value()) % (TIME_MAX + 1);
+
+        // We made sure to keep the result of the addition within `TIME_MAX`, so
+        // the following will never panic.
+        Instant::new(value).unwrap()
     }
 }
 
