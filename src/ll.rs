@@ -1,11 +1,19 @@
 //! Low-level interface to the DW1000
 //!
-//! This module implements a register-level interface to the DW1000.
+//! This module implements a register-level interface to the DW1000. Users of
+//! this library should typically not need to use this. Please consider using
+//! the [high-level interface] instead.
+//!
+//! If you're using the low-level interface because the high-level interface
+//! doesn't cover your use case, please consider [filing an issue].
 //!
 //! **NOTE**: Many field access methods accept types that have a larger number
 //! of bits than the field actually consists of. If you use such a method to
 //! pass a value that is too large to be written to the field, it will be
 //! silently truncated.
+//!
+//! [high-level interface]: ../hl/index.html
+//! [filing an issue]: https://github.com/braun-robotics/rust-dw1000/issues/new
 
 
 use core::{
@@ -19,7 +27,11 @@ use embedded_hal::{
 };
 
 
-/// Entry point to the DW1000 driver API
+/// Entry point to the DW1000 driver's low-level API
+///
+/// Please consider using [hl::DW1000] instead.
+///
+/// [hl::DW1000]: ../hl/struct.DW1000.html
 pub struct DW1000<SPI, CS> {
     spi        : SPI,
     chip_select: CS,
@@ -30,12 +42,7 @@ impl<SPI, CS> DW1000<SPI, CS> {
     ///
     /// Requires the SPI peripheral and the chip select pin that are connected
     /// to the DW1000.
-    pub fn new(
-        spi        : SPI,
-        chip_select: CS,
-    )
-        -> Self
-    {
+    pub fn new(spi: SPI, chip_select: CS) -> Self {
         DW1000 {
             spi,
             chip_select,
@@ -46,7 +53,8 @@ impl<SPI, CS> DW1000<SPI, CS> {
 
 /// Provides access to a register
 ///
-/// Please refer to [`DW1000`] for more information.
+/// You can get an instance for a given register using one of the methods on
+/// [`DW1000`].
 pub struct RegAccessor<'s, R, SPI, CS>(&'s mut DW1000<SPI, CS>, PhantomData<R>);
 
 impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
@@ -54,7 +62,7 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         CS:  OutputPin,
 {
-    /// Read from a register
+    /// Read from the register
     pub fn read(&mut self)
         -> Result<R::Read, Error<SPI>>
         where
@@ -73,7 +81,7 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         Ok(r)
     }
 
-    /// Write to a register
+    /// Write to the register
     pub fn write<F>(&mut self, f: F)
         -> Result<(), Error<SPI>>
         where
@@ -94,7 +102,7 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         Ok(())
     }
 
-    /// Modify a register
+    /// Modify the register
     pub fn modify<F>(&mut self, f: F)
         -> Result<(), Error<SPI>>
         where
@@ -123,7 +131,7 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
 }
 
 
-/// An SPI error that can occure while communicating with the DW1000
+/// An SPI error that can occur when communicating with the DW1000
 pub enum Error<SPI>
     where SPI: spi::Transfer<u8> + spi::Write<u8>
 {
@@ -135,7 +143,7 @@ pub enum Error<SPI>
 }
 
 // We can't derive this implementation, as the compiler will complain that the
-// associated error type don't implement `Debug`.
+// associated error type doesn't implement `Debug`.
 impl<SPI> fmt::Debug for Error<SPI>
     where
         SPI: spi::Transfer<u8> + spi::Write<u8>,
@@ -151,9 +159,11 @@ impl<SPI> fmt::Debug for Error<SPI>
 }
 
 
-/// Initializes the header for a register in the given buffer
+/// Initializes the SPI message header
 ///
-/// Returns the length of the header.
+/// Initializes the SPI message header for accessing a given register, writing
+/// the header directly into the provided buffer. Returns the length of the
+/// header that was written.
 fn init_header<R: Register>(write: bool, buffer: &mut [u8]) -> usize {
     let sub_id = R::SUB_ID > 0;
 
@@ -184,6 +194,10 @@ fn init_header<R: Register>(write: bool, buffer: &mut [u8]) -> usize {
 
 /// Implemented for all registers
 ///
+/// This is a mostly internal crate that should not be implemented or used
+/// directly by users of this crate. It is exposed through the public API
+/// though, so it can't be made private.
+///
 /// The DW1000 user manual, section 7.1, specifies what the values of the
 /// constant should be for each register.
 pub trait Register {
@@ -197,7 +211,11 @@ pub trait Register {
     const LEN: usize;
 }
 
-/// Marker trait for registers that can be read
+/// Marker trait for registers that can be read from
+///
+/// This is a mostly internal crate that should not be implemented or used
+/// directly by users of this crate. It is exposed through the public API
+/// though, so it can't be made private.
 pub trait Readable {
     /// The type that is used to read from the register
     type Read;
@@ -209,7 +227,11 @@ pub trait Readable {
     fn buffer(r: &mut Self::Read) -> &mut [u8];
 }
 
-/// Marker trait for registers that can be written
+/// Marker trait for registers that can be written to
+///
+/// This is a mostly internal crate that should not be implemented or used
+/// directly by users of this crate. It is exposed through the public API
+/// though, so it can't be made private.
 pub trait Writable {
     /// The type that is used to write to the register
     type Write;
@@ -221,6 +243,7 @@ pub trait Writable {
     fn buffer(w: &mut Self::Write) -> &mut [u8];
 }
 
+/// Generates register implementations
 macro_rules! impl_register {
     (
         $(
@@ -523,6 +546,7 @@ macro_rules! impl_register {
     }
 }
 
+// Helper macro, used internally by `impl_register!`
 macro_rules! impl_rw {
     (RO, $name:ident, $name_lower:ident, $len:expr) => {
         impl_rw!(@R, $name, $name_lower, $len);
@@ -560,6 +584,16 @@ macro_rules! impl_rw {
     };
 }
 
+// All register are implemented in this macro invocation. It follows the
+// following syntax:
+// <id>, <sub-id>, <size-bytes>, <RO/RW>, <name-upper>(name-lower) { /// <doc>
+//     <field 1>
+//     <field 2>
+//     ...
+// }
+//
+// Each field follows the following syntax:
+// <name>, <first-bit-index>, <last-bit-index>, <type>; /// <doc>
 impl_register! {
     0x00, 0x00, 4, RO, DEV_ID(dev_id) { /// Device identifier
         rev,     0,  3, u8;  /// Revision
@@ -858,7 +892,7 @@ pub mod tx_buffer {
     pub struct W(pub(crate) [u8; 127 + 1]);
 
     impl W {
-        /// Provides access to the buffer
+        /// Provides write access to the buffer contents
         pub fn data(&mut self) -> &mut [u8] {
             &mut self.0[1..]
         }
@@ -912,7 +946,7 @@ pub mod rx_buffer {
     pub struct R(pub(crate) [u8; HEADER_LEN + LEN]);
 
     impl R {
-        /// Read data from the buffer
+        /// Provides read access to the buffer contents
         pub fn data(&self) -> &[u8] {
             &self.0[HEADER_LEN .. HEADER_LEN + LEN]
         }
@@ -931,16 +965,19 @@ pub mod rx_buffer {
 }
 
 
+/// Internal trait used by `impl_registers!`
 trait FromBytes {
     fn from_bytes(bytes: &[u8]) -> Self;
 }
 
+/// Internal trait used by `impl_registers!`
 trait ToBytes {
     type Bytes;
 
     fn to_bytes(self) -> Self::Bytes;
 }
 
+/// Internal macro used to implement `FromBytes`/`ToBytes`
 macro_rules! impl_bytes {
     ($($ty:ty,)*) => {
         $(
