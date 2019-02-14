@@ -50,11 +50,12 @@ use ssmarshal;
 use crate::{
     hl,
     mac,
-    util,
-    Duration,
+    time::{
+        Duration,
+        Instant,
+    },
     DW1000,
     Error,
-    Instant,
     Ready,
     TxFuture,
 };
@@ -273,10 +274,7 @@ impl Request {
         let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
         let request_tx_time  = tx_time + tx_antenna_delay;
 
-        let ping_reply_time = util::duration_between(
-            ping.rx_time,
-            request_tx_time,
-        );
+        let ping_reply_time = request_tx_time.duration_since(ping.rx_time);
 
         let data = RequestData {
             ping_tx_time: ping.data.ping_tx_time,
@@ -354,14 +352,10 @@ impl Response {
         let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
         let response_tx_time = tx_time + tx_antenna_delay;
 
-        let ping_round_trip_time = util::duration_between(
-            request.data.ping_tx_time,
-            request.rx_time,
-        );
-        let request_reply_time = util::duration_between(
-            request.rx_time,
-            response_tx_time,
-        );
+        let ping_round_trip_time =
+            request.rx_time.duration_since(request.data.ping_tx_time);
+        let request_reply_time =
+            response_tx_time.duration_since(request.rx_time);
 
         let data = ResponseData {
             ping_reply_time: request.data.ping_reply_time,
@@ -403,24 +397,22 @@ impl Message for Response {
 /// Returns `None`, if the computed time of flight is so large the distance
 /// calculation would overflow.
 pub fn compute_distance_mm(response: &RxMessage<Response>) -> Option<u64> {
-    let request_round_trip_time = util::duration_between(
-        response.data.request_tx_time,
-        response.rx_time,
-    );
+    let request_round_trip_time =
+        response.rx_time.duration_since(response.data.request_tx_time);
 
     // Compute time of flight according to the formula given in the DW1000 user
     // manual, section 12.3.2.
     let rtt_product =
-        response.data.ping_round_trip_time.0 *
-        request_round_trip_time.0;
+        response.data.ping_round_trip_time.value() *
+        request_round_trip_time.value();
     let reply_time_product =
-        response.data.ping_reply_time.0 *
-        response.data.request_reply_time.0;
+        response.data.ping_reply_time.value() *
+        response.data.request_reply_time.value();
     let complete_sum =
-        response.data.ping_round_trip_time.0 +
-        request_round_trip_time.0 +
-        response.data.ping_reply_time.0 +
-        response.data.request_reply_time.0;
+        response.data.ping_round_trip_time.value() +
+        request_round_trip_time.value() +
+        response.data.ping_reply_time.value() +
+        response.data.request_reply_time.value();
     let time_of_flight = (rtt_product - reply_time_product) / complete_sum;
 
     // Nominally, all time units are based on a 64 Ghz clock, meaning each time

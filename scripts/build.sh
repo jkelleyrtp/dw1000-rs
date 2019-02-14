@@ -2,4 +2,4 @@
 
 export RUSTFLAGS="-D warnings"
 
-cargo build --verbose
+cargo test --verbose

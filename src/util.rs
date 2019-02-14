@@ -1,32 +1,5 @@
 //! Contains utility functions that are useful when working with the DW1000
 
-use crate::{
-    TIME_MAX,
-    Duration,
-    Instant,
-};
-
-
-/// Determines the duration between to time stamps
-///
-/// Expects two 40-bit system time stamps and returns the duration between the
-/// two, taking potential overflow into account.
-///
-/// # Panics
-///
-/// Panics, if the time stamps passed don't fit within 40 bits.
-pub fn duration_between(earlier: Instant, later: Instant) -> Duration {
-    assert!(earlier.0 <= TIME_MAX);
-    assert!(later.0   <= TIME_MAX);
-
-    if later.0 >= earlier.0 {
-        Duration(later.0 - earlier.0)
-    }
-    else {
-        Duration(TIME_MAX - earlier.0 + later.0 + 1)
-    }
-}
-
 
 /// Blocks on a non-blocking operation until a timer times out
 ///

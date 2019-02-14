@@ -8,7 +8,6 @@
 use core::{
     fmt,
     num::Wrapping,
-    ops::Add,
 };
 
 use embedded_hal::{
@@ -16,12 +15,17 @@ use embedded_hal::{
     digital::OutputPin,
 };
 use nb;
-use serde_derive::{Serialize, Deserialize};
 use ssmarshal;
 
-use crate::ll;
-use crate::mac;
-use crate::TIME_MAX;
+use crate::{
+    ll,
+    mac,
+    time::{
+        Duration,
+        Instant,
+    },
+    TIME_MAX,
+};
 
 
 /// Entry point to the DW1000 driver API
@@ -158,7 +162,11 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         -> Result<Duration, Error<SPI>>
     {
         let tx_antenna_delay = self.ll.tx_antd().read()?.value();
-        Ok(Duration(tx_antenna_delay as u64))
+
+        // Since `tx_antenna_delay` is `u16`, the following will never panic.
+        let tx_antenna_delay = Duration::new(tx_antenna_delay.into()).unwrap();
+
+        Ok(tx_antenna_delay)
     }
 
     /// Sets the network id and address used for sending and receiving
@@ -221,7 +229,11 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
             tx_time
         };
 
-        Ok(Instant(tx_time))
+        // Since we made sure that `tx_time <= TIME_MAX`, the following should
+        // never panic.
+        let tx_time = Instant::new(tx_time).unwrap();
+
+        Ok(tx_time)
     }
 
     /// Broadcast raw data
@@ -271,7 +283,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
             self.ll
                 .dx_time()
                 .write(|w|
-                    w.value(time.0)
+                    w.value(time.value())
                 )
         });
 
@@ -561,7 +573,11 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?
             .rx_stamp();
-        let rx_time = Instant(rx_time);
+
+        // `rx_time` comes directly from the register, which should always
+        // contain a 40-bit timestampt. Unless the hardware or its documentation
+        // are buggy, the following should never panic.
+        let rx_time = Instant::new(rx_time).unwrap();
 
         // Reset status bits. This is not strictly necessary, but it helps, if
         // you have to inspect SYS_STATUS manually during debugging.
@@ -776,31 +792,4 @@ pub struct Message<'l> {
 
     /// The MAC frame
     pub frame: mac::Frame<'l>,
-}
-
-
-/// An instant, in DW1000 system time
-///
-/// DW1000 timestamps are 40-bit numbers. Creating an `Instant` with a value
-/// larger than 2^40 - 1 can lead to undefined behavior.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-#[repr(C)]
-pub struct Instant(pub u64);
-
-/// A duration between two DW1000 system time instants
-///
-/// DW1000 timestamps are 40-bit numbers. Creating a `Duration` with a value
-/// larger than 2^40 - 1 can lead to undefined behavior.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-#[repr(C)]
-pub struct Duration(pub u64);
-
-impl Add<Duration> for Instant {
-    type Output = Instant;
-
-    fn add(self, rhs: Duration) -> Self::Output {
-        // Both `Instant` and `Duration` contain 40-bit numbers, so this
-        // addition should never overflow.
-        Instant((self.0 + rhs.0) % (TIME_MAX + 1))
-    }
 }
