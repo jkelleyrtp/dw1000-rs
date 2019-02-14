@@ -13,6 +13,7 @@ pub mod ranging;
 pub mod time;
 
 
+#[doc(no_inline)]
 pub use ieee802154::mac;
 
 pub use crate::hl::{
