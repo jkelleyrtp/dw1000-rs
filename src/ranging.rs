@@ -1,4 +1,4 @@
-//! Supports double-sided two-way ranging
+//! Implementation of double-sided two-way ranging
 //!
 //! This ranging technique is described in the DW1000 user manual, section 12.3.
 //! This module uses three messages for a range measurement, as described in
@@ -21,14 +21,24 @@
 //! 5. Once the tag receives the ranging response, it has all the information it
 //!    needs to compute the distance.
 //!
+//! Please refer to the [examples] in the DWM1001 Board Support Crate for an
+//! implementation of this scheme.
+//!
 //! In this scheme, anchors initiate the exchange, which results in the tag
 //! having the distance information. Possible variations include the tag
 //! initiating the request and the anchor calculating the distance, or a
 //! peer-to-peer scheme without dedicated tags and anchors.
 //!
+//! Please note that using the code in this module without further processing of
+//! the result will yield imprecise measurements. To improve the precision of
+//! those measurements, a range bias needs to be applied. Please refer to the
+//! user manual, and [this DWM1001 issue] for more information.
+//!
 //! [`Ping`]: struct.Ping.html
 //! [`Request`]: struct.Request.html
 //! [`Response`]: struct.Response.html
+//! [examples]: https://github.com/braun-robotics/rust-dwm1001/tree/master/examples
+//! [this DWM1001 issue]: https://github.com/braun-robotics/rust-dwm1001/issues/55
 
 
 use core::mem::size_of;
@@ -69,7 +79,7 @@ use crate::{
 const TX_DELAY: u32 = 10_000_000;
 
 
-/// A ranging message
+/// Implemented by all ranging messages
 pub trait Message: Sized + for<'de> Deserialize<'de> + Serialize {
     /// A prelude that identifies the message
     const PRELUDE: Prelude;
@@ -84,17 +94,25 @@ pub trait Message: Sized + for<'de> Deserialize<'de> + Serialize {
     const LEN: usize = Self::PRELUDE_LEN + size_of::<Self>();
 
     /// Decodes a received message of this type
+    ///
+    /// The user is responsible for receiving a message using
+    /// [`DW1000::receive`]. Once a message has been received, this method can
+    /// be used to check what type of message this is.
+    ///
+    /// Returns `Ok(None)`, if the message is not of the right type. Otherwise,
+    /// returns `Ok(Some(RxMessage<Self>)), if the message is of the right type,
+    /// and no error occured.
     fn decode<SPI>(message: &hl::Message)
         -> Result<Option<RxMessage<Self>>, Error<SPI>>
         where SPI: spi::Transfer<u8> + spi::Write<u8>
     {
         if !message.frame.payload.starts_with(Self::PRELUDE.0) {
-            // Not a request of this type
+            // Not a message of this type
             return Ok(None);
         }
 
         if message.frame.payload.len() != Self::LEN {
-            // Invalid request
+            // Invalid message
             return Err(Error::BufferTooSmall {
                 required_len: Self::LEN,
             });
