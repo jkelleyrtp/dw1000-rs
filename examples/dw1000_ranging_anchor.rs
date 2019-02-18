@@ -118,8 +118,7 @@ fn main() -> ! {
                 };
 
                 // Send ranging response
-                let mut future = ranging::Response
-                    ::initiate(&mut dw1000, request)
+                let mut future = ranging::Response::new(&mut dw1000, request)
                     .expect("Failed to initiate response")
                     .send(&mut dw1000)
                     .expect("Failed to initiate response transmission");
@@ -142,8 +141,7 @@ fn main() -> ! {
         );
 
         // After receiving for a while, it's time to send out a ping
-        let mut future = ranging::Ping
-            ::initiate(&mut dw1000)
+        let mut future = ranging::Ping::new(&mut dw1000)
             .expect("Failed to initiate ping")
             .send(&mut dw1000)
             .expect("Failed to initiate ping transmission");

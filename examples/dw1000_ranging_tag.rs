@@ -111,8 +111,7 @@ fn main() -> ! {
                     // Received ping from an anchor. Reply with a ranging
                     // request.
 
-                    let mut future = ranging::Request
-                        ::initiate(&mut dw1000, ping)
+                    let mut future = ranging::Request::new(&mut dw1000, ping)
                         .expect("Failed to initiate request")
                         .send(&mut dw1000)
                         .expect("Failed to initiate request transmission");
