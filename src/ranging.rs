@@ -89,9 +89,6 @@ pub trait Message: Sized {
     /// Returns this message's data
     fn data(&self) -> &Self::Data;
 
-    /// Returns this message's recipient
-    fn recipient(&self) -> mac::Address;
-
     /// Decodes a received message of this type
     fn decode<SPI>(message: &hl::Message)
         -> Result<Option<RxMessage<Self>>, Error<SPI>>
@@ -143,6 +140,12 @@ pub struct RxMessage<T: Message> {
 ///
 /// Contains the payload to be sent, as well as some metadata.
 pub struct TxMessage<T: Message> {
+    /// The recipient of the message
+    ///
+    /// This is an IEEE 802.15.4 MAC address. This could be a broadcast address,
+    /// for messages that are sent to all other nodes in range.
+    pub recipient: mac::Address,
+
     /// The time this message is going to be sent
     ///
     /// When creating this struct, this is going to be an instant in the near
@@ -182,7 +185,7 @@ impl<T> TxMessage<T> where T: Message {
 
         let future = dw1000.send(
             &buf[..T::LEN],
-            self.payload.recipient(),
+            self.recipient,
             Some(self.tx_time),
         )?;
 
@@ -234,6 +237,7 @@ impl Ping {
         };
 
         Ok(TxMessage {
+            recipient: mac::Address::broadcast(),
             tx_time,
             payload: Ping {
                 data,
@@ -251,10 +255,6 @@ impl Message for Ping {
     fn data(&self) -> &Self::Data {
         &self.data
     }
-
-    fn recipient(&self) -> mac::Address {
-        mac::Address::broadcast()
-    }
 }
 
 
@@ -262,8 +262,7 @@ impl Message for Ping {
 /// Ranging request message
 #[derive(Debug)]
 pub struct Request {
-    recipient: mac::Address,
-    data:      RequestData,
+    data: RequestData,
 }
 
 /// A ranging request
@@ -311,9 +310,9 @@ impl Request {
         };
 
         Ok(TxMessage {
+            recipient: ping.source,
             tx_time,
             payload: Request {
-                recipient: ping.source,
                 data,
             },
         })
@@ -329,10 +328,6 @@ impl Message for Request {
     fn data(&self) -> &Self::Data {
         &self.data
     }
-
-    fn recipient(&self) -> mac::Address {
-        self.recipient
-    }
 }
 
 
@@ -341,8 +336,7 @@ impl Message for Request {
 /// Sent by anchors in response to a ranging request.
 #[derive(Debug)]
 pub struct Response {
-    recipient: mac::Address,
-    data:      ResponseData,
+    data: ResponseData,
 }
 
 /// Ranging response data
@@ -395,9 +389,9 @@ impl Response {
         };
 
         Ok(TxMessage {
+            recipient: request.source,
             tx_time,
             payload: Response {
-                recipient: request.source,
                 data,
             },
         })
@@ -412,10 +406,6 @@ impl Message for Response {
 
     fn data(&self) -> &Self::Data {
         &self.data
-    }
-
-    fn recipient(&self) -> mac::Address {
-        self.recipient
     }
 }
 
