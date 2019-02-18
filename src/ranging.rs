@@ -139,23 +139,23 @@ pub trait Message: Sized {
             });
         }
 
-        // The request passes muster. Let's decode it.
-        let (data, _) = ssmarshal::deserialize::<Self::Data>(
+        // The message passes muster. Let's decode it.
+        let (payload, _) = ssmarshal::deserialize::<Self::Data>(
             &message.frame.payload[Self::PRELUDE.0.len()..
         ])?;
 
         Ok(Some(RxMessage {
             rx_time: message.rx_time,
             source:  message.frame.header.source,
-            data,
+            payload,
         }))
     }
 }
 
 
-/// A received ranging message
+/// An incoming ranging message
 ///
-/// Contains the received data, as well as some metadata that's required to
+/// Contains the received payload, as well as some metadata that's required to
 /// create a reply to the message.
 pub struct RxMessage<T: Message> {
     /// The time the message was received
@@ -165,7 +165,7 @@ pub struct RxMessage<T: Message> {
     pub source: mac::Address,
 
     /// The message data
-    pub data: T::Data,
+    pub payload: T::Data,
 }
 
 
@@ -287,7 +287,7 @@ impl Request {
         let ping_reply_time = request_tx_time.duration_since(ping.rx_time);
 
         let data = RequestData {
-            ping_tx_time: ping.data.ping_tx_time,
+            ping_tx_time: ping.payload.ping_tx_time,
             ping_reply_time,
             request_tx_time,
         };
@@ -368,14 +368,14 @@ impl Response {
         let response_tx_time = tx_time + tx_antenna_delay;
 
         let ping_round_trip_time =
-            request.rx_time.duration_since(request.data.ping_tx_time);
+            request.rx_time.duration_since(request.payload.ping_tx_time);
         let request_reply_time =
             response_tx_time.duration_since(request.rx_time);
 
         let data = ResponseData {
-            ping_reply_time: request.data.ping_reply_time,
+            ping_reply_time: request.payload.ping_reply_time,
             ping_round_trip_time,
-            request_tx_time: request.data.request_tx_time,
+            request_tx_time: request.payload.request_tx_time,
             request_reply_time,
         };
 
@@ -413,21 +413,21 @@ impl Message for Response {
 /// calculation would overflow.
 pub fn compute_distance_mm(response: &RxMessage<Response>) -> Option<u64> {
     let request_round_trip_time =
-        response.rx_time.duration_since(response.data.request_tx_time);
+        response.rx_time.duration_since(response.payload.request_tx_time);
 
     // Compute time of flight according to the formula given in the DW1000 user
     // manual, section 12.3.2.
     let rtt_product =
-        response.data.ping_round_trip_time.value() *
+        response.payload.ping_round_trip_time.value() *
         request_round_trip_time.value();
     let reply_time_product =
-        response.data.ping_reply_time.value() *
-        response.data.request_reply_time.value();
+        response.payload.ping_reply_time.value() *
+        response.payload.request_reply_time.value();
     let complete_sum =
-        response.data.ping_round_trip_time.value() +
+        response.payload.ping_round_trip_time.value() +
         request_round_trip_time.value() +
-        response.data.ping_reply_time.value() +
-        response.data.request_reply_time.value();
+        response.payload.ping_reply_time.value() +
+        response.payload.request_reply_time.value();
     let time_of_flight = (rtt_product - reply_time_product) / complete_sum;
 
     // Nominally, all time units are based on a 64 Ghz clock, meaning each time
