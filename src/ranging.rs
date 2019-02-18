@@ -194,7 +194,12 @@ pub struct PingData {
 
 impl Ping {
     /// Creates a new ping message
-    pub fn initiate<SPI, CS>(dw1000: &mut DW1000<SPI, CS, Ready>)
+    ///
+    /// Only creates the message, but doesn't yet send it. Sets the transmission
+    /// time to 10 milliseconds in the future. Make sure to send the message
+    /// within that time frame, or the distance measurement will be negatively
+    /// affected.
+    pub fn new<SPI, CS>(dw1000: &mut DW1000<SPI, CS, Ready>)
         -> Result<Self, Error<SPI>>
         where
             SPI: spi::Transfer<u8> + spi::Write<u8>,
@@ -261,7 +266,12 @@ pub struct RequestData {
 
 impl Request {
     /// Creates a new ranging request message
-    pub fn initiate<SPI, CS>(
+    ///
+    /// Only creates the message, but doesn't yet send it. Sets the transmission
+    /// time to 10 milliseconds in the future. Make sure to send the message
+    /// within that time frame, or the distance measurement will be negatively
+    /// affected.
+    pub fn new<SPI, CS>(
         dw1000: &mut DW1000<SPI, CS, Ready>,
         ping:   RxMessage<Ping>,
     )
@@ -339,7 +349,12 @@ pub struct ResponseData {
 
 impl Response {
     /// Creates a new ranging response message
-    pub fn initiate<SPI, CS>(
+    ///
+    /// Only creates the message, but doesn't yet send it. Sets the transmission
+    /// time to 10 milliseconds in the future. Make sure to send the message
+    /// within that time frame, or the distance measurement will be negatively
+    /// affected.
+    pub fn new<SPI, CS>(
         dw1000:  &mut DW1000<SPI, CS, Ready>,
         request: RxMessage<Request>,
     )
