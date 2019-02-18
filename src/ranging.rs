@@ -70,7 +70,7 @@ const TX_DELAY: u32 = 10_000_000;
 
 
 /// A ranging message
-pub trait Message: Sized {
+pub trait Message: Sized + for<'de> Deserialize<'de> + Serialize {
     /// A prelude that identifies the message
     const PRELUDE: Prelude;
 
@@ -81,13 +81,7 @@ pub trait Message: Sized {
     const PRELUDE_LEN: usize;
 
     /// The length of the whole message, including prelude and data
-    const LEN: usize = Self::PRELUDE_LEN + size_of::<Self::Data>();
-
-    /// The message data
-    type Data: for<'de> Deserialize<'de> + Serialize;
-
-    /// Returns this message's data
-    fn data(&self) -> &Self::Data;
+    const LEN: usize = Self::PRELUDE_LEN + size_of::<Self>();
 
     /// Decodes a received message of this type
     fn decode<SPI>(message: &hl::Message)
@@ -107,7 +101,7 @@ pub trait Message: Sized {
         }
 
         // The message passes muster. Let's decode it.
-        let (payload, _) = ssmarshal::deserialize::<Self::Data>(
+        let (payload, _) = ssmarshal::deserialize::<Self>(
             &message.frame.payload[Self::PRELUDE.0.len()..
         ])?;
 
@@ -132,7 +126,7 @@ pub struct RxMessage<T: Message> {
     pub source: mac::Address,
 
     /// The message data
-    pub payload: T::Data,
+    pub payload: T,
 }
 
 
@@ -180,7 +174,7 @@ impl<T> TxMessage<T> where T: Message {
         buf[..T::PRELUDE.0.len()].copy_from_slice(T::PRELUDE.0);
         ssmarshal::serialize(
             &mut buf[T::PRELUDE.0.len()..],
-            self.payload.data(),
+            &self.payload,
         )?;
 
         let future = dw1000.send(
@@ -244,12 +238,6 @@ impl Ping {
 impl Message for Ping {
     const PRELUDE:     Prelude = Prelude(b"RANGING PING");
     const PRELUDE_LEN: usize   = 12;
-
-    type Data = Ping;
-
-    fn data(&self) -> &Self::Data {
-        self
-    }
 }
 
 
@@ -311,12 +299,6 @@ impl Request {
 impl Message for Request {
     const PRELUDE:     Prelude = Prelude(b"RANGING REQUEST");
     const PRELUDE_LEN: usize   = 15;
-
-    type Data = Request;
-
-    fn data(&self) -> &Self::Data {
-        self
-    }
 }
 
 
@@ -386,12 +368,6 @@ impl Response {
 impl Message for Response {
     const PRELUDE:     Prelude = Prelude(b"RANGING RESPONSE");
     const PRELUDE_LEN: usize   = 16;
-
-    type Data = Response;
-
-    fn data(&self) -> &Self::Data {
-        self
-    }
 }
 
 
