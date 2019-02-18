@@ -168,6 +168,14 @@ pub struct RxMessage<T: Message> {
     pub payload: T::Data,
 }
 
+/// An outgoing ranging message
+///
+/// Contains the payload to be sent, as well as some metadata.
+pub struct TxMessage<T: Message> {
+    /// The actual message payload
+    pub payload: T,
+}
+
 
 /// Sent before a message's data to identify the message
 #[derive(Debug, Deserialize, Serialize)]
@@ -200,7 +208,7 @@ impl Ping {
     /// within that time frame, or the distance measurement will be negatively
     /// affected.
     pub fn new<SPI, CS>(dw1000: &mut DW1000<SPI, CS, Ready>)
-        -> Result<Self, Error<SPI>>
+        -> Result<TxMessage<Self>, Error<SPI>>
         where
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
@@ -212,9 +220,11 @@ impl Ping {
             ping_tx_time: tx_time + tx_antenna_delay,
         };
 
-        Ok(Ping {
-            tx_time,
-            data,
+        Ok(TxMessage {
+            payload: Ping {
+                tx_time,
+                data,
+            },
         })
     }
 }
@@ -275,7 +285,7 @@ impl Request {
         dw1000: &mut DW1000<SPI, CS, Ready>,
         ping:   RxMessage<Ping>,
     )
-        -> Result<Self, Error<SPI>>
+        -> Result<TxMessage<Self>, Error<SPI>>
         where
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
@@ -292,10 +302,12 @@ impl Request {
             request_tx_time,
         };
 
-        Ok(Request {
-            recipient: ping.source,
-            tx_time,
-            data,
+        Ok(TxMessage {
+            payload: Request {
+                recipient: ping.source,
+                tx_time,
+                data,
+            },
         })
     }
 }
@@ -358,7 +370,7 @@ impl Response {
         dw1000:  &mut DW1000<SPI, CS, Ready>,
         request: RxMessage<Request>,
     )
-        -> Result<Self, Error<SPI>>
+        -> Result<TxMessage<Self>, Error<SPI>>
         where
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
@@ -379,10 +391,12 @@ impl Response {
             request_reply_time,
         };
 
-        Ok(Response {
-            recipient: request.source,
-            tx_time,
-            data,
+        Ok(TxMessage {
+            payload: Response {
+                recipient: request.source,
+                tx_time,
+                data,
+            },
         })
     }
 }
