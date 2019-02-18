@@ -92,9 +92,6 @@ pub trait Message: Sized {
     /// Returns this message's recipient
     fn recipient(&self) -> mac::Address;
 
-    /// Returns the transmission time of this message
-    fn tx_time(&self) -> Instant;
-
     /// Decodes a received message of this type
     fn decode<SPI>(message: &hl::Message)
         -> Result<Option<RxMessage<Self>>, Error<SPI>>
@@ -146,6 +143,13 @@ pub struct RxMessage<T: Message> {
 ///
 /// Contains the payload to be sent, as well as some metadata.
 pub struct TxMessage<T: Message> {
+    /// The time this message is going to be sent
+    ///
+    /// When creating this struct, this is going to be an instant in the near
+    /// future. When sending the message, the sending is delayed to make sure it
+    /// it sent at exactly this instant.
+    pub tx_time: Instant,
+
     /// The actual message payload
     pub payload: T,
 }
@@ -179,7 +183,7 @@ impl<T> TxMessage<T> where T: Message {
         let future = dw1000.send(
             &buf[..T::LEN],
             self.payload.recipient(),
-            Some(self.payload.tx_time()),
+            Some(self.tx_time),
         )?;
 
         Ok(future)
@@ -196,8 +200,7 @@ pub struct Prelude(pub &'static [u8]);
 /// Ranging ping message
 #[derive(Debug)]
 pub struct Ping {
-    tx_time: Instant,
-    data:    PingData,
+    data: PingData,
 }
 
 /// A ranging ping
@@ -231,8 +234,8 @@ impl Ping {
         };
 
         Ok(TxMessage {
+            tx_time,
             payload: Ping {
-                tx_time,
                 data,
             },
         })
@@ -252,10 +255,6 @@ impl Message for Ping {
     fn recipient(&self) -> mac::Address {
         mac::Address::broadcast()
     }
-
-    fn tx_time(&self) -> Instant {
-        self.tx_time
-    }
 }
 
 
@@ -264,7 +263,6 @@ impl Message for Ping {
 #[derive(Debug)]
 pub struct Request {
     recipient: mac::Address,
-    tx_time:   Instant,
     data:      RequestData,
 }
 
@@ -313,9 +311,9 @@ impl Request {
         };
 
         Ok(TxMessage {
+            tx_time,
             payload: Request {
                 recipient: ping.source,
-                tx_time,
                 data,
             },
         })
@@ -335,10 +333,6 @@ impl Message for Request {
     fn recipient(&self) -> mac::Address {
         self.recipient
     }
-
-    fn tx_time(&self) -> Instant {
-        self.tx_time
-    }
 }
 
 
@@ -348,7 +342,6 @@ impl Message for Request {
 #[derive(Debug)]
 pub struct Response {
     recipient: mac::Address,
-    tx_time:   Instant,
     data:      ResponseData,
 }
 
@@ -402,9 +395,9 @@ impl Response {
         };
 
         Ok(TxMessage {
+            tx_time,
             payload: Response {
                 recipient: request.source,
-                tx_time,
                 data,
             },
         })
@@ -423,10 +416,6 @@ impl Message for Response {
 
     fn recipient(&self) -> mac::Address {
         self.recipient
-    }
-
-    fn tx_time(&self) -> Instant {
-        self.tx_time
     }
 }
 
