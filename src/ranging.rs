@@ -201,17 +201,14 @@ pub struct Prelude(pub &'static [u8]);
 
 
 /// Ranging ping message
-#[derive(Debug)]
-pub struct Ping {
-    data: PingData,
-}
-
-/// A ranging ping
 ///
-/// Sent out regularly by anchors.
+/// This message is typically sent to initiate a range measurement transaction.
+/// See [module documentation] for more info.
+///
+/// [module documentation]: index.html
 #[derive(Debug, Deserialize, Serialize)]
 #[repr(C)]
-pub struct PingData {
+pub struct Ping {
     /// When the ping was sent, in local sender time
     pub ping_tx_time: Instant,
 }
@@ -232,16 +229,14 @@ impl Ping {
         let tx_antenna_delay = dw1000.get_tx_antenna_delay()?;
         let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
 
-        let data = PingData {
+        let payload = Ping {
             ping_tx_time: tx_time + tx_antenna_delay,
         };
 
         Ok(TxMessage {
             recipient: mac::Address::broadcast(),
             tx_time,
-            payload: Ping {
-                data,
-            },
+            payload,
         })
     }
 }
@@ -250,27 +245,23 @@ impl Message for Ping {
     const PRELUDE:     Prelude = Prelude(b"RANGING PING");
     const PRELUDE_LEN: usize   = 12;
 
-    type Data = PingData;
+    type Data = Ping;
 
     fn data(&self) -> &Self::Data {
-        &self.data
+        self
     }
 }
 
 
-
 /// Ranging request message
-#[derive(Debug)]
-pub struct Request {
-    data: RequestData,
-}
-
-/// A ranging request
 ///
-/// Sent by tags in response to a ping.
+/// This message is typically sent in response to a ranging ping, to request a
+/// ranging response. See [module documentation] for more info.
+///
+/// [module documentation]: index.html
 #[derive(Debug, Deserialize, Serialize)]
 #[repr(C)]
-pub struct RequestData {
+pub struct Request {
     /// When the original ping was sent, in local time on the anchor
     pub ping_tx_time: Instant,
 
@@ -303,7 +294,7 @@ impl Request {
 
         let ping_reply_time = request_tx_time.duration_since(ping.rx_time);
 
-        let data = RequestData {
+        let payload = Request {
             ping_tx_time: ping.payload.ping_tx_time,
             ping_reply_time,
             request_tx_time,
@@ -312,9 +303,7 @@ impl Request {
         Ok(TxMessage {
             recipient: ping.source,
             tx_time,
-            payload: Request {
-                data,
-            },
+            payload,
         })
     }
 }
@@ -323,26 +312,24 @@ impl Message for Request {
     const PRELUDE:     Prelude = Prelude(b"RANGING REQUEST");
     const PRELUDE_LEN: usize   = 15;
 
-    type Data = RequestData;
+    type Data = Request;
 
     fn data(&self) -> &Self::Data {
-        &self.data
+        self
     }
 }
 
 
-/// A ranging response
+/// Ranging response message
 ///
-/// Sent by anchors in response to a ranging request.
-#[derive(Debug)]
-pub struct Response {
-    data: ResponseData,
-}
-
-/// Ranging response data
+/// This message is typically sent in response to a ranging request, to wrap up
+/// the range measurement transaction.. See [module documentation] for more
+/// info.
+///
+/// [module documentation]: index.html
 #[derive(Debug, Deserialize, Serialize)]
 #[repr(C)]
-pub struct ResponseData {
+pub struct Response {
     /// The time between the ping being received and the reply being sent
     pub ping_reply_time: Duration,
 
@@ -381,7 +368,7 @@ impl Response {
         let request_reply_time =
             response_tx_time.duration_since(request.rx_time);
 
-        let data = ResponseData {
+        let payload = Response {
             ping_reply_time: request.payload.ping_reply_time,
             ping_round_trip_time,
             request_tx_time: request.payload.request_tx_time,
@@ -391,9 +378,7 @@ impl Response {
         Ok(TxMessage {
             recipient: request.source,
             tx_time,
-            payload: Response {
-                data,
-            },
+            payload,
         })
     }
 }
@@ -402,10 +387,10 @@ impl Message for Response {
     const PRELUDE:     Prelude = Prelude(b"RANGING RESPONSE");
     const PRELUDE_LEN: usize   = 16;
 
-    type Data = ResponseData;
+    type Data = Response;
 
     fn data(&self) -> &Self::Data {
-        &self.data
+        self
     }
 }
 
