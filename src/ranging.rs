@@ -1,4 +1,4 @@
-//! Supports double-sided two-way ranging
+//! Implementation of double-sided two-way ranging
 //!
 //! This ranging technique is described in the DW1000 user manual, section 12.3.
 //! This module uses three messages for a range measurement, as described in
@@ -21,14 +21,24 @@
 //! 5. Once the tag receives the ranging response, it has all the information it
 //!    needs to compute the distance.
 //!
+//! Please refer to the [examples] in the DWM1001 Board Support Crate for an
+//! implementation of this scheme.
+//!
 //! In this scheme, anchors initiate the exchange, which results in the tag
 //! having the distance information. Possible variations include the tag
 //! initiating the request and the anchor calculating the distance, or a
 //! peer-to-peer scheme without dedicated tags and anchors.
 //!
+//! Please note that using the code in this module without further processing of
+//! the result will yield imprecise measurements. To improve the precision of
+//! those measurements, a range bias needs to be applied. Please refer to the
+//! user manual, and [this DWM1001 issue] for more information.
+//!
 //! [`Ping`]: struct.Ping.html
 //! [`Request`]: struct.Request.html
 //! [`Response`]: struct.Response.html
+//! [examples]: https://github.com/braun-robotics/rust-dwm1001/tree/master/examples
+//! [this DWM1001 issue]: https://github.com/braun-robotics/rust-dwm1001/issues/55
 
 
 use core::mem::size_of;
@@ -69,8 +79,8 @@ use crate::{
 const TX_DELAY: u32 = 10_000_000;
 
 
-/// A ranging message
-pub trait Message: Sized {
+/// Implemented by all ranging messages
+pub trait Message: Sized + for<'de> Deserialize<'de> + Serialize {
     /// A prelude that identifies the message
     const PRELUDE: Prelude;
 
@@ -81,81 +91,50 @@ pub trait Message: Sized {
     const PRELUDE_LEN: usize;
 
     /// The length of the whole message, including prelude and data
-    const LEN: usize = Self::PRELUDE_LEN + size_of::<Self::Data>();
-
-    /// The message data
-    type Data: for<'de> Deserialize<'de> + Serialize;
-
-    /// Returns this message's data
-    fn data(&self) -> &Self::Data;
-
-    /// Returns this message's recipient
-    fn recipient(&self) -> mac::Address;
-
-    /// Returns the transmission time of this message
-    fn tx_time(&self) -> Instant;
-
-    /// Send this message
-    fn send<'r, SPI, CS>(&self, dw1000: &'r mut DW1000<SPI, CS, Ready>)
-        -> Result<TxFuture<'r, SPI, CS>, Error<SPI>>
-        where
-            SPI: spi::Transfer<u8> + spi::Write<u8>,
-            CS:  OutputPin,
-    {
-        // Create a buffer that fits the biggest message currently implemented.
-        // This is a really ugly hack. The size of the buffer should just be
-        // `Self::LEN`. Unfortunately that's not possible. See:
-        // https://github.com/rust-lang/rust/issues/42863
-        const LEN: usize = 48;
-        assert!(Self::LEN <= LEN);
-        let mut buf = [0; LEN];
-
-        buf[..Self::PRELUDE.0.len()].copy_from_slice(Self::PRELUDE.0);
-        ssmarshal::serialize(&mut buf[Self::PRELUDE.0.len()..], self.data())?;
-
-        let future = dw1000.send(
-            &buf[..Self::LEN],
-            self.recipient(),
-            Some(self.tx_time()),
-        )?;
-
-        Ok(future)
-    }
+    const LEN: usize = Self::PRELUDE_LEN + size_of::<Self>();
 
     /// Decodes a received message of this type
+    ///
+    /// The user is responsible for receiving a message using
+    /// [`DW1000::receive`]. Once a message has been received, this method can
+    /// be used to check what type of message this is.
+    ///
+    /// Returns `Ok(None)`, if the message is not of the right type. Otherwise,
+    /// returns `Ok(Some(RxMessage<Self>)), if the message is of the right type,
+    /// and no error occured.
     fn decode<SPI>(message: &hl::Message)
         -> Result<Option<RxMessage<Self>>, Error<SPI>>
         where SPI: spi::Transfer<u8> + spi::Write<u8>
     {
         if !message.frame.payload.starts_with(Self::PRELUDE.0) {
-            // Not a request of this type
+            // Not a message of this type
             return Ok(None);
         }
 
         if message.frame.payload.len() != Self::LEN {
-            // Invalid request
+            // Invalid message
             return Err(Error::BufferTooSmall {
                 required_len: Self::LEN,
             });
         }
 
-        // The request passes muster. Let's decode it.
-        let (data, _) = ssmarshal::deserialize::<Self::Data>(
+        // The message passes muster. Let's decode it.
+        let (payload, _) = ssmarshal::deserialize::<Self>(
             &message.frame.payload[Self::PRELUDE.0.len()..
         ])?;
 
         Ok(Some(RxMessage {
             rx_time: message.rx_time,
             source:  message.frame.header.source,
-            data,
+            payload,
         }))
     }
 }
 
 
-/// A received ranging message
+/// An incoming ranging message
 ///
-/// Contains the received data, as well as some metadata that's required to
+/// Contains the received payload, as well as some metadata that's required to
 /// create a reply to the message.
 pub struct RxMessage<T: Message> {
     /// The time the message was received
@@ -165,7 +144,65 @@ pub struct RxMessage<T: Message> {
     pub source: mac::Address,
 
     /// The message data
-    pub data: T::Data,
+    pub payload: T,
+}
+
+
+/// An outgoing ranging message
+///
+/// Contains the payload to be sent, as well as some metadata.
+pub struct TxMessage<T: Message> {
+    /// The recipient of the message
+    ///
+    /// This is an IEEE 802.15.4 MAC address. This could be a broadcast address,
+    /// for messages that are sent to all other nodes in range.
+    pub recipient: mac::Address,
+
+    /// The time this message is going to be sent
+    ///
+    /// When creating this struct, this is going to be an instant in the near
+    /// future. When sending the message, the sending is delayed to make sure it
+    /// it sent at exactly this instant.
+    pub tx_time: Instant,
+
+    /// The actual message payload
+    pub payload: T,
+}
+
+impl<T> TxMessage<T> where T: Message {
+    /// Send this message via the DW1000
+    ///
+    /// Serializes the message payload and uses [`DW1000::send`] internally to
+    /// send it. Returns a [`TxFuture`] to represent the current state of the
+    /// send operation, if no error occurs.
+    pub fn send<'r, SPI, CS>(&self, dw1000: &'r mut DW1000<SPI, CS, Ready>)
+        -> Result<TxFuture<'r, SPI, CS>, Error<SPI>>
+        where
+            SPI: spi::Transfer<u8> + spi::Write<u8>,
+            CS:  OutputPin,
+    {
+        // Create a buffer that fits the biggest message currently implemented.
+        // This is a really ugly hack. The size of the buffer should just be
+        // `T::LEN`. Unfortunately that's not possible. See:
+        // https://github.com/rust-lang/rust/issues/42863
+        const LEN: usize = 48;
+        assert!(T::LEN <= LEN);
+        let mut buf = [0; LEN];
+
+        buf[..T::PRELUDE.0.len()].copy_from_slice(T::PRELUDE.0);
+        ssmarshal::serialize(
+            &mut buf[T::PRELUDE.0.len()..],
+            &self.payload,
+        )?;
+
+        let future = dw1000.send(
+            &buf[..T::LEN],
+            self.recipient,
+            Some(self.tx_time),
+        )?;
+
+        Ok(future)
+    }
 }
 
 
@@ -176,26 +213,27 @@ pub struct Prelude(pub &'static [u8]);
 
 
 /// Ranging ping message
-#[derive(Debug)]
-pub struct Ping {
-    tx_time: Instant,
-    data:    PingData,
-}
-
-/// A ranging ping
 ///
-/// Sent out regularly by anchors.
+/// This message is typically sent to initiate a range measurement transaction.
+/// See [module documentation] for more info.
+///
+/// [module documentation]: index.html
 #[derive(Debug, Deserialize, Serialize)]
 #[repr(C)]
-pub struct PingData {
+pub struct Ping {
     /// When the ping was sent, in local sender time
     pub ping_tx_time: Instant,
 }
 
 impl Ping {
     /// Creates a new ping message
-    pub fn initiate<SPI, CS>(dw1000: &mut DW1000<SPI, CS, Ready>)
-        -> Result<Self, Error<SPI>>
+    ///
+    /// Only creates the message, but doesn't yet send it. Sets the transmission
+    /// time to 10 milliseconds in the future. Make sure to send the message
+    /// within that time frame, or the distance measurement will be negatively
+    /// affected.
+    pub fn new<SPI, CS>(dw1000: &mut DW1000<SPI, CS, Ready>)
+        -> Result<TxMessage<Self>, Error<SPI>>
         where
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
@@ -203,13 +241,14 @@ impl Ping {
         let tx_antenna_delay = dw1000.get_tx_antenna_delay()?;
         let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
 
-        let data = PingData {
+        let payload = Ping {
             ping_tx_time: tx_time + tx_antenna_delay,
         };
 
-        Ok(Ping {
+        Ok(TxMessage {
+            recipient: mac::Address::broadcast(),
             tx_time,
-            data,
+            payload,
         })
     }
 }
@@ -217,38 +256,18 @@ impl Ping {
 impl Message for Ping {
     const PRELUDE:     Prelude = Prelude(b"RANGING PING");
     const PRELUDE_LEN: usize   = 12;
-
-    type Data = PingData;
-
-    fn data(&self) -> &Self::Data {
-        &self.data
-    }
-
-    fn recipient(&self) -> mac::Address {
-        mac::Address::broadcast()
-    }
-
-    fn tx_time(&self) -> Instant {
-        self.tx_time
-    }
 }
-
 
 
 /// Ranging request message
-#[derive(Debug)]
-pub struct Request {
-    recipient: mac::Address,
-    tx_time:   Instant,
-    data:      RequestData,
-}
-
-/// A ranging request
 ///
-/// Sent by tags in response to a ping.
+/// This message is typically sent in response to a ranging ping, to request a
+/// ranging response. See [module documentation] for more info.
+///
+/// [module documentation]: index.html
 #[derive(Debug, Deserialize, Serialize)]
 #[repr(C)]
-pub struct RequestData {
+pub struct Request {
     /// When the original ping was sent, in local time on the anchor
     pub ping_tx_time: Instant,
 
@@ -261,11 +280,16 @@ pub struct RequestData {
 
 impl Request {
     /// Creates a new ranging request message
-    pub fn initiate<SPI, CS>(
+    ///
+    /// Only creates the message, but doesn't yet send it. Sets the transmission
+    /// time to 10 milliseconds in the future. Make sure to send the message
+    /// within that time frame, or the distance measurement will be negatively
+    /// affected.
+    pub fn new<SPI, CS>(
         dw1000: &mut DW1000<SPI, CS, Ready>,
         ping:   RxMessage<Ping>,
     )
-        -> Result<Self, Error<SPI>>
+        -> Result<TxMessage<Self>, Error<SPI>>
         where
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
@@ -276,16 +300,16 @@ impl Request {
 
         let ping_reply_time = request_tx_time.duration_since(ping.rx_time);
 
-        let data = RequestData {
-            ping_tx_time: ping.data.ping_tx_time,
+        let payload = Request {
+            ping_tx_time: ping.payload.ping_tx_time,
             ping_reply_time,
             request_tx_time,
         };
 
-        Ok(Request {
+        Ok(TxMessage {
             recipient: ping.source,
             tx_time,
-            data,
+            payload,
         })
     }
 }
@@ -293,37 +317,19 @@ impl Request {
 impl Message for Request {
     const PRELUDE:     Prelude = Prelude(b"RANGING REQUEST");
     const PRELUDE_LEN: usize   = 15;
-
-    type Data = RequestData;
-
-    fn data(&self) -> &Self::Data {
-        &self.data
-    }
-
-    fn recipient(&self) -> mac::Address {
-        self.recipient
-    }
-
-    fn tx_time(&self) -> Instant {
-        self.tx_time
-    }
 }
 
 
-/// A ranging response
+/// Ranging response message
 ///
-/// Sent by anchors in response to a ranging request.
-#[derive(Debug)]
-pub struct Response {
-    recipient: mac::Address,
-    tx_time:   Instant,
-    data:      ResponseData,
-}
-
-/// Ranging response data
+/// This message is typically sent in response to a ranging request, to wrap up
+/// the range measurement transaction.. See [module documentation] for more
+/// info.
+///
+/// [module documentation]: index.html
 #[derive(Debug, Deserialize, Serialize)]
 #[repr(C)]
-pub struct ResponseData {
+pub struct Response {
     /// The time between the ping being received and the reply being sent
     pub ping_reply_time: Duration,
 
@@ -339,11 +345,16 @@ pub struct ResponseData {
 
 impl Response {
     /// Creates a new ranging response message
-    pub fn initiate<SPI, CS>(
+    ///
+    /// Only creates the message, but doesn't yet send it. Sets the transmission
+    /// time to 10 milliseconds in the future. Make sure to send the message
+    /// within that time frame, or the distance measurement will be negatively
+    /// affected.
+    pub fn new<SPI, CS>(
         dw1000:  &mut DW1000<SPI, CS, Ready>,
         request: RxMessage<Request>,
     )
-        -> Result<Self, Error<SPI>>
+        -> Result<TxMessage<Self>, Error<SPI>>
         where
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
@@ -353,21 +364,21 @@ impl Response {
         let response_tx_time = tx_time + tx_antenna_delay;
 
         let ping_round_trip_time =
-            request.rx_time.duration_since(request.data.ping_tx_time);
+            request.rx_time.duration_since(request.payload.ping_tx_time);
         let request_reply_time =
             response_tx_time.duration_since(request.rx_time);
 
-        let data = ResponseData {
-            ping_reply_time: request.data.ping_reply_time,
+        let payload = Response {
+            ping_reply_time: request.payload.ping_reply_time,
             ping_round_trip_time,
-            request_tx_time: request.data.request_tx_time,
+            request_tx_time: request.payload.request_tx_time,
             request_reply_time,
         };
 
-        Ok(Response {
+        Ok(TxMessage {
             recipient: request.source,
             tx_time,
-            data,
+            payload,
         })
     }
 }
@@ -375,20 +386,6 @@ impl Response {
 impl Message for Response {
     const PRELUDE:     Prelude = Prelude(b"RANGING RESPONSE");
     const PRELUDE_LEN: usize   = 16;
-
-    type Data = ResponseData;
-
-    fn data(&self) -> &Self::Data {
-        &self.data
-    }
-
-    fn recipient(&self) -> mac::Address {
-        self.recipient
-    }
-
-    fn tx_time(&self) -> Instant {
-        self.tx_time
-    }
 }
 
 
@@ -398,21 +395,21 @@ impl Message for Response {
 /// calculation would overflow.
 pub fn compute_distance_mm(response: &RxMessage<Response>) -> Option<u64> {
     let request_round_trip_time =
-        response.rx_time.duration_since(response.data.request_tx_time);
+        response.rx_time.duration_since(response.payload.request_tx_time);
 
     // Compute time of flight according to the formula given in the DW1000 user
     // manual, section 12.3.2.
     let rtt_product =
-        response.data.ping_round_trip_time.value() *
+        response.payload.ping_round_trip_time.value() *
         request_round_trip_time.value();
     let reply_time_product =
-        response.data.ping_reply_time.value() *
-        response.data.request_reply_time.value();
+        response.payload.ping_reply_time.value() *
+        response.payload.request_reply_time.value();
     let complete_sum =
-        response.data.ping_round_trip_time.value() +
+        response.payload.ping_round_trip_time.value() +
         request_round_trip_time.value() +
-        response.data.ping_reply_time.value() +
-        response.data.request_reply_time.value();
+        response.payload.ping_reply_time.value() +
+        response.payload.request_reply_time.value();
     let time_of_flight = (rtt_product - reply_time_product) / complete_sum;
 
     // Nominally, all time units are based on a 64 Ghz clock, meaning each time
