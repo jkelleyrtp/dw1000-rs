@@ -95,33 +95,6 @@ pub trait Message: Sized {
     /// Returns the transmission time of this message
     fn tx_time(&self) -> Instant;
 
-    /// Send this message
-    fn send<'r, SPI, CS>(&self, dw1000: &'r mut DW1000<SPI, CS, Ready>)
-        -> Result<TxFuture<'r, SPI, CS>, Error<SPI>>
-        where
-            SPI: spi::Transfer<u8> + spi::Write<u8>,
-            CS:  OutputPin,
-    {
-        // Create a buffer that fits the biggest message currently implemented.
-        // This is a really ugly hack. The size of the buffer should just be
-        // `Self::LEN`. Unfortunately that's not possible. See:
-        // https://github.com/rust-lang/rust/issues/42863
-        const LEN: usize = 48;
-        assert!(Self::LEN <= LEN);
-        let mut buf = [0; LEN];
-
-        buf[..Self::PRELUDE.0.len()].copy_from_slice(Self::PRELUDE.0);
-        ssmarshal::serialize(&mut buf[Self::PRELUDE.0.len()..], self.data())?;
-
-        let future = dw1000.send(
-            &buf[..Self::LEN],
-            self.recipient(),
-            Some(self.tx_time()),
-        )?;
-
-        Ok(future)
-    }
-
     /// Decodes a received message of this type
     fn decode<SPI>(message: &hl::Message)
         -> Result<Option<RxMessage<Self>>, Error<SPI>>
@@ -168,12 +141,49 @@ pub struct RxMessage<T: Message> {
     pub payload: T::Data,
 }
 
+
 /// An outgoing ranging message
 ///
 /// Contains the payload to be sent, as well as some metadata.
 pub struct TxMessage<T: Message> {
     /// The actual message payload
     pub payload: T,
+}
+
+impl<T> TxMessage<T> where T: Message {
+    /// Send this message via the DW1000
+    ///
+    /// Serializes the message payload and uses [`DW1000::send`] internally to
+    /// send it. Returns a [`TxFuture`] to represent the current state of the
+    /// send operation, if no error occurs.
+    pub fn send<'r, SPI, CS>(&self, dw1000: &'r mut DW1000<SPI, CS, Ready>)
+        -> Result<TxFuture<'r, SPI, CS>, Error<SPI>>
+        where
+            SPI: spi::Transfer<u8> + spi::Write<u8>,
+            CS:  OutputPin,
+    {
+        // Create a buffer that fits the biggest message currently implemented.
+        // This is a really ugly hack. The size of the buffer should just be
+        // `T::LEN`. Unfortunately that's not possible. See:
+        // https://github.com/rust-lang/rust/issues/42863
+        const LEN: usize = 48;
+        assert!(T::LEN <= LEN);
+        let mut buf = [0; LEN];
+
+        buf[..T::PRELUDE.0.len()].copy_from_slice(T::PRELUDE.0);
+        ssmarshal::serialize(
+            &mut buf[T::PRELUDE.0.len()..],
+            self.payload.data(),
+        )?;
+
+        let future = dw1000.send(
+            &buf[..T::LEN],
+            self.payload.recipient(),
+            Some(self.payload.tx_time()),
+        )?;
+
+        Ok(future)
+    }
 }
 
 
