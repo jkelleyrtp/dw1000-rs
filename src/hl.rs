@@ -24,7 +24,6 @@ use crate::{
         Duration,
         Instant,
     },
-    TIME_MAX,
 };
 
 
@@ -209,31 +208,16 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     {
         let sys_time = self.ll.sys_time().read()?.value();
 
-        // This should always be the case, unless we're getting crap back from
-        // the lower-level layer.
-        assert!(sys_time <= TIME_MAX);
+        // This should never panic, unless we're getting crap back from the
+        // lower-level layer.
+        let sys_time = Instant::new(sys_time).unwrap();
 
-        // All of the following operations should be safe against undefined
-        // behavior. First, `delay_ns` fills 32 bits before it is cast to `u64`.
-        // The resulting number fills at most 38 bits. `sys_time` fits within 40
-        // bits (as we've verified above), so the result of the addition fits
-        // within 41 bits.
-        let delay   = delay_ns as u64 * 64;
-        let tx_time = sys_time + delay;
+        // `delay_ns` takes up at most 32 bits before it is cast to `u64`. That
+        // means the result of the multiplication fits within 38 bits, so the
+        // following should never panic.
+        let delay = Duration::new(delay_ns as u64 * 64).unwrap();
 
-        // Make sure our delayed time doesn't overflow the 40-bit timer.
-        let tx_time = if tx_time > TIME_MAX {
-            tx_time - TIME_MAX
-        }
-        else {
-            tx_time
-        };
-
-        // Since we made sure that `tx_time <= TIME_MAX`, the following should
-        // never panic.
-        let tx_time = Instant::new(tx_time).unwrap();
-
-        Ok(tx_time)
+        Ok(sys_time + delay)
     }
 
     /// Broadcast raw data
