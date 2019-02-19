@@ -19,7 +19,7 @@ pub const TIME_MAX: u64 = 0xffffffffff;
 ///
 /// Internally uses the same 40-bit timestamps that the DW1000 uses.
 ///
-/// [`DW1000::sys_time`]: ../ll/struct.DW1000.html
+/// [`DW1000::sys_time`]: ../hl/struct.DW1000.html#method.sys_time
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[repr(C)]
 pub struct Instant(u64);
