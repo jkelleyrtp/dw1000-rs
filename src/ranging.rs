@@ -238,11 +238,11 @@ impl Ping {
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
     {
-        let tx_antenna_delay = dw1000.get_tx_antenna_delay()?;
-        let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
+        let tx_time = dw1000.sys_time()? + Duration::from_nanos(TX_DELAY);
+        let ping_tx_time = tx_time + dw1000.get_tx_antenna_delay()?;
 
         let payload = Ping {
-            ping_tx_time: tx_time + tx_antenna_delay,
+            ping_tx_time,
         };
 
         Ok(TxMessage {
@@ -294,9 +294,8 @@ impl Request {
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
     {
-        let tx_antenna_delay = dw1000.get_tx_antenna_delay()?;
-        let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
-        let request_tx_time  = tx_time + tx_antenna_delay;
+        let tx_time = dw1000.sys_time()? + Duration::from_nanos(TX_DELAY);
+        let request_tx_time = tx_time + dw1000.get_tx_antenna_delay()?;
 
         let ping_reply_time = request_tx_time.duration_since(ping.rx_time);
 
@@ -359,9 +358,8 @@ impl Response {
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
     {
-        let tx_antenna_delay = dw1000.get_tx_antenna_delay()?;
-        let tx_time          = dw1000.time_from_delay(TX_DELAY)?;
-        let response_tx_time = tx_time + tx_antenna_delay;
+        let tx_time = dw1000.sys_time()? + Duration::from_nanos(TX_DELAY);
+        let response_tx_time = tx_time + dw1000.get_tx_antenna_delay()?;
 
         let ping_round_trip_time =
             request.rx_time.duration_since(request.payload.ping_tx_time);

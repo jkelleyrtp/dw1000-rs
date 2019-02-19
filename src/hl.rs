@@ -195,29 +195,13 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         })
     }
 
-    /// Converts a delay in nanoseconds into a future timestamp
-    ///
-    /// Takes a delay in nanoseconds and returns a timestamp in the future,
-    /// based on the delay and the current system time. This time stamp can be
-    /// used for a delayed transmission.
-    ///
-    /// The result will fit within 40 bits, which means it will always be a
-    /// valid timer value.
-    pub fn time_from_delay(&mut self, delay_ns: u32)
-        -> Result<Instant, Error<SPI>>
-    {
+    /// Returns the current system time
+    pub fn sys_time(&mut self) -> Result<Instant, Error<SPI>> {
         let sys_time = self.ll.sys_time().read()?.value();
 
-        // This should never panic, unless we're getting crap back from the
-        // lower-level layer.
-        let sys_time = Instant::new(sys_time).unwrap();
-
-        // `delay_ns` takes up at most 32 bits before it is cast to `u64`. That
-        // means the result of the multiplication fits within 38 bits, so the
-        // following should never panic.
-        let delay = Duration::new(delay_ns as u64 * 64).unwrap();
-
-        Ok(sys_time + delay)
+        // Since hardware timestamps fit within 40 bits, the following should
+        // never panic.
+        Ok(Instant::new(sys_time).unwrap())
     }
 
     /// Broadcast raw data
