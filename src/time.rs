@@ -8,7 +8,9 @@ use serde_derive::{
     Serialize,
 };
 
-use crate::TIME_MAX;
+
+/// The maximum value of 40-bit system time stamps.
+pub const TIME_MAX: u64 = 0xffffffffff;
 
 
 /// Represents an instant in time
@@ -30,9 +32,9 @@ impl Instant {
     /// # Example
     ///
     /// ``` rust
-    /// use dw1000::{
-    ///     time::Instant,
+    /// use dw1000::time::{
     ///     TIME_MAX,
+    ///     Instant,
     /// };
     ///
     /// let valid_instant   = Instant::new(TIME_MAX);
@@ -68,9 +70,9 @@ impl Instant {
     /// # Example
     ///
     /// ``` rust
-    /// use dw1000::{
-    ///     time::Instant,
+    /// use dw1000::time::{
     ///     TIME_MAX,
+    ///     Instant,
     /// };
     ///
     /// // `unwrap`ing here is okay, since we're passing constants that we know
@@ -133,9 +135,9 @@ impl Duration {
     /// # Example
     ///
     /// ``` rust
-    /// use dw1000::{
-    ///     time::Duration,
+    /// use dw1000::time::{
     ///     TIME_MAX,
+    ///     Duration,
     /// };
     ///
     /// let valid_duration   = Duration::new(TIME_MAX);
