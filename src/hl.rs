@@ -24,7 +24,6 @@ use crate::{
         Duration,
         Instant,
     },
-    TIME_MAX,
 };
 
 
@@ -196,44 +195,13 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         })
     }
 
-    /// Converts a delay in nanoseconds into a future timestamp
-    ///
-    /// Takes a delay in nanoseconds and returns a timestamp in the future,
-    /// based on the delay and the current system time. This time stamp can be
-    /// used for a delayed transmission.
-    ///
-    /// The result will fit within 40 bits, which means it will always be a
-    /// valid timer value.
-    pub fn time_from_delay(&mut self, delay_ns: u32)
-        -> Result<Instant, Error<SPI>>
-    {
+    /// Returns the current system time
+    pub fn sys_time(&mut self) -> Result<Instant, Error<SPI>> {
         let sys_time = self.ll.sys_time().read()?.value();
 
-        // This should always be the case, unless we're getting crap back from
-        // the lower-level layer.
-        assert!(sys_time <= TIME_MAX);
-
-        // All of the following operations should be safe against undefined
-        // behavior. First, `delay_ns` fills 32 bits before it is cast to `u64`.
-        // The resulting number fills at most 38 bits. `sys_time` fits within 40
-        // bits (as we've verified above), so the result of the addition fits
-        // within 41 bits.
-        let delay   = delay_ns as u64 * 64;
-        let tx_time = sys_time + delay;
-
-        // Make sure our delayed time doesn't overflow the 40-bit timer.
-        let tx_time = if tx_time > TIME_MAX {
-            tx_time - TIME_MAX
-        }
-        else {
-            tx_time
-        };
-
-        // Since we made sure that `tx_time <= TIME_MAX`, the following should
+        // Since hardware timestamps fit within 40 bits, the following should
         // never panic.
-        let tx_time = Instant::new(tx_time).unwrap();
-
-        Ok(tx_time)
+        Ok(Instant::new(sys_time).unwrap())
     }
 
     /// Broadcast raw data

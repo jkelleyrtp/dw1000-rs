@@ -24,7 +24,3 @@ pub use crate::hl::{
     TxFuture,
     Uninitialized,
 };
-
-
-/// The maximum value of 40-bit system time stamps.
-pub const TIME_MAX: u64 = 0xffffffffff;

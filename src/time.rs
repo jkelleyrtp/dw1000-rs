@@ -8,12 +8,18 @@ use serde_derive::{
     Serialize,
 };
 
-use crate::TIME_MAX;
+
+/// The maximum value of 40-bit system time stamps.
+pub const TIME_MAX: u64 = 0xffffffffff;
 
 
 /// Represents an instant in time
 ///
+/// You can get the current DW1000 system time by calling [`DW1000::sys_time`].
+///
 /// Internally uses the same 40-bit timestamps that the DW1000 uses.
+///
+/// [`DW1000::sys_time`]: ../ll/struct.DW1000.html
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[repr(C)]
 pub struct Instant(u64);
@@ -30,9 +36,9 @@ impl Instant {
     /// # Example
     ///
     /// ``` rust
-    /// use dw1000::{
-    ///     time::Instant,
+    /// use dw1000::time::{
     ///     TIME_MAX,
+    ///     Instant,
     /// };
     ///
     /// let valid_instant   = Instant::new(TIME_MAX);
@@ -68,9 +74,9 @@ impl Instant {
     /// # Example
     ///
     /// ``` rust
-    /// use dw1000::{
-    ///     time::Instant,
+    /// use dw1000::time::{
     ///     TIME_MAX,
+    ///     Instant,
     /// };
     ///
     /// // `unwrap`ing here is okay, since we're passing constants that we know
@@ -133,9 +139,9 @@ impl Duration {
     /// # Example
     ///
     /// ``` rust
-    /// use dw1000::{
-    ///     time::Duration,
+    /// use dw1000::time::{
     ///     TIME_MAX,
+    ///     Duration,
     /// };
     ///
     /// let valid_duration   = Duration::new(TIME_MAX);
@@ -151,6 +157,14 @@ impl Duration {
         else {
             None
         }
+    }
+
+    /// Creates an instance of `Duration` from a number of nanoseconds
+    pub fn from_nanos(nanos: u32) -> Self {
+        // `nanos` takes up at most 32 bits before it is cast to `u64`. That
+        // means the result of the multiplication fits within 38 bits, so the
+        // following should never panic.
+        Duration::new(nanos as u64 * 64).unwrap()
     }
 
     /// Returns the raw 40-bit timestamp
