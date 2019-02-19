@@ -1,8 +1,13 @@
 //! High-level interface to the DW1000
 //!
+//! The entry point to this API is the [DW1000] struct. Please refer to the
+//! documentation there for more details.
+//!
 //! This module implements a high-level interface to the DW1000. This is the
 //! recommended way to access the DW1000 using this crate, unless you need the
-//! greater flexibility provided by the register-level interface.
+//! greater flexibility provided by the [register-level interface].
+//!
+//! [register-level interface]: ../ll/index.html
 
 
 use core::{
@@ -204,9 +209,18 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         Ok(Instant::new(sys_time).unwrap())
     }
 
-    /// Broadcast raw data
+    /// Send an IEEE 802.15.4 MAC frame
     ///
-    /// Broadcasts data without any MAC header.
+    /// The `data` argument is wrapped into an IEEE 802.15.4 MAC frame and sent
+    /// to `destination`.
+    ///
+    /// This operation can be delayed to aid in distance measurement, by setting
+    /// `delayed_time` to `Some(instant)`. If you want to send the frame as soon
+    /// as possible, just pass `None` instead.
+    ///
+    /// This method starts the transmission and returns immediately thereafter.
+    /// Use the returned [`TxFuture`], to wait for the transmission to finish
+    /// and check its result.
     pub fn send(&mut self,
         data:         &[u8],
         destination:  mac::Address,
@@ -284,7 +298,12 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         Ok(TxFuture(self))
     }
 
-    /// Attempt to receive a frame
+    /// Attempt to receive an IEEE 802.15.4 MAC frame
+    ///
+    /// Initializes the receiver, then returns an [`RxFuture`] that allows the
+    /// caller to wait for a message.
+    ///
+    /// Only frames addressed to this device will be received.
     pub fn receive(&mut self)
         -> Result<RxFuture<SPI, CS>, Error<SPI>>
     {
@@ -390,13 +409,18 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
 
 impl<SPI, CS, State> DW1000<SPI, CS, State> {
     /// Provides direct access to the register-level API
+    ///
+    /// Be aware that by using the register-level API, you can invalidate
+    /// various assumptions that the high-level API makes about the operation of
+    /// the DW1000. Don't use the register-level and high-level APIs in tandem,
+    /// unless you know what you're doing.
     pub fn ll(&mut self) -> &mut ll::DW1000<SPI, CS> {
         &mut self.ll
     }
 }
 
 
-/// Represents a TX operation that might not have completed
+/// Represents a transmission that might not have completed yet
 pub struct TxFuture<'r, SPI, CS>(&'r mut DW1000<SPI, CS, Ready>);
 
 impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
@@ -404,7 +428,18 @@ impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         CS:  OutputPin,
 {
-    /// Wait for the data to be sent
+    /// Wait for the transmission to finish
+    ///
+    /// This method returns an `nb::Result` to indicate whether the transmission
+    /// has finished, or whether it is still ongoing. You can use this to busily
+    /// wait for the transmission to finish, for example using `nb`'s `block!`
+    /// macro, or you can use it in tandem with [`TxFuture::enable_interrupts`]
+    /// and the DW1000 IRQ output to wait in a more energy-efficient manner.
+    ///
+    /// Handling the DW1000's IRQ output line is out of the scope of this
+    /// driver, but please note that if you're using the DWM1001 module or
+    /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
+    /// this.
     pub fn wait(&mut self)
         -> nb::Result<(), Error<SPI>>
     {
@@ -474,7 +509,7 @@ impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
 }
 
 
-/// Represents an RX operation that might not have finished
+/// Represents a receive operation that might not have finished yet
 pub struct RxFuture<'r, SPI, CS>(&'r mut DW1000<SPI, CS, Ready>);
 
 impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
@@ -482,7 +517,18 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         CS:  OutputPin,
 {
-    /// Wait for data to be available
+    /// Wait for receive operation to finish
+    ///
+    /// This method returns an `nb::Result` to indicate whether the transmission
+    /// has finished, or whether it is still ongoing. You can use this to busily
+    /// wait for the transmission to finish, for example using `nb`'s `block!`
+    /// macro, or you can use it in tandem with [`RxFuture::enable_interrupts`]
+    /// and the DW1000 IRQ output to wait in a more energy-efficient manner.
+    ///
+    /// Handling the DW1000's IRQ output line is out of the scope of this
+    /// driver, but please note that if you're using the DWM1001 module or
+    /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
+    /// this.
     pub fn wait<'b>(&mut self, buffer: &'b mut [u8])
         -> nb::Result<Message<'b>, Error<SPI>>
     {
