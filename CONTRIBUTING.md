@@ -34,7 +34,7 @@ $ git checkout -b release-x.y.z
 
 6. Open pull request; state your intention to release a new version
 ```
-$ git push origin
+$ git push -u origin release-x.y.z
 # Open pull request
 ```
 
