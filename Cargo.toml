@@ -84,6 +84,10 @@ required-features = ["dev", "rt"]
 name              = "lis2dh12"
 required-features = ["dev", "rt"]
 
+[[example]]
+name              = "uarte_heapless_string"
+required-features = ["dev", "rt"]
+
 
 [profile.release]
 incremental   = false
