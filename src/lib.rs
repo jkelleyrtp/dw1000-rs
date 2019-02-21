@@ -383,7 +383,7 @@ impl DWM1001 {
         // Some notes about the hardcoded configuration of `Uarte`:
         // - On the DWM1001-DEV board, the UART is connected (without CTS/RTS flow control)
         //   to the attached debugger chip. This UART is exposed via USB as a virtual
-        //   port, which is capable of 1Mbps baudrate
+        //   port, which is capable of 1Mbps baudrate (but not reliably!)
         // - Although these ports/pins are exposed generally on the DWM1001 package, and are marked
         //   as UART RXD and TXD, they are not necessarily used as such by the firmware. For this reason,
         //   non-`dev` features may be used to manually configure the serial port
@@ -395,7 +395,7 @@ impl DWM1001 {
                 rts: None,
             },
             UartParity::EXCLUDED,
-            UartBaudrate::BAUD1M
+            UartBaudrate::BAUD460800
         );
 
         DWM1001 {
