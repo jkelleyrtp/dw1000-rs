@@ -4,6 +4,15 @@ version = "0.1.0"
 authors = ["Hanno Braun <hanno@braun-robotics.com>"]
 edition = "2018"
 
+description   = "Board Support Crate for the Decawave DWM1001 module and development board"
+documentation = "https://docs.rs/dw1000"
+repository    = "https://github.com/braun-robotics/rust-dw1000"
+license       = "0BSD"
+readme        = "README.md"
+categories    = ["embedded", "hardware-support", "no-std"]
+keywords      = ["decawave", "dw1000", "bsc", "radio", "uwb"]
+
+
 [dependencies]
 cortex-m             = { version = "0.5.4", features = [ "const-fn" ] }
 cortex-m-rt          = "0.6.3"
@@ -98,6 +107,7 @@ incremental   = false
 codegen-units = 1
 lto           = true
 opt-level     = 3
+
 
 [package.metadata.docs.rs]
 all-features = true
