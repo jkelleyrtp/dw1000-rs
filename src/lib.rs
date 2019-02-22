@@ -1,6 +1,18 @@
-//! Board support crate for the Decawave DWM1001/DWM1001-Dev
+//! Board support crate for the Decawave DWM1001
 //!
-//! This crate is in early development. Not much to see here, right now.
+//! Provides access to the features of the [DWM1001 Module] and the
+//! [DWM1001 Development Board]. Most notably, this includes the Decawave
+//! [DW1000 Radio IC] and the Nordic [nRF52832] microcontroller.
+//!
+//! The entry point to the API is the [DWM1001] struct. You can find example
+//! programs using the API in the [examples directory].
+//!
+//! [DWM1001 Module]: https://www.decawave.com/product/dwm1001-module/
+//! [DWM1001 Development Board]: https://www.decawave.com/product/dwm1001-development-board/
+//! [DW1000 Radio IC]: https://www.decawave.com/product/dw1000-radio-ic/
+//! [nRF52832]: https://www.nordicsemi.com/Products/Low-power-short-range-wireless/nRF52832
+//! [examples directory]: https://github.com/braun-robotics/rust-dwm1001/tree/master/examples
+
 
 #![no_std]
 
@@ -11,6 +23,7 @@ pub use cortex_m;
 pub use cortex_m_rt;
 pub use dw1000;
 pub use embedded_hal;
+
 pub use nrf52832_hal;
 
 pub use dw1000::{
@@ -68,7 +81,10 @@ use nrf52832_hal::{
 };
 
 
-/// Provides access to all features of the DWM1001/DWM1001-Dev board
+/// Provides access to the features of the DWM1001/DWM1001-Dev board
+///
+/// You can get an instance of this struct by using [`DWM1001::take`] or
+/// [`DWM1001::steal`].
 #[allow(non_snake_case)]
 pub struct DWM1001 {
     /// The nRF52's pins
@@ -96,7 +112,7 @@ pub struct DWM1001 {
     /// Can be used to wait for DW1000 interrupts.
     pub DW_IRQ: DW_IRQ,
 
-    /// DW1000 UWB transceiver
+    /// The Decawave DW1000 Radio IC
     pub DW1000: DW1000<
         Spim<nrf52::SPIM2>,
         p0::P0_17<Output<PushPull>>,
@@ -105,44 +121,45 @@ pub struct DWM1001 {
 
     /// LIS2DH12 3-axis accelerometer
     ///
-    /// So far no driver exists for the LIS2DH12, so this provides direct access
-    /// to the I2C bus it's connected to.
+    /// So far no Rust driver exists for the LIS2DH12, so this provides direct
+    /// access to the I2C bus it's connected to.
     pub LIS2DH12: Twim<nrf52::TWIM1>,
 
-    /// Core peripheral: Cache and branch predictor maintenance operations
+    /// nRF52 nRF52 core peripheral: Cache and branch predictor maintenance
+    /// operations
     pub CBP: nrf52::CBP,
 
-    /// Core peripheral: CPUID
+    /// nRF52 core peripheral: CPUID
     pub CPUID: nrf52::CPUID,
 
-    /// Core peripheral: Debug Control Block
+    /// nRF52 core peripheral: Debug Control Block
     pub DCB: nrf52::DCB,
 
-    /// Core peripheral: Data Watchpoint and Trace unit
+    /// nRF52 core peripheral: Data Watchpoint and Trace unit
     pub DWT: nrf52::DWT,
 
-    /// Core peripheral: Flash Patch and Breakpoint unit
+    /// nRF52 core peripheral: Flash Patch and Breakpoint unit
     pub FPB: nrf52::FPB,
 
-    /// Core peripheral: Floating Point Unit
+    /// nRF52 core peripheral: Floating Point Unit
     pub FPU: nrf52::FPU,
 
-    /// Core peripheral: Instrumentation Trace Macrocell
+    /// nRF52 core peripheral: Instrumentation Trace Macrocell
     pub ITM: nrf52::ITM,
 
-    /// Core peripheral: Memory Protection Unit
+    /// nRF52 core peripheral: Memory Protection Unit
     pub MPU: nrf52::MPU,
 
-    /// Core peripheral: Nested Vector Interrupt Controller
+    /// nRF52 core peripheral: Nested Vector Interrupt Controller
     pub NVIC: nrf52::NVIC,
 
-    /// Core peripheral: System Control Block
+    /// nRF52 core peripheral: System Control Block
     pub SCB: nrf52::SCB,
 
-    /// Core peripheral: SysTick Timer
+    /// nRF52 core peripheral: SysTick Timer
     pub SYST: nrf52::SYST,
 
-    /// Core peripheral: Trace Port Interface Unit
+    /// nRF52 core peripheral: Trace Port Interface Unit
     pub TPIU: nrf52::TPIU,
 
     /// nRF52 peripheral: FICR
@@ -325,7 +342,10 @@ pub struct DWM1001 {
 }
 
 impl DWM1001 {
-    /// Take the peripherals safely
+    /// Take ownership of a `DWM1001` instance safely
+    ///
+    /// To uphold a numer of safety guarantees made by this crate's UI, only one
+    /// instance of `DWM1001` must exist at any given time.
     ///
     /// This method will return an instance of `DWM1001` the first time it is
     /// called. It will return only `None` on subsequent calls.
@@ -336,10 +356,10 @@ impl DWM1001 {
         ))
     }
 
-    /// Steal the peripherals
+    /// Take ownership of a `DWM1001` instance, circumventing safety guarantees
     ///
     /// This method produces an instance of `DWM1001`, regardless of whether
-    /// another instance was create previously.
+    /// another instance was created previously.
     ///
     /// # Safety
     ///
@@ -381,12 +401,15 @@ impl DWM1001 {
         let dw_cs = pins.p0_17.into_push_pull_output(Level::High);
 
         // Some notes about the hardcoded configuration of `Uarte`:
-        // - On the DWM1001-DEV board, the UART is connected (without CTS/RTS flow control)
-        //   to the attached debugger chip. This UART is exposed via USB as a virtual
-        //   port, which is capable of 1Mbps baudrate (but not reliably!)
-        // - Although these ports/pins are exposed generally on the DWM1001 package, and are marked
-        //   as UART RXD and TXD, they are not necessarily used as such by the firmware. For this reason,
-        //   non-`dev` features may be used to manually configure the serial port
+        // - On the DWM1001-DEV board, the UART is connected (without CTS/RTS
+        //   flow control) to the attached debugger chip. This UART is exposed
+        //   via USB as a virtual port, which is capable of 1Mbps baudrate (but
+        //   not reliably!).
+        // - Although these ports/pins are exposed generally on the DWM1001
+        //   package, and are marked as UART RXD and TXD, they are not
+        //   necessarily used as such by the firmware. For this reason,
+        //   non-`dev` features may be used to manually configure the serial
+        //   port.
         #[cfg(feature = "dev")]
         let uarte0 = p.UARTE0.constrain(uarte::Pins {
                 txd: pins.p0_05.into_push_pull_output(Level::High).degrade(),
@@ -446,7 +469,7 @@ impl DWM1001 {
 
             LIS2DH12: twim1,
 
-            // Core peripherals
+            // nRF52 core peripherals
             CBP  : cp.CBP,
             CPUID: cp.CPUID,
             DCB  : cp.DCB,
@@ -691,6 +714,12 @@ impl DW_RST {
     }
 
     /// Externally reset the DW1000 using its RSTn pin
+    ///
+    /// The implementation of this method needs to wait a few times until the
+    /// DW1000 is properly reset. To do that, it requires an implementation of
+    /// [`DelayMs`] from the `embedded-hal` crate, which the user must supply.
+    ///
+    /// See [`nrf52832_hal::Delay`] for such an implementation.
     pub fn reset_dw1000<D>(&mut self, delay: &mut D) where D: DelayMs<u32> {
         // This whole `Option` thing is a bit of a hack. What we actually need
         // here is the ability to put the pin into a tri-state mode that allows
