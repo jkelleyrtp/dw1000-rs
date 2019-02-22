@@ -12,7 +12,7 @@ dw1000               = "0.1.0"
 embedded-hal         = "0.2.1"
 
 [dependencies.nrf52832-hal]
-git              = "https://github.com/nrf-rs/nrf52-hal.git"
+version          = "0.7.0"
 default-features = false
 features         = [ "xxAA-package" ]
 
