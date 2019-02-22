@@ -1,43 +1,49 @@
-# DWM1001 [![Build Status](https://travis-ci.org/braun-robotics/rust-dwm1001.svg?branch=master)](https://travis-ci.org/braun-robotics/rust-dwm1001)
+# DWM1001 Board Support Crate [![crates.io](https://img.shields.io/crates/v/dwm1001.svg)](https://crates.io/crates/dwm1001) [![Documentation](https://docs.rs/dwm1001/badge.svg)](https://docs.rs/dwm1001) [![Build Status](https://travis-ci.org/braun-robotics/rust-dwm1001.svg?branch=master)](https://travis-ci.org/braun-robotics/rust-dwm1001)
 
 ## Introduction
 
-Board support crate for the Decawave [DWM1001]/[DWM1001-Dev] board, written in the [Rust] programming language. This crate is in early development. Not much to see here right now.
+Board support crate for the Decawave [DWM1001 module] and [DWM1001 development board] board, written in the [Rust] programming language.
 
-[DWM1001]: http://www.decawave.com/products/dwm1001-module
-[DWM1001-Dev]: https://www.decawave.com/products/dwm1001-dev
+[DWM1001 module]: https://www.decawave.com/product/dwm1001-module/
+[DWM1001 development board]: https://www.decawave.com/product/dwm1001-development-board/
 [Rust]: https://www.rust-lang.org/
+
+
+## Status
+
+This crate itself is relatively stable and complete, but is still missing some features. Be mindful that its API exposes a number of other crates, whose development status varies.
+
+This project is still in development. No guarantee of API stability is made, so expect future versions to require updates in your code.
 
 
 ## Usage
 
-To run the example, execute the following command in the project root:
-
-```
-cargo run --example blink --features rt
-```
-
-If a DWM1001-Dev board is connected to your computer via USB, this should upload and run the example on that board. This requires [OpenOCD] and the `arm-none-eabi` GCC toolchain to be installed.
-
-To use this crate in your library, add the following to your `Cargo.toml`:
-
-``` toml
-[dependencies]
-dwm1001 = { git = "https://github.com/braun-robotics/rust-dwm1001.git" }
-```
-
-To use this crate in your application, you also need to enable the `rt` feature. Add the following to your `Cargo.toml`:
-
-``` toml
+Include this crate in your Cargo project by adding the following to `Cargo.toml`:
+```toml
 [dependencies.dwm1001]
-git      = "https://github.com/braun-robotics/rust-dwm1001.git"
-features = "rt"
+version = "0.1"
 ```
 
-To build, upload and run your application, you need working configuration for Cargo, [cortex-m-rt], OpenOCD and GDB. You can use `.cargo/config`, `openocd.cfg`, `memory.x`, and `.gdbinit` from this repository as a starting point.
+This crate exposes various Cargo features that are useful in various situations, none of which is enabled by default:
 
-[OpenOCD]: http://openocd.org/
+- `dev`: Exposes the features of the DWM1001 development board. If you're working with the DWM1001 development board, as opposed to a bare DWM1001 module, enable this feature.
+- `rt`: Enables runtime features. This is required if you're writing an application. Libraries should not enable this feature.
+- `semihosting`: Enable debug output via semihosting. Enable this feature only if you need it. If you enable this feature without being connected to a host, the program on the microcontroller won't run.
+
+To build, upload and run an applicatio built on this library, you need working configuration for Cargo, [cortex-m-rt], [OpenOCD] and GDB. You can use `.cargo/config`, `openocd.cfg`, `memory.x`, and `.gdbinit` from this repository as a starting point.
+
 [cortex-m-rt]: https://crates.io/crates/cortex-m-rt
+[OpenOCD]: http://openocd.org/
+
+
+## Documentation
+
+Please refer to the **[API Reference]** for further documentation.
+
+[Example programs] are available in the GitHub repository.
+
+[API Reference]: https://docs.rs/dwm1001
+[Example programs]: https://github.com/braun-robotics/rust-dwm1001/tree/master/examples
 
 
 ## License
@@ -50,5 +56,5 @@ See [LICENSE] for full details.
 [LICENSE]: https://github.com/braun-robotics/rust-dwm1001/blob/master/LICENSE
 
 
-**Created by [Braun Robotics](https://braun-robotics.com/)**<br />
+**Created by [Braun Robotics](https://braun-robotics.com/)** <br />
 **Initial development sponsored by [Ferrous Systems](https://ferrous-systems.com/)**
