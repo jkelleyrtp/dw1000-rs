@@ -49,10 +49,10 @@ use nrf52832_hal::{
     gpio::{
         p0::{
             self,
-            P0_17,
             P0_16,
-            P0_20,
+            P0_17,
             P0_18,
+            P0_20,
             P0_28,
             P0_29,
         },
@@ -77,8 +77,8 @@ use nrf52832_hal::{
         Parity as UartParity,
         Baudrate as UartBaudrate,
     },
-    Timer,
     Spim,
+    Timer,
     Twim,
 };
 
