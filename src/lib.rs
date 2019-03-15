@@ -38,7 +38,6 @@ pub mod prelude {
 
 pub mod debug;
 
-
 use cortex_m::{
     asm,
     interrupt,
@@ -48,7 +47,12 @@ use embedded_hal::blocking::delay::DelayMs;
 use nrf52832_hal::{
     prelude::*,
     gpio::{
-        p0,
+        p0::{
+            self,
+            P0_05,
+            P0_11,
+        },
+        Pin,
         Floating,
         Input,
         Level,
@@ -61,25 +65,58 @@ use nrf52832_hal::{
         CorePeripherals,
         Interrupt,
         Peripherals,
+        UARTE0,
     },
     spim,
     twim,
-    Timer,
-    Spim,
-    Twim,
-};
-
-#[cfg(feature = "dev")]
-use nrf52832_hal::{
-    gpio::Pin,
     uarte::{
         self,
         Uarte,
         Parity as UartParity,
         Baudrate as UartBaudrate,
     },
+    Timer,
+    Spim,
+    Twim,
 };
 
+/// Create a new instance the serial port connected to the debugger,
+/// mapped to the host via USB-Serial
+pub fn new_usb_uarte<TX, RX>(
+    uart0: UARTE0,
+    txd_pin: P0_05<TX>,
+    rxd_pin: P0_11<RX>,
+    config: UsbUarteConfig
+) -> Uarte<nrf52::UARTE0> {
+    uart0.constrain(uarte::Pins {
+            txd: txd_pin.into_push_pull_output(Level::High).degrade(),
+            rxd: rxd_pin.into_floating_input().degrade(),
+            cts: None,
+            rts: None,
+        },
+        config.parity,
+        config.baudrate
+    )
+}
+
+
+/// Configuration parameters for the UART connected via the debugger
+pub struct UsbUarteConfig {
+    /// Parity setting
+    pub parity: UartParity,
+
+    /// Baudrate setting
+    pub baudrate: UartBaudrate,
+}
+
+impl Default for UsbUarteConfig {
+    fn default() -> UsbUarteConfig {
+        UsbUarteConfig {
+            parity: UartParity::EXCLUDED,
+            baudrate: UartBaudrate::BAUD115200,
+        }
+    }
+}
 
 /// Provides access to the features of the DWM1001/DWM1001-Dev board
 ///
@@ -411,14 +448,11 @@ impl DWM1001 {
         //   non-`dev` features may be used to manually configure the serial
         //   port.
         #[cfg(feature = "dev")]
-        let uarte0 = p.UARTE0.constrain(uarte::Pins {
-                txd: pins.p0_05.into_push_pull_output(Level::High).degrade(),
-                rxd: pins.p0_11.into_floating_input().degrade(),
-                cts: None,
-                rts: None,
-            },
-            UartParity::EXCLUDED,
-            UartBaudrate::BAUD460800
+        let uarte0 = new_usb_uarte(
+            p.UARTE0,
+            pins.p0_05,
+            pins.p0_11,
+            UsbUarteConfig::default(),
         );
 
         DWM1001 {
