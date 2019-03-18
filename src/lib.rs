@@ -38,7 +38,6 @@ pub mod prelude {
 
 pub mod debug;
 
-
 use cortex_m::{
     asm,
     interrupt,
@@ -48,7 +47,15 @@ use embedded_hal::blocking::delay::DelayMs;
 use nrf52832_hal::{
     prelude::*,
     gpio::{
-        p0,
+        p0::{
+            self,
+            P0_16,
+            P0_17,
+            P0_18,
+            P0_20,
+            P0_28,
+            P0_29,
+        },
         Floating,
         Input,
         Level,
@@ -61,25 +68,112 @@ use nrf52832_hal::{
         CorePeripherals,
         Interrupt,
         Peripherals,
+        SPIM2,
+        TWIM1,
     },
     spim,
     twim,
-    Timer,
+    uarte::{
+        Parity as UartParity,
+        Baudrate as UartBaudrate,
+    },
     Spim,
+    Timer,
     Twim,
 };
 
 #[cfg(feature = "dev")]
 use nrf52832_hal::{
-    gpio::Pin,
+    gpio::{
+        p0::{
+            P0_05,
+            P0_11,
+        },
+        Pin,
+    },
+    nrf52832_pac::{
+        UARTE0,
+    },
     uarte::{
         self,
         Uarte,
-        Parity as UartParity,
-        Baudrate as UartBaudrate,
     },
 };
 
+/// Create a new instance the serial port connected to the debugger,
+/// mapped to the host via USB-Serial
+#[cfg(feature = "dev")]
+pub fn new_usb_uarte<TX, RX>(
+    uart0: UARTE0,
+    txd_pin: P0_05<TX>,
+    rxd_pin: P0_11<RX>,
+    config: UsbUarteConfig
+) -> Uarte<nrf52::UARTE0> {
+    uart0.constrain(uarte::Pins {
+            txd: txd_pin.into_push_pull_output(Level::High).degrade(),
+            rxd: rxd_pin.into_floating_input().degrade(),
+            cts: None,
+            rts: None,
+        },
+        config.parity,
+        config.baudrate
+    )
+}
+
+/// Create a new instance of the DW1000 radio
+pub fn new_dw1000<SCK, MOSI, MISO, CS>(
+    spim: SPIM2,
+    sck: P0_16<SCK>,
+    mosi: P0_20<MOSI>,
+    miso: P0_18<MISO>,
+    cs: P0_17<CS>,
+) -> DW1000<
+        Spim<nrf52::SPIM2>,
+        p0::P0_17<Output<PushPull>>,
+        dw1000::Uninitialized>
+{
+    let spim = spim.constrain(spim::Pins {
+            sck : sck.into_push_pull_output(Level::Low).degrade(),
+            mosi: Some(mosi.into_push_pull_output(Level::Low).degrade()),
+            miso: Some(miso.into_floating_input().degrade()),
+        });
+
+    DW1000::new(spim, cs.into_push_pull_output(Level::High))
+}
+
+/// Create a new instance of the TWIM bus used for the accelerometer
+pub fn new_acc_twim<SCL, SDA>(
+    twim: TWIM1,
+    scl: P0_28<SCL>,
+    sda: P0_29<SDA>,
+) -> Twim<nrf52::TWIM1> {
+    twim.constrain(
+        twim::Pins {
+            scl: scl.into_floating_input().degrade(),
+            sda: sda.into_floating_input().degrade(),
+        },
+        twim::Frequency::K250,
+    )
+}
+
+
+/// Configuration parameters for the UART connected via the debugger
+pub struct UsbUarteConfig {
+    /// Parity setting
+    pub parity: UartParity,
+
+    /// Baudrate setting
+    pub baudrate: UartBaudrate,
+}
+
+impl Default for UsbUarteConfig {
+    fn default() -> UsbUarteConfig {
+        UsbUarteConfig {
+            parity: UartParity::EXCLUDED,
+            baudrate: UartBaudrate::BAUD115200,
+        }
+    }
+}
 
 /// Provides access to the features of the DWM1001/DWM1001-Dev board
 ///
@@ -378,27 +472,6 @@ impl DWM1001 {
     fn new(cp: CorePeripherals, p: Peripherals) -> Self {
         let pins = p.P0.split();
 
-        // Some notes about the hardcoded configuration of `Spim`:
-        // - The DW1000's SPI mode can be configured, but on the DWM1001 board,
-        //   both configuration pins (GPIO5/SPIPOL and GPIO6/SPIPHA) are
-        //   unconnected and internally pulled low, setting it to SPI mode 0.
-        // - The frequency is set to a moderate value that the DW1000 can easily
-        //   handle.
-        let spim2 = p.SPIM2.constrain(spim::Pins {
-            sck : pins.p0_16.into_push_pull_output(Level::Low).degrade(),
-            mosi: Some(pins.p0_20.into_push_pull_output(Level::Low).degrade()),
-            miso: Some(pins.p0_18.into_floating_input().degrade()),
-        });
-
-        let twim1 = p.TWIM1.constrain(
-            twim::Pins {
-                scl: pins.p0_28.into_floating_input().degrade(),
-                sda: pins.p0_29.into_floating_input().degrade(),
-            },
-            twim::Frequency::K250,
-        );
-
-        let dw_cs = pins.p0_17.into_push_pull_output(Level::High);
 
         // Some notes about the hardcoded configuration of `Uarte`:
         // - On the DWM1001-DEV board, the UART is connected (without CTS/RTS
@@ -411,14 +484,11 @@ impl DWM1001 {
         //   non-`dev` features may be used to manually configure the serial
         //   port.
         #[cfg(feature = "dev")]
-        let uarte0 = p.UARTE0.constrain(uarte::Pins {
-                txd: pins.p0_05.into_push_pull_output(Level::High).degrade(),
-                rxd: pins.p0_11.into_floating_input().degrade(),
-                cts: None,
-                rts: None,
-            },
-            UartParity::EXCLUDED,
-            UartBaudrate::BAUD460800
+        let uarte0 = new_usb_uarte(
+            p.UARTE0,
+            pins.p0_05,
+            pins.p0_11,
+            UsbUarteConfig::default(),
         );
 
         DWM1001 {
@@ -465,9 +535,9 @@ impl DWM1001 {
             DW_RST: DW_RST::new(pins.p0_24),
             DW_IRQ: DW_IRQ::new(pins.p0_19),
 
-            DW1000: DW1000::new(spim2, dw_cs),
+            DW1000: new_dw1000(p.SPIM2, pins.p0_16, pins.p0_20, pins.p0_18, pins.p0_17),
 
-            LIS2DH12: twim1,
+            LIS2DH12: new_acc_twim(p.TWIM1, pins.p0_28, pins.p0_29),
 
             // nRF52 core peripherals
             CBP  : cp.CBP,
@@ -686,7 +756,14 @@ pub struct Led(Pin<Output<PushPull>>);
 
 #[cfg(feature = "dev")]
 impl Led {
-    fn new<Mode>(pin: Pin<Mode>) -> Self {
+    /// Create a new (active low) LED. Note, on the DWM1001-Dev board, this is typically
+    /// used for the following pins:
+    ///
+    /// * P0.30
+    /// * P0.31
+    /// * P0.22
+    /// * P0.14
+    pub fn new<Mode>(pin: Pin<Mode>) -> Self {
         Led(pin.into_push_pull_output(Level::High))
     }
 
@@ -709,7 +786,8 @@ impl Led {
 pub struct DW_RST(Option<p0::P0_24<Input<Floating>>>);
 
 impl DW_RST {
-    fn new<Mode>(p0_24: p0::P0_24<Mode>) -> Self {
+    /// Create a new instance of the DW_RST pin
+    pub fn new<Mode>(p0_24: p0::P0_24<Mode>) -> Self {
         DW_RST(Some(p0_24.into_floating_input()))
     }
 
@@ -757,7 +835,8 @@ impl DW_RST {
 pub struct DW_IRQ(p0::P0_19<Input<Floating>>);
 
 impl DW_IRQ {
-    fn new<Mode>(p0_19: p0::P0_19<Mode>) -> Self {
+    /// Create a new instance of the DW1000 interrupt pin
+    pub fn new<Mode>(p0_19: p0::P0_19<Mode>) -> Self {
         DW_IRQ(p0_19.into_floating_input())
     }
 
