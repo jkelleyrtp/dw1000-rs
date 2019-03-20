@@ -5,11 +5,6 @@ rust:
   - beta
   - nightly
 
-addons:
-  apt:
-    packages:
-      - gcc-arm-none-eabi
-
 install:
   - rustup target add thumbv7em-none-eabihf
 
