@@ -6,7 +6,7 @@ Driver for the Decawave [DW1000] UWB transceiver, written in the [Rust] programm
 
 [DW1000]: https://www.decawave.com/products/dw1000
 [Rust]: https://www.rust-lang.org/
-[DWM1001 crate]: https://github.com/braun-robotics/rust-dwm1001
+[DWM1001 crate]: https://crates.io/crates/dwm1001
 
 
 ## Status
@@ -46,7 +46,7 @@ This project is open source software, licensed under the terms of the [Zero Clau
 See [LICENSE] for full details.
 
 [Zero Clause BSD License]: https://opensource.org/licenses/FPL-1.0.0
-[LICENSE]: https://github.com/braun-robotics/rust-dwm1001/blob/master/LICENSE
+[LICENSE]: https://github.com/braun-robotics/rust-dw1000/blob/master/LICENSE
 
 
 **Created by [Braun Robotics](https://braun-robotics.com/)** <br />
