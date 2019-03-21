@@ -26,5 +26,11 @@ serde_derive = "1.0.79"
 ssmarshal    = { version = "1.0", default-features = false }
 
 [dev-dependencies]
-# Required by the doc examples in the `macros` module.
-void = "1.0.2"
+cortex-m-rt       = "0.6.7"
+dwm1001           = { version = "0.1.1", features = ["dev"] }
+heapless          = "0.4.2"
+panic-semihosting = "0.5.1"
+void              = { version = "1.0.2", default-features = false }
+
+[features]
+semihosting = ["dwm1001/semihosting"]
