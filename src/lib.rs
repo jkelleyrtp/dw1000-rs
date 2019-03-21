@@ -6,8 +6,7 @@
 //!
 //! If you're using the DWM1001 module or DWM1001-Dev board, you probably don't
 //! want to use this crate directly. Consider using the [`dwm1001`] crate
-//! instead. The `dwm1001` crate also contains [usage examples] for this crate's
-//! API.
+//! instead.
 //!
 //! This driver is built on top of [`embedded-hal`], which means it is portable
 //! and can be used on any platform that implements the `embedded-hal` API. It
@@ -18,7 +17,6 @@
 //! [high-level interface]: hl/index.html
 //! [register-level interface]: ll/index.html
 //! [`dwm1001`]: https://crates.io/crates/dwm1001
-//! [usage examples]: https://github.com/braun-robotics/rust-dwm1001/tree/master/examples
 //! [`embedded-hal`]: https://crates.io/crates/embedded-hal
 
 
