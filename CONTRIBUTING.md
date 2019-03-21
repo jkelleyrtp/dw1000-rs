@@ -57,6 +57,9 @@ $ git tag vx.y.z
 $ git push --tag upstream
 ```
 
+11. Update dependency on `dwm1001` crate
+The `dwm1001` crate is used for the examples. If this was a breaking release, release a new `dwm1001` version too, then update the dependency in this crate and release that as a new patch version.
+
 
 [open an issue]: https://github.com/braun-robotics/rust-dw1000/issues/new
 [GitHub repository]: https://github.com/braun-robotics/rust-dw1000
