@@ -26,6 +26,32 @@ Include this crate in your Cargo project by adding the following to `Cargo.toml`
 dw1000 = "0.1"
 ```
 
+You can run the examples in this repository on a [DWM1001 Development Board]. If you have [OpenOCD] and [arm-none-eabi-gdb] installed, and the DWM1001 dev board connected via USB, you should be able to connect to the board using OpenOCD:
+
+```
+$ openocd
+```
+
+Then you should be able to run any example like this:
+
+```
+$ cargo run --release --example reg_rw
+```
+
+To enable debug output run the same command, but with the `semihosting` feature enabled:
+
+```
+$ cargo run --release --example reg_rw --features=semihosting
+```
+
+The output will be printed by OpenOCD.
+
+Please note that examples that are compiled with semihosting enabled won't run without a connection to OpenOCD. If you want to flash an example that can then run independently of your host computer, make sure to forgo the `semihosting` feature.
+
+[DWM1001 Development Board]: https://www.decawave.com/product/dwm1001-development-board/
+[OpenOCD]: http://openocd.org/
+[arm-none-eabi-gdb]: https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads
+
 
 ## Documentation
 
