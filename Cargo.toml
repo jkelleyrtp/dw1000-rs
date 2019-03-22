@@ -15,7 +15,7 @@ keywords      = ["decawave", "dw1000", "bsc", "radio", "uwb"]
 
 [dependencies]
 cortex-m             = { version = "0.5.4", features = [ "const-fn" ] }
-cortex-m-rt          = "0.6.3"
+cortex-m-rt          = { version = "0.6.3", optional = true }
 cortex-m-semihosting = "0.3.0"
 dw1000               = "0.1.0"
 embedded-hal         = "0.2.1"
@@ -32,9 +32,12 @@ panic-semihosting = "0.5.0"
 
 
 [features]
-dev         = []                  # expose features of DWM1001-Dev board
-rt          = ["nrf52832-hal/rt"]
-semihosting = []                  # enable debug output in some examples
+# expose features of DWM1001-Dev board
+dev = []
+# enable runtime support
+rt = ["nrf52832-hal/rt"]
+# enable debug output in some examples
+semihosting = []
 
 
 [[example]]
