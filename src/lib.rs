@@ -20,6 +20,7 @@
 
 
 pub use cortex_m;
+#[cfg(feature = "rt")]
 pub use cortex_m_rt;
 pub use dw1000;
 pub use embedded_hal;
