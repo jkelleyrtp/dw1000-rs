@@ -35,7 +35,7 @@ panic-semihosting = "0.5.0"
 # expose features of DWM1001-Dev board
 dev = []
 # enable runtime support
-rt = ["nrf52832-hal/rt"]
+rt = ["nrf52832-hal/rt", "cortex-m-rt"]
 # enable debug output in some examples
 semihosting = []
 
