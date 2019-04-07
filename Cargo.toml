@@ -21,9 +21,15 @@ travis-ci = { repository = "braun-robotics/rust-dw1000" }
 embedded-hal = "0.2.2"
 ieee802154   = "0.1.0"
 nb           = "0.1.1"
-serde        = { version = "1.0.79", default-features = false }
-serde_derive = "1.0.79"
-ssmarshal    = { version = "1.0", default-features = false }
+
+[dependencies.serde]
+version = "1.0.79"
+default-features = false
+features = ["derive"]
+
+[dependencies.ssmarshal]
+version = "1.0"
+default-features = false
 
 [dev-dependencies]
 # Required by the doc examples in the `macros` module.
