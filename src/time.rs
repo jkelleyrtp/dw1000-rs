@@ -2,11 +2,7 @@
 
 
 use core::ops::Add;
-
-use serde_derive::{
-    Deserialize,
-    Serialize,
-};
+use serde::{Serialize, Deserialize};
 
 
 /// The maximum value of 40-bit system time stamps.
