@@ -46,7 +46,6 @@ fn main() -> ! {
 
     let mut dwm1001 = DWM1001::take().unwrap();
 
-    let     clocks = dwm1001.CLOCK.constrain();
     let mut delay  = Delay::new(dwm1001.SYST);
     let mut rng    = dwm1001.RNG.constrain();
 
