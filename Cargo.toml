@@ -21,7 +21,7 @@ dw1000               = "0.1.0"
 embedded-hal         = "0.2.1"
 
 [dependencies.nrf52832-hal]
-version          = "0.7.0"
+version          = "0.8.0-beta1"
 default-features = false
 features         = [ "xxAA-package" ]
 
