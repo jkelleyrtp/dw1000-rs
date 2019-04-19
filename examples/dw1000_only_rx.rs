@@ -26,8 +26,8 @@ fn main() -> ! {
 
     let mut dwm1001 = DWM1001::take().unwrap();
 
-    let     clocks = dwm1001.CLOCK.constrain().freeze();
-    let mut delay  = Delay::new(dwm1001.SYST, clocks);
+    let     clocks = dwm1001.CLOCK.constrain();
+    let mut delay  = Delay::new(dwm1001.SYST);
 
     dwm1001.DW_RST.reset_dw1000(&mut delay);
     let mut dw1000 = dwm1001.DW1000.init()
