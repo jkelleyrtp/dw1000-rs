@@ -1,6 +1,6 @@
 [package]
 name    = "dw1000"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Hanno Braun <hanno@braun-robotics.com>"]
 edition = "2018"
 
