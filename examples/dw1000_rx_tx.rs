@@ -17,7 +17,6 @@ extern crate panic_semihosting;
 
 use cortex_m_rt::entry;
 use heapless::FnvIndexSet;
-use nb;
 
 use dwm1001::{
     prelude::*,
