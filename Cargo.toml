@@ -1,6 +1,6 @@
 [package]
 name    = "dwm1001"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Hanno Braun <hanno@braun-robotics.com>"]
 edition = "2018"
 
