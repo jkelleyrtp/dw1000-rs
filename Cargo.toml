@@ -13,6 +13,10 @@ categories    = ["embedded", "hardware-support", "no-std"]
 keywords      = ["decawave", "dw1000", "bsc", "radio", "uwb"]
 
 
+[badges]
+travis-ci = { repository = "braun-robotics/rust-dwm1001" }
+
+
 [dependencies]
 cortex-m             = { version = "0.5.4", features = [ "const-fn" ] }
 cortex-m-rt          = { version = "0.6.3", optional = true }
