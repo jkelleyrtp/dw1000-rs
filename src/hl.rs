@@ -258,6 +258,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
                 source:          self.get_address()?,
                 seq:             seq,
             },
+            content: mac::FrameContent::Data,
             payload: data,
             footer: [0; 2],
         };
@@ -639,7 +640,7 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
 
         buffer[..len].copy_from_slice(&rx_buffer.data()[..len]);
 
-        let frame = mac::Frame::decode(&buffer[..len])
+        let frame = mac::Frame::decode(&buffer[..len], true)
             .map_err(|error| nb::Error::Other(Error::Frame(error)))?;
 
         Ok(Message {
