@@ -27,7 +27,11 @@ fn main() -> ! {
 
     loop {
         let mut tx = dw1000
-            .send(b"ping", mac::Address::broadcast(), None)
+            .send(
+                b"ping",
+                mac::Address::broadcast(&mac::AddressMode::Short),
+                None,
+            )
             .expect("Failed to start receiver");
 
         block!(tx.wait())

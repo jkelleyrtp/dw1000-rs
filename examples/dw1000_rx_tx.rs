@@ -49,13 +49,10 @@ fn main() -> ! {
         .expect("Failed to initialize DW1000");
 
     // Set network address
-    let address = rng.random_u16();
     dw1000
         .set_address(
-            mac::Address {
-                pan_id:     0x0d57,  // hardcoded network id
-                short_addr: address, // random device address
-            }
+            mac::PanId(0x0d57),                  // hardcoded network id
+            mac::ShortAddress(rng.random_u16()), // random device address
         )
         .expect("Failed to set address");
 
@@ -93,7 +90,17 @@ fn main() -> ! {
                 delay.delay_ms(30u32);
                 leds.D10.disable();
 
-                let source = message.frame.header.source;
+                // Unfortunately we can't just put the address into the map, due
+                // to limitations in the `hash32` crate. We're not expecting any
+                // messages from other kinds of nodes, so let's just assume this
+                // is going to be a PAN ID and short address.
+                let source = match message.frame.header.source {
+                    mac::Address::Short(pan_id, address) =>
+                        [pan_id.0, address.0],
+                    _ =>
+                        return,
+                };
+
                 if let Err(_) = known_nodes.insert(source) {
                     print!("Too many nodes. Can't add another one.\n");
                 }
@@ -108,7 +115,7 @@ fn main() -> ! {
                 let mut future = dw1000
                     .send(
                         b"ping",
-                        mac::Address::broadcast(),
+                        mac::Address::broadcast(&mac::AddressMode::Short),
                         None,
                     )
                     .expect("Failed to broadcast ping");
@@ -124,8 +131,8 @@ fn main() -> ! {
             print!("\n-- Known nodes:\n");
             for node in &known_nodes {
                 print!("PAN ID: 0x{:04x}, Short Address: 0x{:04x}\n",
-                    node.pan_id,
-                    node.short_addr,
+                    node[0],
+                    node[1],
                 );
             }
 
