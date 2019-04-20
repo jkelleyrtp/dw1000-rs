@@ -101,6 +101,18 @@ use nrf52832_hal::{
     },
 };
 
+/// Optional Configuration struct for SPIM, not including pins
+pub struct SpimConfig {
+    /// SPIM Frequency
+    pub frequency: spim::Frequency,
+
+    /// SPIM Mode
+    pub mode: spim::Mode,
+
+    /// SPIM Overread Character
+    pub orc: u8,
+}
+
 /// Create a new instance the serial port connected to the debugger,
 /// mapped to the host via USB-Serial
 #[cfg(feature = "dev")]
@@ -128,16 +140,27 @@ pub fn new_dw1000<SCK, MOSI, MISO, CS>(
     mosi: P0_20<MOSI>,
     miso: P0_18<MISO>,
     cs: P0_17<CS>,
+    spim_opts: Option<SpimConfig>,
 ) -> DW1000<
         Spim<nrf52::SPIM2>,
         p0::P0_17<Output<PushPull>>,
         dw1000::Uninitialized>
 {
+    let cfg = spim_opts.unwrap_or_else(|| SpimConfig {
+        frequency: spim::Frequency::K500,
+        mode: spim::MODE_0,
+        orc: 0,
+    });
+
     let spim = spim.constrain(spim::Pins {
             sck : sck.into_push_pull_output(Level::Low).degrade(),
             mosi: Some(mosi.into_push_pull_output(Level::Low).degrade()),
             miso: Some(miso.into_floating_input().degrade()),
-        });
+        },
+        cfg.frequency,
+        cfg.mode,
+        cfg.orc
+    );
 
     DW1000::new(spim, cs.into_push_pull_output(Level::High))
 }
@@ -536,7 +559,7 @@ impl DWM1001 {
             DW_RST: DW_RST::new(pins.p0_24),
             DW_IRQ: DW_IRQ::new(pins.p0_19),
 
-            DW1000: new_dw1000(p.SPIM2, pins.p0_16, pins.p0_20, pins.p0_18, pins.p0_17),
+            DW1000: new_dw1000(p.SPIM2, pins.p0_16, pins.p0_20, pins.p0_18, pins.p0_17, None),
 
             LIS2DH12: new_acc_twim(p.TWIM1, pins.p0_28, pins.p0_29),
 
