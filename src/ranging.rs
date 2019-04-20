@@ -242,7 +242,7 @@ impl Ping {
         };
 
         Ok(TxMessage {
-            recipient: mac::Address::broadcast(),
+            recipient: mac::Address::broadcast(&mac::AddressMode::Short),
             tx_time,
             payload,
         })

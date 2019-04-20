@@ -174,15 +174,15 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     }
 
     /// Sets the network id and address used for sending and receiving
-    pub fn set_address(&mut self, address: mac::Address)
+    pub fn set_address(&mut self, pan_id: mac::PanId, addr: mac::ShortAddress)
         -> Result<(), Error<SPI>>
     {
         self.ll
             .panadr()
             .write(|w|
                 w
-                    .pan_id(address.pan_id)
-                    .short_addr(address.short_addr)
+                    .pan_id(pan_id.0)
+                    .short_addr(addr.0)
             )?;
 
         Ok(())
@@ -194,10 +194,10 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     {
         let panadr = self.ll.panadr().read()?;
 
-        Ok(mac::Address {
-            pan_id:     panadr.pan_id(),
-            short_addr: panadr.short_addr(),
-        })
+        Ok(mac::Address::Short(
+            mac::PanId(panadr.pan_id()),
+            mac::ShortAddress(panadr.short_addr()),
+        ))
     }
 
     /// Returns the current system time
@@ -249,14 +249,16 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         let frame = mac::Frame {
             header: mac::Header {
                 frame_type:      mac::FrameType::Data,
+                version:         mac::FrameVersion::Ieee802154_2006,
                 security:        mac::Security::None,
                 frame_pending:   false,
                 ack_request:     false,
-                pan_id_compress: mac::PanIdCompress::Disabled,
+                pan_id_compress: false,
                 destination:     destination,
                 source:          self.get_address()?,
                 seq:             seq,
             },
+            content: mac::FrameContent::Data,
             payload: data,
             footer: [0; 2],
         };
@@ -638,7 +640,7 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
 
         buffer[..len].copy_from_slice(&rx_buffer.data()[..len]);
 
-        let frame = mac::Frame::decode(&buffer[..len])
+        let frame = mac::Frame::decode(&buffer[..len], true)
             .map_err(|error| nb::Error::Other(Error::Frame(error)))?;
 
         Ok(Message {
