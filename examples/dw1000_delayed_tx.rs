@@ -34,7 +34,11 @@ fn main() -> ! {
         let tx_time = sys_time + Duration::from_nanos(10_000_000);
 
         let mut tx = dw1000
-            .send(b"ping", mac::Address::broadcast(), Some(tx_time))
+            .send(
+                b"ping",
+                mac::Address::broadcast(&mac::AddressMode::Short),
+                Some(tx_time),
+            )
             .expect("Failed to start receiver");
 
         print!("Sending... ");

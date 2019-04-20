@@ -70,10 +70,8 @@ fn main() -> ! {
     // Set network address
     dw1000
         .set_address(
-            mac::Address {
-                pan_id:     0x0d57,           // hardcoded network id
-                short_addr: rng.random_u16(), // random device address
-            }
+            mac::PanId(0x0d57),                  // hardcoded network id
+            mac::ShortAddress(rng.random_u16()), // random device address
         )
         .expect("Failed to set address");
 

@@ -69,10 +69,8 @@ fn main() -> ! {
     // Set network address
     dw1000
         .set_address(
-            mac::Address {
-                pan_id:     0x0d57,           // hardcoded network id
-                short_addr: rng.random_u16(), // random device address
-            }
+            mac::PanId(0x0d57),                  // hardcoded network id
+            mac::ShortAddress(rng.random_u16()), // random device address
         )
         .expect("Failed to set address");
 
@@ -135,12 +133,21 @@ fn main() -> ! {
                     ranging::Response::decode::<Spim<SPIM2>>(&message)
                         .expect("Failed to decode response");
                 if let Some(response) = response {
+                    // If this is not a PAN ID and short address, it doesn't
+                    // come from a compatible node. Ignore it.
+                    let (pan_id, addr) = match response.source {
+                        mac::Address::Short(pan_id, addr) =>
+                            (pan_id, addr),
+                        _ =>
+                            return,
+                    };
+
                     // Ranging response received. Compute distance.
                     match ranging::compute_distance_mm(&response) {
                         Some(distance_mm) => {
                             print!("{:04x}:{:04x} - {} mm\n",
-                                response.source.pan_id,
-                                response.source.short_addr,
+                                pan_id.0,
+                                addr.0,
                                 distance_mm,
                             );
                         }

@@ -8,7 +8,6 @@ extern crate panic_semihosting;
 
 
 use cortex_m_rt::entry;
-use nb;
 
 use dwm1001::{
     block_timeout,

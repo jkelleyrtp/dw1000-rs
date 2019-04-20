@@ -27,7 +27,7 @@ pub use embedded_hal;
 
 pub use nrf52832_hal;
 
-pub use dw1000::{
+pub use embedded_timeout_macros::{
     block_timeout,
     repeat_timeout,
 };
