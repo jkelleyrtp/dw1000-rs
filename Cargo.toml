@@ -30,7 +30,3 @@ features = ["derive"]
 [dependencies.ssmarshal]
 version = "1.0"
 default-features = false
-
-[dev-dependencies]
-# Required by the doc examples in the `macros` module.
-void = "1.0.2"

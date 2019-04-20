@@ -29,7 +29,6 @@
 
 pub mod ll;
 pub mod hl;
-pub mod macros;
 pub mod ranging;
 pub mod time;
 
