@@ -407,48 +407,17 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         self.ll.sys_mask().write(|w| w)?;
         Ok(())
     }
-}
 
-impl<SPI, CS, State> DW1000<SPI, CS, State> {
-    /// Provides direct access to the register-level API
-    ///
-    /// Be aware that by using the register-level API, you can invalidate
-    /// various assumptions that the high-level API makes about the operation of
-    /// the DW1000. Don't use the register-level and high-level APIs in tandem,
-    /// unless you know what you're doing.
-    pub fn ll(&mut self) -> &mut ll::DW1000<SPI, CS> {
-        &mut self.ll
-    }
-}
-
-
-/// Represents a transmission that might not have completed yet
-pub struct TxFuture<'r, SPI, CS>(&'r mut DW1000<SPI, CS, Ready>);
-
-impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
-{
     /// Wait for the transmission to finish
     ///
-    /// This method returns an `nb::Result` to indicate whether the transmission
-    /// has finished, or whether it is still ongoing. You can use this to busily
-    /// wait for the transmission to finish, for example using `nb`'s `block!`
-    /// macro, or you can use it in tandem with [`TxFuture::enable_interrupts`]
-    /// and the DW1000 IRQ output to wait in a more energy-efficient manner.
-    ///
-    /// Handling the DW1000's IRQ output line is out of the scope of this
-    /// driver, but please note that if you're using the DWM1001 module or
-    /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
-    /// this.
-    pub fn wait(&mut self)
+    /// It is recommended to use `TxFuture::wait()` instead.
+    pub fn wait_transmission(&mut self)
         -> nb::Result<(), Error<SPI>>
     {
         // Check Half Period Warning Counter. If this is a delayed transmission,
         // this will indicate that the delay was too short, and the frame was
         // sent too late.
-        let evc_hpw = self.0.ll()
+        let evc_hpw = self.ll()
             .evc_hpw()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?
@@ -461,7 +430,7 @@ impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
         // transmission, this indicates that the transmitter was still powering
         // up while sending, and the frame preamble might not have transmit
         // correctly.
-        let evc_tpw = self.0.ll()
+        let evc_tpw = self.ll()
             .evc_tpw()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?
@@ -473,7 +442,7 @@ impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
         // ATTENTION:
         // If you're changing anything about which SYS_STATUS flags are being
         // checked in this method, also make sure to update `enable_interrupts`.
-        let sys_status = self.0.ll()
+        let sys_status = self.ll()
             .sys_status()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
@@ -485,7 +454,7 @@ impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
         }
 
         // Frame sent. Reset all progress flags.
-        self.0.ll()
+        self.ll()
             .sys_status()
             .write(|w|
                 w
@@ -501,43 +470,24 @@ impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
 
     /// Enables interrupts for the events that `wait` checks
     ///
-    /// Overwrites any interrupt flags that were previously set.
-    pub fn enable_interrupts(&mut self)
+    /// It is recommended to use `TxFuture::enable_interrupts()` instead
+    pub fn enable_interrupts_transmission(&mut self)
         -> Result<(), Error<SPI>>
     {
-        self.0.ll().sys_mask().write(|w| w.mtxfrs(0b1))?;
+        self.ll().sys_mask().write(|w| w.mtxfrs(0b1))?;
         Ok(())
     }
-}
 
-
-/// Represents a receive operation that might not have finished yet
-pub struct RxFuture<'r, SPI, CS>(&'r mut DW1000<SPI, CS, Ready>);
-
-impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
-{
     /// Wait for receive operation to finish
     ///
-    /// This method returns an `nb::Result` to indicate whether the transmission
-    /// has finished, or whether it is still ongoing. You can use this to busily
-    /// wait for the transmission to finish, for example using `nb`'s `block!`
-    /// macro, or you can use it in tandem with [`RxFuture::enable_interrupts`]
-    /// and the DW1000 IRQ output to wait in a more energy-efficient manner.
-    ///
-    /// Handling the DW1000's IRQ output line is out of the scope of this
-    /// driver, but please note that if you're using the DWM1001 module or
-    /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
-    /// this.
-    pub fn wait<'b>(&mut self, buffer: &'b mut [u8])
+    /// It is recommended to use `RxFuture::wait()` instead.
+    pub fn wait_reception<'b>(&mut self, buffer: &'b mut [u8])
         -> nb::Result<Message<'b>, Error<SPI>>
     {
         // ATTENTION:
         // If you're changing anything about which SYS_STATUS flags are being
         // checked in this method, also make sure to update `enable_interrupts`.
-        let sys_status = self.0.ll()
+        let sys_status = self.ll()
             .sys_status()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
@@ -584,7 +534,7 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
         if sys_status.ldedone() == 0b0 {
             return Err(nb::Error::WouldBlock);
         }
-        let rx_time = self.0.ll()
+        let rx_time = self.ll()
             .rx_time()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?
@@ -597,7 +547,7 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
 
         // Reset status bits. This is not strictly necessary, but it helps, if
         // you have to inspect SYS_STATUS manually during debugging.
-        self.0.ll()
+        self.ll()
             .sys_status()
             .write(|w|
                 w
@@ -621,11 +571,11 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
 
         // Read received frame
-        let rx_finfo = self.0.ll()
+        let rx_finfo = self.ll()
             .rx_finfo()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
-        let rx_buffer = self.0.ll()
+        let rx_buffer = self.ll()
             .rx_buffer()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
@@ -651,11 +601,11 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
 
     /// Enables interrupts for the events that `wait` checks
     ///
-    /// Overwrites any interrupt flags that were previously set.
-    pub fn enable_interrupts(&mut self)
+    /// It is recommended to use RxFuture::enable_interrupts()` instead
+    pub fn enable_interrupts_reception(&mut self)
         -> Result<(), Error<SPI>>
     {
-        self.0.ll()
+        self.ll()
             .sys_mask()
             .write(|w|
                 w
@@ -671,6 +621,92 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
             )?;
 
         Ok(())
+    }
+}
+
+impl<SPI, CS, State> DW1000<SPI, CS, State> {
+    /// Provides direct access to the register-level API
+    ///
+    /// Be aware that by using the register-level API, you can invalidate
+    /// various assumptions that the high-level API makes about the operation of
+    /// the DW1000. Don't use the register-level and high-level APIs in tandem,
+    /// unless you know what you're doing.
+    pub fn ll(&mut self) -> &mut ll::DW1000<SPI, CS> {
+        &mut self.ll
+    }
+}
+
+
+/// Represents a transmission that might not have completed yet
+pub struct TxFuture<'r, SPI, CS>(&'r mut DW1000<SPI, CS, Ready>);
+
+impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
+{
+    /// Wait for the transmission to finish
+    ///
+    /// This method returns an `nb::Result` to indicate whether the transmission
+    /// has finished, or whether it is still ongoing. You can use this to busily
+    /// wait for the transmission to finish, for example using `nb`'s `block!`
+    /// macro, or you can use it in tandem with [`TxFuture::enable_interrupts`]
+    /// and the DW1000 IRQ output to wait in a more energy-efficient manner.
+    ///
+    /// Handling the DW1000's IRQ output line is out of the scope of this
+    /// driver, but please note that if you're using the DWM1001 module or
+    /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
+    /// this.
+    pub fn wait(&mut self)
+        -> nb::Result<(), Error<SPI>>
+    {
+        self.0.wait_transmission()
+    }
+
+    /// Enables interrupts for the events that `wait` checks
+    ///
+    /// Overwrites any interrupt flags that were previously set.
+    pub fn enable_interrupts(&mut self)
+        -> Result<(), Error<SPI>>
+    {
+        self.0.enable_interrupts_transmission()
+    }
+}
+
+
+/// Represents a receive operation that might not have finished yet
+pub struct RxFuture<'r, SPI, CS>(&'r mut DW1000<SPI, CS, Ready>);
+
+impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
+{
+    /// Wait for receive operation to finish
+    ///
+    /// This method returns an `nb::Result` to indicate whether the transmission
+    /// has finished, or whether it is still ongoing. You can use this to busily
+    /// wait for the transmission to finish, for example using `nb`'s `block!`
+    /// macro, or you can use it in tandem with [`RxFuture::enable_interrupts`]
+    /// and the DW1000 IRQ output to wait in a more energy-efficient manner.
+    ///
+    /// Handling the DW1000's IRQ output line is out of the scope of this
+    /// driver, but please note that if you're using the DWM1001 module or
+    /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
+    /// this.
+    pub fn wait<'b>(&mut self, buffer: &'b mut [u8])
+        -> nb::Result<Message<'b>, Error<SPI>>
+    {
+        self.0.wait_reception(buffer)
+    }
+
+    /// Enables interrupts for the events that `wait` checks
+    ///
+    /// Overwrites any interrupt flags that were previously set.
+    pub fn enable_interrupts(&mut self)
+        -> Result<(), Error<SPI>>
+    {
+        self.0.enable_interrupts_reception()
     }
 }
 
