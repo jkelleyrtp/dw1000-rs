@@ -1,3 +1,11 @@
+<a name="v0.2.1"></a>
+### v0.2.1 (2019-05-17)
+
+- Update `cortex-m` dependency ([#95])
+
+[#95]: https://github.com/braun-robotics/rust-dwm1001/pull/95
+
+
 <a name="v0.2.0"></a>
 ### v0.2.0 (2019-04-22)
 
