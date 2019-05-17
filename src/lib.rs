@@ -793,11 +793,15 @@ impl Led {
 
     /// Enable the LED
     pub fn enable(&mut self) {
+        // https://github.com/braun-robotics/rust-dwm1001/issues/94
+        #[allow(deprecated)]
         self.0.set_low()
     }
 
     /// Disable the LED
     pub fn disable(&mut self) {
+        // https://github.com/braun-robotics/rust-dwm1001/issues/94
+        #[allow(deprecated)]
         self.0.set_high()
     }
 }
