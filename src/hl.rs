@@ -17,7 +17,7 @@ use core::{
 
 use embedded_hal::{
     blocking::spi,
-    digital::OutputPin,
+    digital::v2::OutputPin,
 };
 use nb;
 use ssmarshal;
@@ -71,7 +71,7 @@ impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
     /// Please note that this method assumes that you kept the default
     /// configuration. It is generally recommended not to change configuration
     /// before calling this method.
-    pub fn init(mut self) -> Result<DW1000<SPI, CS, Ready>, Error<SPI>> {
+    pub fn init(mut self) -> Result<DW1000<SPI, CS, Ready>, Error<SPI, CS>> {
         // Set AGC_TUNE1. See user manual, section 2.5.5.1.
         self.ll.agc_tune1().write(|w| w.value(0x8870))?;
 
@@ -149,7 +149,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
 {
     /// Sets the RX and TX antenna delays
     pub fn set_antenna_delay(&mut self, rx_delay: u16, tx_delay: u16)
-        -> Result<(), Error<SPI>>
+        -> Result<(), Error<SPI, CS>>
     {
         self.ll
             .lde_rxantd()
@@ -163,7 +163,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
 
     /// Returns the TX antenna delay
     pub fn get_tx_antenna_delay(&mut self)
-        -> Result<Duration, Error<SPI>>
+        -> Result<Duration, Error<SPI, CS>>
     {
         let tx_antenna_delay = self.ll.tx_antd().read()?.value();
 
@@ -175,7 +175,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
 
     /// Sets the network id and address used for sending and receiving
     pub fn set_address(&mut self, pan_id: mac::PanId, addr: mac::ShortAddress)
-        -> Result<(), Error<SPI>>
+        -> Result<(), Error<SPI, CS>>
     {
         self.ll
             .panadr()
@@ -190,7 +190,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
 
     /// Returns the network id and address used for sending and receiving
     pub fn get_address(&mut self)
-        -> Result<mac::Address, Error<SPI>>
+        -> Result<mac::Address, Error<SPI, CS>>
     {
         let panadr = self.ll.panadr().read()?;
 
@@ -201,7 +201,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     }
 
     /// Returns the current system time
-    pub fn sys_time(&mut self) -> Result<Instant, Error<SPI>> {
+    pub fn sys_time(&mut self) -> Result<Instant, Error<SPI, CS>> {
         let sys_time = self.ll.sys_time().read()?.value();
 
         // Since hardware timestamps fit within 40 bits, the following should
@@ -226,7 +226,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         destination:  mac::Address,
         delayed_time: Option<Instant>,
     )
-        -> Result<TxFuture<SPI, CS>, Error<SPI>>
+        -> Result<TxFuture<SPI, CS>, Error<SPI, CS>>
     {
         // Clear event counters
         self.ll.evc_ctrl().write(|w| w.evc_clr(0b1))?;
@@ -307,7 +307,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     ///
     /// Only frames addressed to this device will be received.
     pub fn receive(&mut self)
-        -> Result<RxFuture<SPI, CS>, Error<SPI>>
+        -> Result<RxFuture<SPI, CS>, Error<SPI, CS>>
     {
         // For unknown reasons, the DW1000 gets stuck in RX mode without ever
         // receiving anything, after receiving one good frame. Reset the
@@ -392,7 +392,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     ///
     /// Any ongoing RX/TX operations will be aborted.
     pub fn force_idle(&mut self)
-        -> Result<(), Error<SPI>>
+        -> Result<(), Error<SPI, CS>>
     {
         self.ll.sys_ctrl().write(|w| w.trxoff(0b1))?;
         while self.ll.sys_ctrl().read()?.trxoff() == 0b1 {}
@@ -402,7 +402,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
 
     /// Clear all interrupt flags
     pub fn clear_interrupts(&mut self)
-        -> Result<(), Error<SPI>>
+        -> Result<(), Error<SPI, CS>>
     {
         self.ll.sys_mask().write(|w| w)?;
         Ok(())
@@ -443,7 +443,7 @@ impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
     /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
     /// this.
     pub fn wait(&mut self)
-        -> nb::Result<(), Error<SPI>>
+        -> nb::Result<(), Error<SPI, CS>>
     {
         // Check Half Period Warning Counter. If this is a delayed transmission,
         // this will indicate that the delay was too short, and the frame was
@@ -503,7 +503,7 @@ impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
     ///
     /// Overwrites any interrupt flags that were previously set.
     pub fn enable_interrupts(&mut self)
-        -> Result<(), Error<SPI>>
+        -> Result<(), Error<SPI, CS>>
     {
         self.0.ll().sys_mask().write(|w| w.mtxfrs(0b1))?;
         Ok(())
@@ -532,7 +532,7 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
     /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
     /// this.
     pub fn wait<'b>(&mut self, buffer: &'b mut [u8])
-        -> nb::Result<Message<'b>, Error<SPI>>
+        -> nb::Result<Message<'b>, Error<SPI, CS>>
     {
         // ATTENTION:
         // If you're changing anything about which SYS_STATUS flags are being
@@ -653,7 +653,7 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
     ///
     /// Overwrites any interrupt flags that were previously set.
     pub fn enable_interrupts(&mut self)
-        -> Result<(), Error<SPI>>
+        -> Result<(), Error<SPI, CS>>
     {
         self.0.ll()
             .sys_mask()
@@ -676,11 +676,13 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
 
 
 /// An error that can occur when sending or receiving data
-pub enum Error<SPI>
-    where SPI: spi::Transfer<u8> + spi::Write<u8>
+pub enum Error<SPI, CS>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
 {
     /// Error occured while using SPI bus
-    Spi(ll::Error<SPI>),
+    Spi(ll::Error<SPI, CS>),
 
     /// Receiver FCS error
     Fcs,
@@ -729,16 +731,20 @@ pub enum Error<SPI>
     Ssmarshal(ssmarshal::Error),
 }
 
-impl<SPI> From<ll::Error<SPI>> for Error<SPI>
-    where SPI: spi::Transfer<u8> + spi::Write<u8>
+impl<SPI, CS> From<ll::Error<SPI, CS>> for Error<SPI, CS>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
 {
-    fn from(error: ll::Error<SPI>) -> Self {
+    fn from(error: ll::Error<SPI, CS>) -> Self {
         Error::Spi(error)
     }
 }
 
-impl<SPI> From<ssmarshal::Error> for Error<SPI>
-    where SPI: spi::Transfer<u8> + spi::Write<u8>
+impl<SPI, CS> From<ssmarshal::Error> for Error<SPI, CS>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
 {
     fn from(error: ssmarshal::Error) -> Self {
         Error::Ssmarshal(error)
@@ -747,11 +753,13 @@ impl<SPI> From<ssmarshal::Error> for Error<SPI>
 
 // We can't derive this implementation, as `Debug` is only implemented
 // conditionally for `ll::Debug`.
-impl<SPI> fmt::Debug for Error<SPI>
+impl<SPI, CS> fmt::Debug for Error<SPI, CS>
     where
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         <SPI as spi::Transfer<u8>>::Error: fmt::Debug,
         <SPI as spi::Write<u8>>::Error: fmt::Debug,
+        CS: OutputPin,
+        <CS as OutputPin>::Error: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

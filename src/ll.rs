@@ -23,7 +23,7 @@ use core::{
 
 use embedded_hal::{
     blocking::spi,
-    digital::OutputPin,
+    digital::v2::OutputPin,
 };
 
 
@@ -64,7 +64,7 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
 {
     /// Read from the register
     pub fn read(&mut self)
-        -> Result<R::Read, Error<SPI>>
+        -> Result<R::Read, Error<SPI, CS>>
         where
             R: Register + Readable,
     {
@@ -73,17 +73,19 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
 
         init_header::<R>(false, &mut buffer);
 
-        self.0.chip_select.set_low();
+        self.0.chip_select.set_low()
+            .map_err(|err| Error::ChipSelect(err))?;
         self.0.spi.transfer(buffer)
             .map_err(|err| Error::Transfer(err))?;
-        self.0.chip_select.set_high();
+        self.0.chip_select.set_high()
+            .map_err(|err| Error::ChipSelect(err))?;
 
         Ok(r)
     }
 
     /// Write to the register
     pub fn write<F>(&mut self, f: F)
-        -> Result<(), Error<SPI>>
+        -> Result<(), Error<SPI, CS>>
         where
             R: Register + Writable,
             F: FnOnce(&mut R::Write) -> &mut R::Write,
@@ -94,17 +96,19 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         let buffer = R::buffer(&mut w);
         init_header::<R>(true, buffer);
 
-        self.0.chip_select.set_low();
+        self.0.chip_select.set_low()
+            .map_err(|err| Error::ChipSelect(err))?;
         <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
             .map_err(|err| Error::Write(err))?;
-        self.0.chip_select.set_high();
+        self.0.chip_select.set_high()
+            .map_err(|err| Error::ChipSelect(err))?;
 
         Ok(())
     }
 
     /// Modify the register
     pub fn modify<F>(&mut self, f: F)
-        -> Result<(), Error<SPI>>
+        -> Result<(), Error<SPI, CS>>
         where
             R: Register + Readable + Writable,
             F: for<'r>
@@ -121,10 +125,12 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         let buffer = <R as Writable>::buffer(&mut w);
         init_header::<R>(true, buffer);
 
-        self.0.chip_select.set_low();
+        self.0.chip_select.set_low()
+            .map_err(|err| Error::ChipSelect(err))?;
         <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
             .map_err(|err| Error::Write(err))?;
-        self.0.chip_select.set_high();
+        self.0.chip_select.set_high()
+            .map_err(|err| Error::ChipSelect(err))?;
 
         Ok(())
     }
@@ -132,28 +138,36 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
 
 
 /// An SPI error that can occur when communicating with the DW1000
-pub enum Error<SPI>
-    where SPI: spi::Transfer<u8> + spi::Write<u8>
+pub enum Error<SPI, CS>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
 {
     /// SPI error occured during a transfer transaction
     Transfer(<SPI as spi::Transfer<u8>>::Error),
 
     /// SPI error occured during a write transaction
     Write(<SPI as spi::Write<u8>>::Error),
+
+    /// Error occured while changing chip select signal
+    ChipSelect(<CS as OutputPin>::Error),
 }
 
 // We can't derive this implementation, as the compiler will complain that the
 // associated error type doesn't implement `Debug`.
-impl<SPI> fmt::Debug for Error<SPI>
+impl<SPI, CS> fmt::Debug for Error<SPI, CS>
     where
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         <SPI as spi::Transfer<u8>>::Error: fmt::Debug,
         <SPI as spi::Write<u8>>::Error: fmt::Debug,
+        CS: OutputPin,
+        <CS as OutputPin>::Error: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::Transfer(error) => write!(f, "Transfer({:?})", error),
-            Error::Write(error)    => write!(f, "Write({:?})", error),
+            Error::Transfer(error)   => write!(f, "Transfer({:?})", error),
+            Error::Write(error)      => write!(f, "Write({:?})", error),
+            Error::ChipSelect(error) => write!(f, "ChipSelect({:?})", error),
         }
     }
 }
