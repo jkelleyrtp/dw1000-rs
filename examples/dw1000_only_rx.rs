@@ -12,6 +12,7 @@ use cortex_m_rt::entry;
 use dwm1001::{
     block_timeout,
     debug,
+    dw1000::RxConfig,
     DWM1001,
     nrf52832_hal::Delay,
     prelude::*,
@@ -34,8 +35,11 @@ fn main() -> ! {
     let mut timer = dwm1001.TIMER0.constrain();
 
     loop {
-        let mut rx = dw1000
-            .receive()
+        let mut receiving = dw1000
+            .receive(RxConfig {
+                frame_filtering: false,
+                .. RxConfig::default()
+            })
             .expect("Failed to start receiver");
 
         let mut buffer = [0; 1024];
@@ -43,7 +47,12 @@ fn main() -> ! {
         // Set timer for timeout
         timer.start(5_000_000u32);
 
-        let message = match block_timeout!(&mut timer, rx.wait(&mut buffer)) {
+        let result = block_timeout!(&mut timer, receiving.wait(&mut buffer));
+
+        dw1000 = receiving.finish_receiving()
+            .expect("Failed to finish receiving");
+
+        let message = match result {
             Ok(message) => {
                 message
             }
