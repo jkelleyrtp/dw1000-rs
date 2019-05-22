@@ -45,7 +45,7 @@ use core::mem::size_of;
 
 use embedded_hal::{
     blocking::spi,
-    digital::OutputPin,
+    digital::v2::OutputPin,
 };
 use serde::{
     Deserialize,
@@ -98,9 +98,11 @@ pub trait Message: Sized + for<'de> Deserialize<'de> + Serialize {
     /// Returns `Ok(None)`, if the message is not of the right type. Otherwise,
     /// returns `Ok(Some(RxMessage<Self>)), if the message is of the right type,
     /// and no error occured.
-    fn decode<SPI>(message: &hl::Message)
-        -> Result<Option<RxMessage<Self>>, Error<SPI>>
-        where SPI: spi::Transfer<u8> + spi::Write<u8>
+    fn decode<SPI, CS>(message: &hl::Message)
+        -> Result<Option<RxMessage<Self>>, Error<SPI, CS>>
+        where
+            SPI: spi::Transfer<u8> + spi::Write<u8>,
+            CS:  OutputPin,
     {
         if !message.frame.payload.starts_with(Self::PRELUDE.0) {
             // Not a message of this type
@@ -172,7 +174,7 @@ impl<T> TxMessage<T> where T: Message {
     /// send it. Returns a [`TxFuture`] to represent the current state of the
     /// send operation, if no error occurs.
     pub fn send<'r, SPI, CS>(&self, dw1000: &'r mut DW1000<SPI, CS, Ready>)
-        -> Result<TxFuture<'r, SPI, CS>, Error<SPI>>
+        -> Result<TxFuture<'r, SPI, CS>, Error<SPI, CS>>
         where
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
@@ -229,7 +231,7 @@ impl Ping {
     /// within that time frame, or the distance measurement will be negatively
     /// affected.
     pub fn new<SPI, CS>(dw1000: &mut DW1000<SPI, CS, Ready>)
-        -> Result<TxMessage<Self>, Error<SPI>>
+        -> Result<TxMessage<Self>, Error<SPI, CS>>
         where
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
@@ -285,7 +287,7 @@ impl Request {
         dw1000: &mut DW1000<SPI, CS, Ready>,
         ping:   RxMessage<Ping>,
     )
-        -> Result<TxMessage<Self>, Error<SPI>>
+        -> Result<TxMessage<Self>, Error<SPI, CS>>
         where
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
@@ -349,7 +351,7 @@ impl Response {
         dw1000:  &mut DW1000<SPI, CS, Ready>,
         request: RxMessage<Request>,
     )
-        -> Result<TxMessage<Self>, Error<SPI>>
+        -> Result<TxMessage<Self>, Error<SPI, CS>>
         where
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
