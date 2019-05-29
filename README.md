@@ -49,5 +49,5 @@ See [LICENSE] for full details.
 [LICENSE]: https://github.com/braun-embedded/rust-dw1000/blob/master/LICENSE
 
 
-**Created by [Braun Robotics](https://braun-robotics.com/)** <br />
+**Created by [Braun Embedded](https://braun-embedded.com/)** <br />
 **Initial development sponsored by [Ferrous Systems](https://ferrous-systems.com/)**
