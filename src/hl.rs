@@ -327,7 +327,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         // We're already resetting the receiver in the previous step, and that's
         // good enough to make my example program that's both sending and
         // receiving work very reliably over many hours (that's not to say it
-        // comes unreliable after those hours, that's just when my test
+        // becomes unreliable after those hours, that's just when my test
         // stopped). However, I've seen problems with an example program that
         // only received, never sent, data. That got itself into some weird
         // state where it couldn't receive anymore.
@@ -591,7 +591,7 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
             .rx_stamp();
 
         // `rx_time` comes directly from the register, which should always
-        // contain a 40-bit timestampt. Unless the hardware or its documentation
+        // contain a 40-bit timestamp. Unless the hardware or its documentation
         // are buggy, the following should never panic.
         let rx_time = Instant::new(rx_time).unwrap();
 
