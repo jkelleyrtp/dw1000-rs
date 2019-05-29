@@ -1,4 +1,4 @@
-# DWM1001 Board Support Crate [![crates.io](https://img.shields.io/crates/v/dwm1001.svg)](https://crates.io/crates/dwm1001) [![Documentation](https://docs.rs/dwm1001/badge.svg)](https://docs.rs/dwm1001) [![Build Status](https://travis-ci.org/braun-robotics/rust-dwm1001.svg?branch=master)](https://travis-ci.org/braun-robotics/rust-dwm1001)
+# DWM1001 Board Support Crate [![crates.io](https://img.shields.io/crates/v/dwm1001.svg)](https://crates.io/crates/dwm1001) [![Documentation](https://docs.rs/dwm1001/badge.svg)](https://docs.rs/dwm1001) [![Build Status](https://travis-ci.org/braun-embedded/rust-dwm1001.svg?branch=master)](https://travis-ci.org/braun-embedded/rust-dwm1001)
 
 ## Introduction
 
@@ -43,7 +43,7 @@ Please refer to the **[API Reference]** for further documentation.
 [Example programs] are available in the GitHub repository.
 
 [API Reference]: https://docs.rs/dwm1001
-[Example programs]: https://github.com/braun-robotics/rust-dwm1001/tree/master/examples
+[Example programs]: https://github.com/braun-embedded/rust-dwm1001/tree/master/examples
 
 
 ## License
@@ -53,8 +53,8 @@ This project is open source software, licensed under the terms of the [Zero Clau
 See [LICENSE] for full details.
 
 [Zero Clause BSD License]: https://opensource.org/licenses/FPL-1.0.0
-[LICENSE]: https://github.com/braun-robotics/rust-dwm1001/blob/master/LICENSE
+[LICENSE]: https://github.com/braun-embedded/rust-dwm1001/blob/master/LICENSE
 
 
-**Created by [Braun Robotics](https://braun-robotics.com/)** <br />
+**Created by [Braun Embedded](https://braun-embedded.com/)** <br />
 **Initial development sponsored by [Ferrous Systems](https://ferrous-systems.com/)**
