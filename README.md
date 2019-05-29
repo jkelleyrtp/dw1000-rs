@@ -1,4 +1,4 @@
-# Rust DW1000 Driver [![crates.io](https://img.shields.io/crates/v/dw1000.svg)](https://crates.io/crates/dw1000) [![Documentation](https://docs.rs/dw1000/badge.svg)](https://docs.rs/dw1000) [![Build Status](https://travis-ci.org/braun-robotics/rust-dw1000.svg?branch=master)](https://travis-ci.org/braun-robotics/rust-dw1000)
+# Rust DW1000 Driver [![crates.io](https://img.shields.io/crates/v/dw1000.svg)](https://crates.io/crates/dw1000) [![Documentation](https://docs.rs/dw1000/badge.svg)](https://docs.rs/dw1000) [![Build Status](https://travis-ci.org/braun-embedded/rust-dw1000.svg?branch=master)](https://travis-ci.org/braun-embedded/rust-dw1000)
 
 ## Introduction
 
