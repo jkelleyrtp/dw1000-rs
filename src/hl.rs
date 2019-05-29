@@ -566,6 +566,9 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
             if sys_status.rxsfdto() == 0b1 {
                 return Err(nb::Error::Other(Error::SfdTimeout));
             }
+            if sys_status.affrej() == 0b1 {
+                return Err(nb::Error::Other(Error::FrameFilteringRejection))
+            }
             // Some error flags that sound like valid errors aren't checked here,
             // because experience has shown that they seem to occur spuriously
             // without preventing a good frame from being received. Those are:
@@ -711,6 +714,14 @@ pub enum Error<SPI, CS>
     /// Receiver SFD Timeout
     SfdTimeout,
 
+    /// Frame was rejected because due to automatic frame filtering
+    ///
+    /// It seems that frame filtering is typically handled transparently by the
+    /// hardware, and filtered frames aren't usually visible to the driver.
+    /// However, sometimes a filtered frame bubbles up and disrupts an ongoing
+    /// receive operation, which then causes this error.
+    FrameFilteringRejection,
+
     /// Frame could not be decoded
     Frame(mac::DecodeError),
 
@@ -785,6 +796,8 @@ impl<SPI, CS> fmt::Debug for Error<SPI, CS>
                 write!(f, "PreambleDetectionTimeout"),
             Error::SfdTimeout =>
                 write!(f, "SfdTimeout"),
+            Error::FrameFilteringRejection =>
+                write!(f, "FrameFilteringRejection"),
             Error::Frame(error) =>
                 write!(f, "Frame({:?})", error),
             Error::DelayedSendTooLate =>
