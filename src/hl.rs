@@ -34,9 +34,9 @@ use crate::{
 
 /// Entry point to the DW1000 driver API
 pub struct DW1000<SPI, CS, State> {
-    ll:     ll::DW1000<SPI, CS>,
-    seq:    Wrapping<u8>,
-    _state: State,
+    ll:    ll::DW1000<SPI, CS>,
+    seq:   Wrapping<u8>,
+    state: State,
 }
 
 impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
@@ -55,9 +55,9 @@ impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
         -> Self
     {
         DW1000 {
-            ll:     ll::DW1000::new(spi, chip_select),
-            seq:    Wrapping(0),
-            _state: Uninitialized,
+            ll:    ll::DW1000::new(spi, chip_select),
+            seq:   Wrapping(0),
+            state: Uninitialized,
         }
     }
 
@@ -135,9 +135,9 @@ impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
         }
 
         Ok(DW1000 {
-            ll:     self.ll,
-            seq:    self.seq,
-            _state: Ready,
+            ll:    self.ll,
+            seq:   self.seq,
+            state: Ready,
         })
     }
 }
@@ -298,9 +298,9 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
             )?;
 
         Ok(DW1000 {
-            ll:     self.ll,
-            seq:    self.seq,
-            _state: Sending { finished: false },
+            ll:    self.ll,
+            seq:   self.seq,
+            state: Sending { finished: false },
         })
     }
 
@@ -462,7 +462,7 @@ impl<SPI, CS> DW1000<SPI, CS, Sending>
         // Frame sent
         self.reset_flags()
             .map_err(|error| nb::Error::Other(error))?;
-        self._state.finished = true;
+        self.state.finished = true;
 
         Ok(())
     }
@@ -474,7 +474,7 @@ impl<SPI, CS> DW1000<SPI, CS, Sending>
     pub fn finish_sending(mut self)
         -> Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)>
     {
-        if !self._state.finished {
+        if !self.state.finished {
             // Can't use `map_err` and `?` here, as the compiler will complain
             // about `self` moving into the closure.
             match self.force_idle() {
@@ -488,9 +488,9 @@ impl<SPI, CS> DW1000<SPI, CS, Sending>
         }
 
         Ok(DW1000 {
-            ll:     self.ll,
-            seq:    self.seq,
-            _state: Ready,
+            ll:    self.ll,
+            seq:   self.seq,
+            state: Ready,
         })
     }
 
