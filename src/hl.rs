@@ -737,6 +737,20 @@ impl<SPI, CS, State> DW1000<SPI, CS, State>
     }
 }
 
+// Can't be derived without putting requirements on `SPI` and `CS`.
+impl<SPI, CS, State> fmt::Debug for DW1000<SPI, CS, State>
+    where
+        State: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "DW1000 {{ state: ")?;
+        self.state.fmt(f)?;
+        write!(f, ", .. }}")?;
+
+        Ok(())
+    }
+}
+
 
 /// An error that can occur when sending or receiving data
 pub enum Error<SPI, CS>
