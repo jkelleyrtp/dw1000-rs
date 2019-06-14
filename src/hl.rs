@@ -34,9 +34,9 @@ use crate::{
 
 /// Entry point to the DW1000 driver API
 pub struct DW1000<SPI, CS, State> {
-    ll:     ll::DW1000<SPI, CS>,
-    seq:    Wrapping<u8>,
-    _state: State,
+    ll:    ll::DW1000<SPI, CS>,
+    seq:   Wrapping<u8>,
+    state: State,
 }
 
 impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
@@ -55,9 +55,9 @@ impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
         -> Self
     {
         DW1000 {
-            ll:     ll::DW1000::new(spi, chip_select),
-            seq:    Wrapping(0),
-            _state: Uninitialized,
+            ll:    ll::DW1000::new(spi, chip_select),
+            seq:   Wrapping(0),
+            state: Uninitialized,
         }
     }
 
@@ -135,9 +135,9 @@ impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
         }
 
         Ok(DW1000 {
-            ll:     self.ll,
-            seq:    self.seq,
-            _state: Ready,
+            ll:    self.ll,
+            seq:   self.seq,
+            state: Ready,
         })
     }
 }
@@ -161,18 +161,6 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         Ok(())
     }
 
-    /// Returns the TX antenna delay
-    pub fn get_tx_antenna_delay(&mut self)
-        -> Result<Duration, Error<SPI, CS>>
-    {
-        let tx_antenna_delay = self.ll.tx_antd().read()?.value();
-
-        // Since `tx_antenna_delay` is `u16`, the following will never panic.
-        let tx_antenna_delay = Duration::new(tx_antenna_delay.into()).unwrap();
-
-        Ok(tx_antenna_delay)
-    }
-
     /// Sets the network id and address used for sending and receiving
     pub fn set_address(&mut self, pan_id: mac::PanId, addr: mac::ShortAddress)
         -> Result<(), Error<SPI, CS>>
@@ -188,27 +176,6 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         Ok(())
     }
 
-    /// Returns the network id and address used for sending and receiving
-    pub fn get_address(&mut self)
-        -> Result<mac::Address, Error<SPI, CS>>
-    {
-        let panadr = self.ll.panadr().read()?;
-
-        Ok(mac::Address::Short(
-            mac::PanId(panadr.pan_id()),
-            mac::ShortAddress(panadr.short_addr()),
-        ))
-    }
-
-    /// Returns the current system time
-    pub fn sys_time(&mut self) -> Result<Instant, Error<SPI, CS>> {
-        let sys_time = self.ll.sys_time().read()?.value();
-
-        // Since hardware timestamps fit within 40 bits, the following should
-        // never panic.
-        Ok(Instant::new(sys_time).unwrap())
-    }
-
     /// Send an IEEE 802.15.4 MAC frame
     ///
     /// The `data` argument is wrapped into an IEEE 802.15.4 MAC frame and sent
@@ -221,12 +188,12 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// This method starts the transmission and returns immediately thereafter.
     /// Use the returned [`TxFuture`], to wait for the transmission to finish
     /// and check its result.
-    pub fn send(&mut self,
+    pub fn send(mut self,
         data:         &[u8],
         destination:  mac::Address,
         delayed_time: Option<Instant>,
     )
-        -> Result<TxFuture<SPI, CS>, Error<SPI, CS>>
+        -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>>
     {
         // Clear event counters
         self.ll.evc_ctrl().write(|w| w.evc_clr(0b1))?;
@@ -297,7 +264,11 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
                     .txstrt(0b1)
             )?;
 
-        Ok(TxFuture(self))
+        Ok(DW1000 {
+            ll:    self.ll,
+            seq:   self.seq,
+            state: Sending { finished: false },
+        })
     }
 
     /// Attempt to receive an IEEE 802.15.4 MAC frame
@@ -306,8 +277,8 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// caller to wait for a message.
     ///
     /// Only frames addressed to this device will be received.
-    pub fn receive(&mut self)
-        -> Result<RxFuture<SPI, CS>, Error<SPI, CS>>
+    pub fn receive(mut self)
+        -> Result<DW1000<SPI, CS, Receiving>, Error<SPI, CS>>
     {
         // For unknown reasons, the DW1000 gets stuck in RX mode without ever
         // receiving anything, after receiving one good frame. Reset the
@@ -384,18 +355,43 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
                 w.rxenab(0b1)
             )?;
 
-        Ok(RxFuture(self))
+        Ok(DW1000 {
+            ll:    self.ll,
+            seq:   self.seq,
+            state: Receiving { finished: false },
+        })
     }
 
-
-    /// Force the DW1000 into IDLE mode
+    /// Enables transmit interrupts for the events that `wait` checks
     ///
-    /// Any ongoing RX/TX operations will be aborted.
-    pub fn force_idle(&mut self)
+    /// Overwrites any interrupt flags that were previously set.
+    pub fn enable_tx_interrupts(&mut self)
         -> Result<(), Error<SPI, CS>>
     {
-        self.ll.sys_ctrl().write(|w| w.trxoff(0b1))?;
-        while self.ll.sys_ctrl().read()?.trxoff() == 0b1 {}
+        self.ll.sys_mask().write(|w| w.mtxfrs(0b1))?;
+        Ok(())
+    }
+
+    /// Enables receive interrupts for the events that `wait` checks
+    ///
+    /// Overwrites any interrupt flags that were previously set.
+    pub fn enable_rx_interrupts(&mut self)
+        -> Result<(), Error<SPI, CS>>
+    {
+        self.ll()
+            .sys_mask()
+            .write(|w|
+                w
+                    .mrxdfr(0b1)
+                    .mrxfce(0b1)
+                    .mrxphe(0b1)
+                    .mrxrfsl(0b1)
+                    .mrxrfto(0b1)
+                    .mrxovrr(0b1)
+                    .mrxpto(0b1)
+                    .mrxsfdto(0b1)
+                    .mldedone(0b1)
+            )?;
 
         Ok(())
     }
@@ -409,23 +405,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     }
 }
 
-impl<SPI, CS, State> DW1000<SPI, CS, State> {
-    /// Provides direct access to the register-level API
-    ///
-    /// Be aware that by using the register-level API, you can invalidate
-    /// various assumptions that the high-level API makes about the operation of
-    /// the DW1000. Don't use the register-level and high-level APIs in tandem,
-    /// unless you know what you're doing.
-    pub fn ll(&mut self) -> &mut ll::DW1000<SPI, CS> {
-        &mut self.ll
-    }
-}
-
-
-/// Represents a transmission that might not have completed yet
-pub struct TxFuture<'r, SPI, CS>(&'r mut DW1000<SPI, CS, Ready>);
-
-impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
+impl<SPI, CS> DW1000<SPI, CS, Sending>
     where
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         CS:  OutputPin,
@@ -448,7 +428,7 @@ impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
         // Check Half Period Warning Counter. If this is a delayed transmission,
         // this will indicate that the delay was too short, and the frame was
         // sent too late.
-        let evc_hpw = self.0.ll()
+        let evc_hpw = self.ll
             .evc_hpw()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?
@@ -461,7 +441,7 @@ impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
         // transmission, this indicates that the transmitter was still powering
         // up while sending, and the frame preamble might not have transmit
         // correctly.
-        let evc_tpw = self.0.ll()
+        let evc_tpw = self.ll
             .evc_tpw()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?
@@ -473,7 +453,7 @@ impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
         // ATTENTION:
         // If you're changing anything about which SYS_STATUS flags are being
         // checked in this method, also make sure to update `enable_interrupts`.
-        let sys_status = self.0.ll()
+        let sys_status = self.ll
             .sys_status()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
@@ -484,8 +464,43 @@ impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
             return Err(nb::Error::WouldBlock);
         }
 
-        // Frame sent. Reset all progress flags.
-        self.0.ll()
+        // Frame sent
+        self.reset_flags()
+            .map_err(|error| nb::Error::Other(error))?;
+        self.state.finished = true;
+
+        Ok(())
+    }
+
+    /// Finishes sending and returns to the `Ready` state
+    ///
+    /// If the send operation has finished, as indicated by `wait`, this is a
+    /// no-op. If the send operation is still ongoing, it will be aborted.
+    pub fn finish_sending(mut self)
+        -> Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)>
+    {
+        if !self.state.finished {
+            // Can't use `map_err` and `?` here, as the compiler will complain
+            // about `self` moving into the closure.
+            match self.force_idle() {
+                Ok(())     => (),
+                Err(error) => return Err((self, error)),
+            }
+            match self.reset_flags() {
+                Ok(())     => (),
+                Err(error) => return Err((self, error)),
+            }
+        }
+
+        Ok(DW1000 {
+            ll:    self.ll,
+            seq:   self.seq,
+            state: Ready,
+        })
+    }
+
+    fn reset_flags(&mut self) -> Result<(), Error<SPI, CS>> {
+        self.ll
             .sys_status()
             .write(|w|
                 w
@@ -493,28 +508,13 @@ impl<'r, SPI, CS> TxFuture<'r, SPI, CS>
                     .txprs(0b1) // Transmit Preamble Sent
                     .txphs(0b1) // Transmit PHY Header Sent
                     .txfrs(0b1) // Transmit Frame Sent
-            )
-            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
+            )?;
 
-        Ok(())
-    }
-
-    /// Enables interrupts for the events that `wait` checks
-    ///
-    /// Overwrites any interrupt flags that were previously set.
-    pub fn enable_interrupts(&mut self)
-        -> Result<(), Error<SPI, CS>>
-    {
-        self.0.ll().sys_mask().write(|w| w.mtxfrs(0b1))?;
         Ok(())
     }
 }
 
-
-/// Represents a receive operation that might not have finished yet
-pub struct RxFuture<'r, SPI, CS>(&'r mut DW1000<SPI, CS, Ready>);
-
-impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
+impl<SPI, CS> DW1000<SPI, CS, Receiving>
     where
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         CS:  OutputPin,
@@ -537,7 +537,7 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
         // ATTENTION:
         // If you're changing anything about which SYS_STATUS flags are being
         // checked in this method, also make sure to update `enable_interrupts`.
-        let sys_status = self.0.ll()
+        let sys_status = self.ll()
             .sys_status()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
@@ -587,7 +587,7 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
         if sys_status.ldedone() == 0b0 {
             return Err(nb::Error::WouldBlock);
         }
-        let rx_time = self.0.ll()
+        let rx_time = self.ll()
             .rx_time()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?
@@ -600,7 +600,7 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
 
         // Reset status bits. This is not strictly necessary, but it helps, if
         // you have to inspect SYS_STATUS manually during debugging.
-        self.0.ll()
+        self.ll()
             .sys_status()
             .write(|w|
                 w
@@ -624,11 +624,11 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
 
         // Read received frame
-        let rx_finfo = self.0.ll()
+        let rx_finfo = self.ll()
             .rx_finfo()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
-        let rx_buffer = self.0.ll()
+        let rx_buffer = self.ll()
             .rx_buffer()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
@@ -652,26 +652,100 @@ impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
         })
     }
 
-    /// Enables interrupts for the events that `wait` checks
+    /// Finishes receiving and returns to the `Ready` state
     ///
-    /// Overwrites any interrupt flags that were previously set.
-    pub fn enable_interrupts(&mut self)
+    /// If the receive operation has finished, as indicated by `wait`, this is a
+    /// no-op. If the receive operation is still ongoing, it will be aborted.
+    pub fn finish_receiving(mut self)
+        -> Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)>
+    {
+        if !self.state.finished {
+            // Can't use `map_err` and `?` here, as the compiler will complain
+            // about `self` moving into the closure.
+            match self.force_idle() {
+                Ok(())     => (),
+                Err(error) => return Err((self, error)),
+            }
+        }
+
+        Ok(DW1000 {
+            ll:    self.ll,
+            seq:   self.seq,
+            state: Ready,
+        })
+    }
+}
+
+impl<SPI, CS, State> DW1000<SPI, CS, State>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
+{
+    /// Returns the TX antenna delay
+    pub fn get_tx_antenna_delay(&mut self)
+        -> Result<Duration, Error<SPI, CS>>
+    {
+        let tx_antenna_delay = self.ll.tx_antd().read()?.value();
+
+        // Since `tx_antenna_delay` is `u16`, the following will never panic.
+        let tx_antenna_delay = Duration::new(tx_antenna_delay.into()).unwrap();
+
+        Ok(tx_antenna_delay)
+    }
+
+    /// Returns the network id and address used for sending and receiving
+    pub fn get_address(&mut self)
+        -> Result<mac::Address, Error<SPI, CS>>
+    {
+        let panadr = self.ll.panadr().read()?;
+
+        Ok(mac::Address::Short(
+            mac::PanId(panadr.pan_id()),
+            mac::ShortAddress(panadr.short_addr()),
+        ))
+    }
+
+    /// Returns the current system time
+    pub fn sys_time(&mut self) -> Result<Instant, Error<SPI, CS>> {
+        let sys_time = self.ll.sys_time().read()?.value();
+
+        // Since hardware timestamps fit within 40 bits, the following should
+        // never panic.
+        Ok(Instant::new(sys_time).unwrap())
+    }
+
+    /// Provides direct access to the register-level API
+    ///
+    /// Be aware that by using the register-level API, you can invalidate
+    /// various assumptions that the high-level API makes about the operation of
+    /// the DW1000. Don't use the register-level and high-level APIs in tandem,
+    /// unless you know what you're doing.
+    pub fn ll(&mut self) -> &mut ll::DW1000<SPI, CS> {
+        &mut self.ll
+    }
+
+    /// Force the DW1000 into IDLE mode
+    ///
+    /// Any ongoing RX/TX operations will be aborted.
+    fn force_idle(&mut self)
         -> Result<(), Error<SPI, CS>>
     {
-        self.0.ll()
-            .sys_mask()
-            .write(|w|
-                w
-                    .mrxdfr(0b1)
-                    .mrxfce(0b1)
-                    .mrxphe(0b1)
-                    .mrxrfsl(0b1)
-                    .mrxrfto(0b1)
-                    .mrxovrr(0b1)
-                    .mrxpto(0b1)
-                    .mrxsfdto(0b1)
-                    .mldedone(0b1)
-            )?;
+        self.ll.sys_ctrl().write(|w| w.trxoff(0b1))?;
+        while self.ll.sys_ctrl().read()?.trxoff() == 0b1 {}
+
+        Ok(())
+    }
+}
+
+// Can't be derived without putting requirements on `SPI` and `CS`.
+impl<SPI, CS, State> fmt::Debug for DW1000<SPI, CS, State>
+    where
+        State: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "DW1000 {{ state: ")?;
+        self.state.fmt(f)?;
+        write!(f, ", .. }}")?;
 
         Ok(())
     }
@@ -812,10 +886,24 @@ impl<SPI, CS> fmt::Debug for Error<SPI, CS>
 
 
 /// Indicates that the `DW1000` instance is not initialized yet
+#[derive(Debug)]
 pub struct Uninitialized;
 
 /// Indicates that the `DW1000` instance is ready to be used
+#[derive(Debug)]
 pub struct Ready;
+
+/// Indicates that the `DW1000` instance is currently sending
+#[derive(Debug)]
+pub struct Sending {
+    finished: bool,
+}
+
+/// Indicates that the `DW1000` instance is currently receiving
+#[derive(Debug)]
+pub struct Receiving {
+    finished: bool,
+}
 
 
 /// An incoming message

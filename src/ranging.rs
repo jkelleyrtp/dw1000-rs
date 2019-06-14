@@ -63,7 +63,7 @@ use crate::{
     DW1000,
     Error,
     Ready,
-    TxFuture,
+    Sending,
 };
 
 
@@ -173,8 +173,8 @@ impl<T> TxMessage<T> where T: Message {
     /// Serializes the message payload and uses [`DW1000::send`] internally to
     /// send it. Returns a [`TxFuture`] to represent the current state of the
     /// send operation, if no error occurs.
-    pub fn send<'r, SPI, CS>(&self, dw1000: &'r mut DW1000<SPI, CS, Ready>)
-        -> Result<TxFuture<'r, SPI, CS>, Error<SPI, CS>>
+    pub fn send<'r, SPI, CS>(&self, dw1000: DW1000<SPI, CS, Ready>)
+        -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>>
         where
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
