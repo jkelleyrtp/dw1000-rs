@@ -872,17 +872,21 @@ impl<SPI, CS> fmt::Debug for Error<SPI, CS>
 
 
 /// Indicates that the `DW1000` instance is not initialized yet
+#[derive(Debug)]
 pub struct Uninitialized;
 
 /// Indicates that the `DW1000` instance is ready to be used
+#[derive(Debug)]
 pub struct Ready;
 
 /// Indicates that the `DW1000` instance is currently sending
+#[derive(Debug)]
 pub struct Sending {
     finished: bool,
 }
 
 /// Indicates that the `DW1000` instance is currently receiving
+#[derive(Debug)]
 pub struct Receiving {
     finished: bool,
 }
