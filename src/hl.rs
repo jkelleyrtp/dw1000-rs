@@ -362,6 +362,40 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         })
     }
 
+    /// Enables transmit interrupts for the events that `wait` checks
+    ///
+    /// Overwrites any interrupt flags that were previously set.
+    pub fn enable_tx_interrupts(&mut self)
+        -> Result<(), Error<SPI, CS>>
+    {
+        self.ll.sys_mask().write(|w| w.mtxfrs(0b1))?;
+        Ok(())
+    }
+
+    /// Enables receive interrupts for the events that `wait` checks
+    ///
+    /// Overwrites any interrupt flags that were previously set.
+    pub fn enable_rx_interrupts(&mut self)
+        -> Result<(), Error<SPI, CS>>
+    {
+        self.ll()
+            .sys_mask()
+            .write(|w|
+                w
+                    .mrxdfr(0b1)
+                    .mrxfce(0b1)
+                    .mrxphe(0b1)
+                    .mrxrfsl(0b1)
+                    .mrxrfto(0b1)
+                    .mrxovrr(0b1)
+                    .mrxpto(0b1)
+                    .mrxsfdto(0b1)
+                    .mldedone(0b1)
+            )?;
+
+        Ok(())
+    }
+
     /// Clear all interrupt flags
     pub fn clear_interrupts(&mut self)
         -> Result<(), Error<SPI, CS>>
@@ -476,16 +510,6 @@ impl<SPI, CS> DW1000<SPI, CS, Sending>
                     .txfrs(0b1) // Transmit Frame Sent
             )?;
 
-        Ok(())
-    }
-
-    /// Enables interrupts for the events that `wait` checks
-    ///
-    /// Overwrites any interrupt flags that were previously set.
-    pub fn enable_interrupts(&mut self)
-        -> Result<(), Error<SPI, CS>>
-    {
-        self.ll.sys_mask().write(|w| w.mtxfrs(0b1))?;
         Ok(())
     }
 }
@@ -649,30 +673,6 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
             seq:   self.seq,
             state: Ready,
         })
-    }
-
-    /// Enables interrupts for the events that `wait` checks
-    ///
-    /// Overwrites any interrupt flags that were previously set.
-    pub fn enable_interrupts(&mut self)
-        -> Result<(), Error<SPI, CS>>
-    {
-        self.ll()
-            .sys_mask()
-            .write(|w|
-                w
-                    .mrxdfr(0b1)
-                    .mrxfce(0b1)
-                    .mrxphe(0b1)
-                    .mrxrfsl(0b1)
-                    .mrxrfto(0b1)
-                    .mrxovrr(0b1)
-                    .mrxpto(0b1)
-                    .mrxsfdto(0b1)
-                    .mldedone(0b1)
-            )?;
-
-        Ok(())
     }
 }
 
