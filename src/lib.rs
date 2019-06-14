@@ -41,6 +41,6 @@ pub use crate::hl::{
     Error,
     Message,
     Ready,
-    TxFuture,
+    Sending,
     Uninitialized,
 };
