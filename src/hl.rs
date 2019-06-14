@@ -537,7 +537,7 @@ impl<SPI, CS, State> DW1000<SPI, CS, State>
     /// Force the DW1000 into IDLE mode
     ///
     /// Any ongoing RX/TX operations will be aborted.
-    pub fn force_idle(&mut self)
+    fn force_idle(&mut self)
         -> Result<(), Error<SPI, CS>>
     {
         self.ll.sys_ctrl().write(|w| w.trxoff(0b1))?;
