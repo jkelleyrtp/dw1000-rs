@@ -27,7 +27,6 @@ use dwm1001::{
             self,
             Message as _RangingMessage,
         },
-        Message,
     },
     nrf52832_hal::{
         nrf52832_pac::SPIM2,
@@ -102,7 +101,7 @@ fn main() -> ! {
                     future.wait(&mut buf)
                 })
             },
-            |message: Message| {
+            (message) {
                 let request = ranging::Request::decode::<Spim<SPIM2>>(&message);
 
                 let request = match request {
@@ -110,7 +109,7 @@ fn main() -> ! {
                         request,
                     Ok(None) | Err(_) => {
                         print!("Ignoring message that is not a request\n");
-                        return;
+                        continue;
                     }
                 };
 
@@ -131,10 +130,10 @@ fn main() -> ! {
                     future.wait()
                 })
                 .expect("Failed to send ranging response");
-            },
-            |_error| {
+            };
+            (_error) {
                 // ignore
-            },
+            };
         );
 
         // After receiving for a while, it's time to send out a ping

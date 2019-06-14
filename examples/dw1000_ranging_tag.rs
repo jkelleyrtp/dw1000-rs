@@ -26,7 +26,6 @@ use dwm1001::{
             self,
             Message as _RangingMessage,
         },
-        Message,
     },
     nrf52832_hal::{
         nrf52832_pac::SPIM2,
@@ -101,7 +100,7 @@ fn main() -> ! {
                     future.wait(&mut buf)
                 })
             },
-            |message: Message| {
+            (message) {
                 let ping = ranging::Ping::decode::<Spim<SPIM2>>(&message)
                     .expect("Failed to decode ping");
                 if let Some(ping) = ping {
@@ -126,7 +125,7 @@ fn main() -> ! {
                     })
                     .expect("Failed to send ranging request");
 
-                    return;
+                    continue;
                 }
 
                 let response =
@@ -139,7 +138,7 @@ fn main() -> ! {
                         mac::Address::Short(pan_id, addr) =>
                             (pan_id, addr),
                         _ =>
-                            return,
+                            continue,
                     };
 
                     // Ranging response received. Compute distance.
@@ -153,18 +152,18 @@ fn main() -> ! {
                         }
                         None => {
                             print!("Distance too large; can't compute");
-                            return;
+                            continue;
                         }
                     }
 
-                    return;
+                    continue;
                 }
 
                 print!("Ignored message that was neither ping nor response\n");
-            },
-            |_error| {
+            };
+            (_error) {
                 // ignore error
-            },
+            };
         );
     }
 }
