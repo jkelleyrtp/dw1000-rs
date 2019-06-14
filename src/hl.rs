@@ -161,18 +161,6 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         Ok(())
     }
 
-    /// Returns the TX antenna delay
-    pub fn get_tx_antenna_delay(&mut self)
-        -> Result<Duration, Error<SPI, CS>>
-    {
-        let tx_antenna_delay = self.ll.tx_antd().read()?.value();
-
-        // Since `tx_antenna_delay` is `u16`, the following will never panic.
-        let tx_antenna_delay = Duration::new(tx_antenna_delay.into()).unwrap();
-
-        Ok(tx_antenna_delay)
-    }
-
     /// Sets the network id and address used for sending and receiving
     pub fn set_address(&mut self, pan_id: mac::PanId, addr: mac::ShortAddress)
         -> Result<(), Error<SPI, CS>>
@@ -186,27 +174,6 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
             )?;
 
         Ok(())
-    }
-
-    /// Returns the network id and address used for sending and receiving
-    pub fn get_address(&mut self)
-        -> Result<mac::Address, Error<SPI, CS>>
-    {
-        let panadr = self.ll.panadr().read()?;
-
-        Ok(mac::Address::Short(
-            mac::PanId(panadr.pan_id()),
-            mac::ShortAddress(panadr.short_addr()),
-        ))
-    }
-
-    /// Returns the current system time
-    pub fn sys_time(&mut self) -> Result<Instant, Error<SPI, CS>> {
-        let sys_time = self.ll.sys_time().read()?.value();
-
-        // Since hardware timestamps fit within 40 bits, the following should
-        // never panic.
-        Ok(Instant::new(sys_time).unwrap())
     }
 
     /// Send an IEEE 802.15.4 MAC frame
@@ -524,6 +491,39 @@ impl<SPI, CS, State> DW1000<SPI, CS, State>
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         CS:  OutputPin,
 {
+    /// Returns the TX antenna delay
+    pub fn get_tx_antenna_delay(&mut self)
+        -> Result<Duration, Error<SPI, CS>>
+    {
+        let tx_antenna_delay = self.ll.tx_antd().read()?.value();
+
+        // Since `tx_antenna_delay` is `u16`, the following will never panic.
+        let tx_antenna_delay = Duration::new(tx_antenna_delay.into()).unwrap();
+
+        Ok(tx_antenna_delay)
+    }
+
+    /// Returns the network id and address used for sending and receiving
+    pub fn get_address(&mut self)
+        -> Result<mac::Address, Error<SPI, CS>>
+    {
+        let panadr = self.ll.panadr().read()?;
+
+        Ok(mac::Address::Short(
+            mac::PanId(panadr.pan_id()),
+            mac::ShortAddress(panadr.short_addr()),
+        ))
+    }
+
+    /// Returns the current system time
+    pub fn sys_time(&mut self) -> Result<Instant, Error<SPI, CS>> {
+        let sys_time = self.ll.sys_time().read()?.value();
+
+        // Since hardware timestamps fit within 40 bits, the following should
+        // never panic.
+        Ok(Instant::new(sys_time).unwrap())
+    }
+
     /// Provides direct access to the register-level API
     ///
     /// Be aware that by using the register-level API, you can invalidate
