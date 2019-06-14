@@ -21,10 +21,7 @@ use heapless::FnvIndexSet;
 use dwm1001::{
     prelude::*,
     debug,
-    dw1000::{
-        mac,
-        Message,
-    },
+    dw1000::mac,
     nrf52832_hal::Delay,
     DWM1001,
     block_timeout,
@@ -80,9 +77,9 @@ fn main() -> ! {
                 timeout_timer.start(100_000u32);
                 block_timeout!(&mut timeout_timer, future.wait(&mut buffer))
             },
-            |message: Message| {
+            (message) {
                 if message.frame.payload != b"ping" {
-                    return;
+                    continue;
                 }
 
                 // Sucessfully received: Blink blue LED
@@ -98,14 +95,14 @@ fn main() -> ! {
                     mac::Address::Short(pan_id, address) =>
                         [pan_id.0, address.0],
                     _ =>
-                        return,
+                        continue,
                 };
 
                 if let Err(_) = known_nodes.insert(source) {
                     print!("Too many nodes. Can't add another one.\n");
                 }
-            },
-            |_| {},
+            };
+            (_error) {};
         );
 
         task_timer.start(50_000u32);
@@ -123,8 +120,8 @@ fn main() -> ! {
                 timeout_timer.start(10_000u32);
                 block_timeout!(&mut timeout_timer, future.wait())
             },
-            |_| {},
-            |_| {},
+            (_message) {};
+            (_error) {};
         );
 
         if output_timer.wait().is_ok() {

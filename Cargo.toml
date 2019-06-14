@@ -22,7 +22,7 @@ cortex-m-rt             = { version = "0.6.3", optional = true }
 cortex-m-semihosting    = "0.3.0"
 dw1000                  = "0.2.0"
 embedded-hal            = "0.2.1"
-embedded-timeout-macros = "0.1.0"
+embedded-timeout-macros = "0.2.0"
 
 [dependencies.cortex-m]
 version  = ">= 0.5.10, < 0.7"
