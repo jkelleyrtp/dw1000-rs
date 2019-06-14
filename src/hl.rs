@@ -277,8 +277,8 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// caller to wait for a message.
     ///
     /// Only frames addressed to this device will be received.
-    pub fn receive(&mut self)
-        -> Result<RxFuture<SPI, CS>, Error<SPI, CS>>
+    pub fn receive(mut self)
+        -> Result<DW1000<SPI, CS, Receiving>, Error<SPI, CS>>
     {
         // For unknown reasons, the DW1000 gets stuck in RX mode without ever
         // receiving anything, after receiving one good frame. Reset the
@@ -355,7 +355,11 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
                 w.rxenab(0b1)
             )?;
 
-        Ok(RxFuture(self))
+        Ok(DW1000 {
+            ll:    self.ll,
+            seq:   self.seq,
+            state: Receiving { finished: false },
+        })
     }
 
     /// Clear all interrupt flags
@@ -486,6 +490,192 @@ impl<SPI, CS> DW1000<SPI, CS, Sending>
     }
 }
 
+impl<SPI, CS> DW1000<SPI, CS, Receiving>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
+{
+    /// Wait for receive operation to finish
+    ///
+    /// This method returns an `nb::Result` to indicate whether the transmission
+    /// has finished, or whether it is still ongoing. You can use this to busily
+    /// wait for the transmission to finish, for example using `nb`'s `block!`
+    /// macro, or you can use it in tandem with [`RxFuture::enable_interrupts`]
+    /// and the DW1000 IRQ output to wait in a more energy-efficient manner.
+    ///
+    /// Handling the DW1000's IRQ output line is out of the scope of this
+    /// driver, but please note that if you're using the DWM1001 module or
+    /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
+    /// this.
+    pub fn wait<'b>(&mut self, buffer: &'b mut [u8])
+        -> nb::Result<Message<'b>, Error<SPI, CS>>
+    {
+        // ATTENTION:
+        // If you're changing anything about which SYS_STATUS flags are being
+        // checked in this method, also make sure to update `enable_interrupts`.
+        let sys_status = self.ll()
+            .sys_status()
+            .read()
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
+
+        // Is a frame ready?
+        if sys_status.rxdfr() == 0b0 {
+            // No frame ready. Check for errors.
+            if sys_status.rxfce() == 0b1 {
+                return Err(nb::Error::Other(Error::Fcs));
+            }
+            if sys_status.rxphe() == 0b1 {
+                return Err(nb::Error::Other(Error::Phy));
+            }
+            if sys_status.rxrfsl() == 0b1 {
+                return Err(nb::Error::Other(Error::ReedSolomon));
+            }
+            if sys_status.rxrfto() == 0b1 {
+                return Err(nb::Error::Other(Error::FrameWaitTimeout));
+            }
+            if sys_status.rxovrr() == 0b1 {
+                return Err(nb::Error::Other(Error::Overrun));
+            }
+            if sys_status.rxpto() == 0b1 {
+                return Err(nb::Error::Other(Error::PreambleDetectionTimeout));
+            }
+            if sys_status.rxsfdto() == 0b1 {
+                return Err(nb::Error::Other(Error::SfdTimeout));
+            }
+            if sys_status.affrej() == 0b1 {
+                return Err(nb::Error::Other(Error::FrameFilteringRejection))
+            }
+            // Some error flags that sound like valid errors aren't checked here,
+            // because experience has shown that they seem to occur spuriously
+            // without preventing a good frame from being received. Those are:
+            // - LDEERR: Leading Edge Detection Processing Error
+            // - RXPREJ: Receiver Preamble Rejection
+
+            // No errors detected. That must mean the frame is just not ready
+            // yet.
+            return Err(nb::Error::WouldBlock);
+        }
+
+        // Frame is ready. Continue.
+
+        // Wait until LDE processing is done. Before this is finished, the RX
+        // time stamp is not available.
+        if sys_status.ldedone() == 0b0 {
+            return Err(nb::Error::WouldBlock);
+        }
+        let rx_time = self.ll()
+            .rx_time()
+            .read()
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?
+            .rx_stamp();
+
+        // `rx_time` comes directly from the register, which should always
+        // contain a 40-bit timestamp. Unless the hardware or its documentation
+        // are buggy, the following should never panic.
+        let rx_time = Instant::new(rx_time).unwrap();
+
+        // Reset status bits. This is not strictly necessary, but it helps, if
+        // you have to inspect SYS_STATUS manually during debugging.
+        self.ll()
+            .sys_status()
+            .write(|w|
+                w
+                    .rxprd(0b1)   // Receiver Preamble Detected
+                    .rxsfdd(0b1)  // Receiver SFD Detected
+                    .ldedone(0b1) // LDE Processing Done
+                    .rxphd(0b1)   // Receiver PHY Header Detected
+                    .rxphe(0b1)   // Receiver PHY Header Error
+                    .rxdfr(0b1)   // Receiver Data Frame Ready
+                    .rxfcg(0b1)   // Receiver FCS Good
+                    .rxfce(0b1)   // Receiver FCS Error
+                    .rxrfsl(0b1)  // Receiver Reed Solomon Frame Sync Loss
+                    .rxrfto(0b1)  // Receiver Frame Wait Timeout
+                    .ldeerr(0b1)  // Leading Edge Detection Processing Error
+                    .rxovrr(0b1)  // Receiver Overrun
+                    .rxpto(0b1)   // Preamble Detection Timeout
+                    .rxsfdto(0b1) // Receiver SFD Timeout
+                    .rxrscs(0b1)  // Receiver Reed-Solomon Correction Status
+                    .rxprej(0b1)  // Receiver Preamble Rejection
+            )
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
+
+        // Read received frame
+        let rx_finfo = self.ll()
+            .rx_finfo()
+            .read()
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
+        let rx_buffer = self.ll()
+            .rx_buffer()
+            .read()
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
+
+        let len = rx_finfo.rxflen() as usize;
+
+        if buffer.len() < len {
+            return Err(nb::Error::Other(
+                Error::BufferTooSmall { required_len: len }
+            ))
+        }
+
+        buffer[..len].copy_from_slice(&rx_buffer.data()[..len]);
+
+        let frame = mac::Frame::decode(&buffer[..len], true)
+            .map_err(|error| nb::Error::Other(Error::Frame(error)))?;
+
+        Ok(Message {
+            rx_time,
+            frame,
+        })
+    }
+
+    /// Finishes receiving and returns to the `Ready` state
+    ///
+    /// If the receive operation has finished, as indicated by `wait`, this is a
+    /// no-op. If the receive operation is still ongoing, it will be aborted.
+    pub fn finish_receiving(mut self)
+        -> Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)>
+    {
+        if !self.state.finished {
+            // Can't use `map_err` and `?` here, as the compiler will complain
+            // about `self` moving into the closure.
+            match self.force_idle() {
+                Ok(())     => (),
+                Err(error) => return Err((self, error)),
+            }
+        }
+
+        Ok(DW1000 {
+            ll:    self.ll,
+            seq:   self.seq,
+            state: Ready,
+        })
+    }
+
+    /// Enables interrupts for the events that `wait` checks
+    ///
+    /// Overwrites any interrupt flags that were previously set.
+    pub fn enable_interrupts(&mut self)
+        -> Result<(), Error<SPI, CS>>
+    {
+        self.ll()
+            .sys_mask()
+            .write(|w|
+                w
+                    .mrxdfr(0b1)
+                    .mrxfce(0b1)
+                    .mrxphe(0b1)
+                    .mrxrfsl(0b1)
+                    .mrxrfto(0b1)
+                    .mrxovrr(0b1)
+                    .mrxpto(0b1)
+                    .mrxsfdto(0b1)
+                    .mldedone(0b1)
+            )?;
+
+        Ok(())
+    }
+}
+
 impl<SPI, CS, State> DW1000<SPI, CS, State>
     where
         SPI: spi::Transfer<u8> + spi::Write<u8>,
@@ -542,173 +732,6 @@ impl<SPI, CS, State> DW1000<SPI, CS, State>
     {
         self.ll.sys_ctrl().write(|w| w.trxoff(0b1))?;
         while self.ll.sys_ctrl().read()?.trxoff() == 0b1 {}
-
-        Ok(())
-    }
-}
-
-
-/// Represents a receive operation that might not have finished yet
-pub struct RxFuture<'r, SPI, CS>(&'r mut DW1000<SPI, CS, Ready>);
-
-impl<'r, SPI, CS> RxFuture<'r, SPI, CS>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
-{
-    /// Wait for receive operation to finish
-    ///
-    /// This method returns an `nb::Result` to indicate whether the transmission
-    /// has finished, or whether it is still ongoing. You can use this to busily
-    /// wait for the transmission to finish, for example using `nb`'s `block!`
-    /// macro, or you can use it in tandem with [`RxFuture::enable_interrupts`]
-    /// and the DW1000 IRQ output to wait in a more energy-efficient manner.
-    ///
-    /// Handling the DW1000's IRQ output line is out of the scope of this
-    /// driver, but please note that if you're using the DWM1001 module or
-    /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
-    /// this.
-    pub fn wait<'b>(&mut self, buffer: &'b mut [u8])
-        -> nb::Result<Message<'b>, Error<SPI, CS>>
-    {
-        // ATTENTION:
-        // If you're changing anything about which SYS_STATUS flags are being
-        // checked in this method, also make sure to update `enable_interrupts`.
-        let sys_status = self.0.ll()
-            .sys_status()
-            .read()
-            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
-
-        // Is a frame ready?
-        if sys_status.rxdfr() == 0b0 {
-            // No frame ready. Check for errors.
-            if sys_status.rxfce() == 0b1 {
-                return Err(nb::Error::Other(Error::Fcs));
-            }
-            if sys_status.rxphe() == 0b1 {
-                return Err(nb::Error::Other(Error::Phy));
-            }
-            if sys_status.rxrfsl() == 0b1 {
-                return Err(nb::Error::Other(Error::ReedSolomon));
-            }
-            if sys_status.rxrfto() == 0b1 {
-                return Err(nb::Error::Other(Error::FrameWaitTimeout));
-            }
-            if sys_status.rxovrr() == 0b1 {
-                return Err(nb::Error::Other(Error::Overrun));
-            }
-            if sys_status.rxpto() == 0b1 {
-                return Err(nb::Error::Other(Error::PreambleDetectionTimeout));
-            }
-            if sys_status.rxsfdto() == 0b1 {
-                return Err(nb::Error::Other(Error::SfdTimeout));
-            }
-            if sys_status.affrej() == 0b1 {
-                return Err(nb::Error::Other(Error::FrameFilteringRejection))
-            }
-            // Some error flags that sound like valid errors aren't checked here,
-            // because experience has shown that they seem to occur spuriously
-            // without preventing a good frame from being received. Those are:
-            // - LDEERR: Leading Edge Detection Processing Error
-            // - RXPREJ: Receiver Preamble Rejection
-
-            // No errors detected. That must mean the frame is just not ready
-            // yet.
-            return Err(nb::Error::WouldBlock);
-        }
-
-        // Frame is ready. Continue.
-
-        // Wait until LDE processing is done. Before this is finished, the RX
-        // time stamp is not available.
-        if sys_status.ldedone() == 0b0 {
-            return Err(nb::Error::WouldBlock);
-        }
-        let rx_time = self.0.ll()
-            .rx_time()
-            .read()
-            .map_err(|error| nb::Error::Other(Error::Spi(error)))?
-            .rx_stamp();
-
-        // `rx_time` comes directly from the register, which should always
-        // contain a 40-bit timestamp. Unless the hardware or its documentation
-        // are buggy, the following should never panic.
-        let rx_time = Instant::new(rx_time).unwrap();
-
-        // Reset status bits. This is not strictly necessary, but it helps, if
-        // you have to inspect SYS_STATUS manually during debugging.
-        self.0.ll()
-            .sys_status()
-            .write(|w|
-                w
-                    .rxprd(0b1)   // Receiver Preamble Detected
-                    .rxsfdd(0b1)  // Receiver SFD Detected
-                    .ldedone(0b1) // LDE Processing Done
-                    .rxphd(0b1)   // Receiver PHY Header Detected
-                    .rxphe(0b1)   // Receiver PHY Header Error
-                    .rxdfr(0b1)   // Receiver Data Frame Ready
-                    .rxfcg(0b1)   // Receiver FCS Good
-                    .rxfce(0b1)   // Receiver FCS Error
-                    .rxrfsl(0b1)  // Receiver Reed Solomon Frame Sync Loss
-                    .rxrfto(0b1)  // Receiver Frame Wait Timeout
-                    .ldeerr(0b1)  // Leading Edge Detection Processing Error
-                    .rxovrr(0b1)  // Receiver Overrun
-                    .rxpto(0b1)   // Preamble Detection Timeout
-                    .rxsfdto(0b1) // Receiver SFD Timeout
-                    .rxrscs(0b1)  // Receiver Reed-Solomon Correction Status
-                    .rxprej(0b1)  // Receiver Preamble Rejection
-            )
-            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
-
-        // Read received frame
-        let rx_finfo = self.0.ll()
-            .rx_finfo()
-            .read()
-            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
-        let rx_buffer = self.0.ll()
-            .rx_buffer()
-            .read()
-            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
-
-        let len = rx_finfo.rxflen() as usize;
-
-        if buffer.len() < len {
-            return Err(nb::Error::Other(
-                Error::BufferTooSmall { required_len: len }
-            ))
-        }
-
-        buffer[..len].copy_from_slice(&rx_buffer.data()[..len]);
-
-        let frame = mac::Frame::decode(&buffer[..len], true)
-            .map_err(|error| nb::Error::Other(Error::Frame(error)))?;
-
-        Ok(Message {
-            rx_time,
-            frame,
-        })
-    }
-
-    /// Enables interrupts for the events that `wait` checks
-    ///
-    /// Overwrites any interrupt flags that were previously set.
-    pub fn enable_interrupts(&mut self)
-        -> Result<(), Error<SPI, CS>>
-    {
-        self.0.ll()
-            .sys_mask()
-            .write(|w|
-                w
-                    .mrxdfr(0b1)
-                    .mrxfce(0b1)
-                    .mrxphe(0b1)
-                    .mrxrfsl(0b1)
-                    .mrxrfto(0b1)
-                    .mrxovrr(0b1)
-                    .mrxpto(0b1)
-                    .mrxsfdto(0b1)
-                    .mldedone(0b1)
-            )?;
 
         Ok(())
     }
@@ -856,6 +879,11 @@ pub struct Ready;
 
 /// Indicates that the `DW1000` instance is currently sending
 pub struct Sending {
+    finished: bool,
+}
+
+/// Indicates that the `DW1000` instance is currently receiving
+pub struct Receiving {
     finished: bool,
 }
 
