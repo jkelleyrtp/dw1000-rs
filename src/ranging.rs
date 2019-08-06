@@ -134,6 +134,7 @@ pub trait Message: Sized + for<'de> Deserialize<'de> + Serialize {
 ///
 /// Contains the received payload, as well as some metadata that's required to
 /// create a reply to the message.
+#[derive(Debug)]
 pub struct RxMessage<T: Message> {
     /// The time the message was received
     pub rx_time: Instant,
@@ -149,6 +150,7 @@ pub struct RxMessage<T: Message> {
 /// An outgoing ranging message
 ///
 /// Contains the payload to be sent, as well as some metadata.
+#[derive(Debug)]
 pub struct TxMessage<T: Message> {
     /// The recipient of the message
     ///
