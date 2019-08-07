@@ -390,6 +390,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
                     .mrxovrr(0b1)
                     .mrxpto(0b1)
                     .mrxsfdto(0b1)
+                    .maffrej(0b1)
                     .mldedone(0b1)
             )?;
 
