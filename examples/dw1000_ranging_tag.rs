@@ -84,6 +84,10 @@ fn main() -> ! {
         repeat_timeout!(
             &mut task_timer,
             {
+                dwm1001.leds.D10.enable();
+                delay.delay_ms(10u32);
+                dwm1001.leds.D10.disable();
+
                 let mut future = dw1000
                     .receive()
                     .expect("Failed to receive message");
@@ -114,6 +118,10 @@ fn main() -> ! {
                     future.enable_interrupts()
                         .expect("Failed to enable interrupts");
 
+                    dwm1001.leds.D11.enable();
+                    delay.delay_ms(10u32);
+                    dwm1001.leds.D11.disable();
+
                     timeout_timer.start(100_000u32);
                     block!({
                         dw_irq.wait_for_interrupts(
@@ -132,6 +140,10 @@ fn main() -> ! {
                     ranging::Response::decode::<Spim<SPIM2>>(&message)
                         .expect("Failed to decode response");
                 if let Some(response) = response {
+                    dwm1001.leds.D12.enable();
+                    delay.delay_ms(10u32);
+                    dwm1001.leds.D12.disable();
+
                     // If this is not a PAN ID and short address, it doesn't
                     // come from a compatible node. Ignore it.
                     let (pan_id, addr) = match response.source {
@@ -144,6 +156,10 @@ fn main() -> ! {
                     // Ranging response received. Compute distance.
                     match ranging::compute_distance_mm(&response) {
                         Some(distance_mm) => {
+                            dwm1001.leds.D9.enable();
+                            delay.delay_ms(10u32);
+                            dwm1001.leds.D9.disable();
+
                             print!("{:04x}:{:04x} - {} mm\n",
                                 pan_id.0,
                                 addr.0,

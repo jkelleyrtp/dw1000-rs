@@ -85,6 +85,10 @@ fn main() -> ! {
         repeat_timeout!(
             &mut task_timer,
             {
+                dwm1001.leds.D10.enable();
+                delay.delay_ms(10u32);
+                dwm1001.leds.D10.disable();
+
                 let mut future = dw1000
                     .receive()
                     .expect("Failed to receive message");
@@ -102,6 +106,10 @@ fn main() -> ! {
                 })
             },
             (message) {
+                dwm1001.leds.D10.enable();
+                delay.delay_ms(10u32);
+                dwm1001.leds.D10.disable();
+
                 let request = ranging::Request::decode::<Spim<SPIM2>>(&message);
 
                 let request = match request {
@@ -112,6 +120,10 @@ fn main() -> ! {
                         continue;
                     }
                 };
+
+                dwm1001.leds.D11.enable();
+                delay.delay_ms(10u32);
+                dwm1001.leds.D11.disable();
 
                 // Send ranging response
                 let mut future = ranging::Response::new(&mut dw1000, request)
@@ -130,6 +142,10 @@ fn main() -> ! {
                     future.wait()
                 })
                 .expect("Failed to send ranging response");
+
+                dwm1001.leds.D12.enable();
+                delay.delay_ms(10u32);
+                dwm1001.leds.D12.disable();
             };
             (_error) {
                 // ignore
