@@ -173,8 +173,7 @@ impl<T> TxMessage<T> where T: Message {
     /// Send this message via the DW1000
     ///
     /// Serializes the message payload and uses [`DW1000::send`] internally to
-    /// send it. Returns a [`TxFuture`] to represent the current state of the
-    /// send operation, if no error occurs.
+    /// send it.
     pub fn send<'r, SPI, CS>(&self, dw1000: DW1000<SPI, CS, Ready>)
         -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>>
         where
