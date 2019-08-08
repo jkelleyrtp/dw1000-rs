@@ -186,8 +186,9 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// as possible, just pass `None` instead.
     ///
     /// This method starts the transmission and returns immediately thereafter.
-    /// Use the returned [`TxFuture`], to wait for the transmission to finish
-    /// and check its result.
+    /// It consumes this instance of `DW1000` and returns another instance which
+    /// is in the `Sending` state, and can be used to wait for the transmission
+    /// to finish and check its result.
     pub fn send(mut self,
         data:         &[u8],
         destination:  mac::Address,
@@ -273,8 +274,9 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
 
     /// Attempt to receive an IEEE 802.15.4 MAC frame
     ///
-    /// Initializes the receiver, then returns an [`RxFuture`] that allows the
-    /// caller to wait for a message.
+    /// Initializes the receiver. The method consumes this instance of `DW1000`
+    /// and returns another instance which is in the `Receiving` state, and can
+    /// be used to wait for a message.
     ///
     /// Only frames addressed to this device will be received.
     pub fn receive(mut self)
@@ -416,7 +418,7 @@ impl<SPI, CS> DW1000<SPI, CS, Sending>
     /// This method returns an `nb::Result` to indicate whether the transmission
     /// has finished, or whether it is still ongoing. You can use this to busily
     /// wait for the transmission to finish, for example using `nb`'s `block!`
-    /// macro, or you can use it in tandem with [`TxFuture::enable_interrupts`]
+    /// macro, or you can use it in tandem with [`DW1000::enable_tx_interrupts`]
     /// and the DW1000 IRQ output to wait in a more energy-efficient manner.
     ///
     /// Handling the DW1000's IRQ output line is out of the scope of this
@@ -525,7 +527,7 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
     /// This method returns an `nb::Result` to indicate whether the transmission
     /// has finished, or whether it is still ongoing. You can use this to busily
     /// wait for the transmission to finish, for example using `nb`'s `block!`
-    /// macro, or you can use it in tandem with [`RxFuture::enable_interrupts`]
+    /// macro, or you can use it in tandem with [`DW1000::enable_rx_interrupts`]
     /// and the DW1000 IRQ output to wait in a more energy-efficient manner.
     ///
     /// Handling the DW1000's IRQ output line is out of the scope of this
