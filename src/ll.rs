@@ -764,10 +764,9 @@ impl_register! {
         value, 0, 15, u16; /// TX Antenna Delay
     }
     0x19, 0x00, 5, RO, SYS_STATE(sys_state) { /// System State information
-        // This register is explicitely named in the user manual, but its
-        // documentation states that it is reserved, and no info about fields is
-        // given. I still found it helpful to have it, to print raw bytes during
-        // debugging.
+        tx_state,    0,  3, u8; /// Current Transmit State Machine value
+        rx_state,    8, 12, u8; /// Current Receive State Machine value
+        pmsc_state, 16, 23, u8; /// Current PMSC State Machine value
     }
     0x1E, 0x00, 4, RW, TX_POWER(tx_power) { /// TX Power Control
         // The TX_POWER register has multiple sets of fields defined, depending
