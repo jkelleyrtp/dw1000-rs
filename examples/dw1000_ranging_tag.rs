@@ -76,9 +76,9 @@ fn main() -> ! {
     let mut task_timer    = dwm1001.TIMER0.constrain();
     let mut timeout_timer = dwm1001.TIMER1.constrain();
 
-    loop {
-        let mut buf = [0; 128];
+    let mut buf = [0; 128];
 
+    loop {
         // Listen for messages
         task_timer.start(100_000u32);
         repeat_timeout!(
