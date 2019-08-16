@@ -33,7 +33,7 @@ fn main() -> ! {
     // Configure timer
     let mut timer = dwm1001.TIMER0.constrain();
 
-    'outer: loop {
+    loop {
         let mut rx = dw1000
             .receive()
             .expect("Failed to start receiver");
