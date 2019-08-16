@@ -34,7 +34,6 @@ use dwm1001::{
     },
     DWM1001,
     block_timeout,
-    repeat_timeout,
     print,
 };
 
@@ -73,113 +72,106 @@ fn main() -> ! {
         )
         .expect("Failed to set address");
 
-    let mut task_timer    = dwm1001.TIMER0.constrain();
     let mut timeout_timer = dwm1001.TIMER1.constrain();
 
     let mut buf = [0; 128];
 
     loop {
-        // Listen for messages
-        task_timer.start(100_000u32);
-        repeat_timeout!(
-            &mut task_timer,
-            {
-                dwm1001.leds.D10.enable();
-                delay.delay_ms(10u32);
-                dwm1001.leds.D10.disable();
+        dwm1001.leds.D10.enable();
+        delay.delay_ms(10u32);
+        dwm1001.leds.D10.disable();
 
-                let mut future = dw1000
-                    .receive()
-                    .expect("Failed to receive message");
-                future.enable_interrupts()
-                    .expect("Failed to enable interrupts");
+        let mut future = dw1000
+            .receive()
+            .expect("Failed to receive message");
+        future.enable_interrupts()
+            .expect("Failed to enable interrupts");
 
-                timeout_timer.start(100_000u32);
-                block_timeout!(&mut timeout_timer, {
-                    dw_irq.wait_for_interrupts(
-                        &mut nvic,
-                        &mut gpiote,
-                        &mut timeout_timer,
+        timeout_timer.start(100_000u32);
+        let message = block_timeout!(&mut timeout_timer, {
+            dw_irq.wait_for_interrupts(
+                &mut nvic,
+                &mut gpiote,
+                &mut timeout_timer,
+            );
+            future.wait(&mut buf)
+        });
+
+        let message = match message {
+            Ok(message) => message,
+            Err(_)      => continue, //ignore error
+        };
+
+        let ping = ranging::Ping::decode::<Spim<SPIM2>>(&message)
+            .expect("Failed to decode ping");
+        if let Some(ping) = ping {
+            // Received ping from an anchor. Reply with a ranging
+            // request.
+
+            let mut future = ranging::Request::new(&mut dw1000, ping)
+                .expect("Failed to initiate request")
+                .send(&mut dw1000)
+                .expect("Failed to initiate request transmission");
+            future.enable_interrupts()
+                .expect("Failed to enable interrupts");
+
+            dwm1001.leds.D11.enable();
+            delay.delay_ms(10u32);
+            dwm1001.leds.D11.disable();
+
+            timeout_timer.start(100_000u32);
+            block!({
+                dw_irq.wait_for_interrupts(
+                    &mut nvic,
+                    &mut gpiote,
+                    &mut timeout_timer,
+                );
+                future.wait()
+            })
+            .expect("Failed to send ranging request");
+
+            continue;
+        }
+
+        let response =
+            ranging::Response::decode::<Spim<SPIM2>>(&message)
+                .expect("Failed to decode response");
+        if let Some(response) = response {
+            dwm1001.leds.D12.enable();
+            delay.delay_ms(10u32);
+            dwm1001.leds.D12.disable();
+
+            // If this is not a PAN ID and short address, it doesn't
+            // come from a compatible node. Ignore it.
+            let (pan_id, addr) = match response.source {
+                mac::Address::Short(pan_id, addr) =>
+                    (pan_id, addr),
+                _ =>
+                    continue,
+            };
+
+            // Ranging response received. Compute distance.
+            match ranging::compute_distance_mm(&response) {
+                Some(distance_mm) => {
+                    dwm1001.leds.D9.enable();
+                    delay.delay_ms(10u32);
+                    dwm1001.leds.D9.disable();
+
+                    print!("{:04x}:{:04x} - {} mm\n",
+                        pan_id.0,
+                        addr.0,
+                        distance_mm,
                     );
-                    future.wait(&mut buf)
-                })
-            },
-            (message) {
-                let ping = ranging::Ping::decode::<Spim<SPIM2>>(&message)
-                    .expect("Failed to decode ping");
-                if let Some(ping) = ping {
-                    // Received ping from an anchor. Reply with a ranging
-                    // request.
-
-                    let mut future = ranging::Request::new(&mut dw1000, ping)
-                        .expect("Failed to initiate request")
-                        .send(&mut dw1000)
-                        .expect("Failed to initiate request transmission");
-                    future.enable_interrupts()
-                        .expect("Failed to enable interrupts");
-
-                    dwm1001.leds.D11.enable();
-                    delay.delay_ms(10u32);
-                    dwm1001.leds.D11.disable();
-
-                    timeout_timer.start(100_000u32);
-                    block!({
-                        dw_irq.wait_for_interrupts(
-                            &mut nvic,
-                            &mut gpiote,
-                            &mut timeout_timer,
-                        );
-                        future.wait()
-                    })
-                    .expect("Failed to send ranging request");
-
+                }
+                None => {
+                    print!("Distance too large; can't compute");
                     continue;
                 }
+            }
 
-                let response =
-                    ranging::Response::decode::<Spim<SPIM2>>(&message)
-                        .expect("Failed to decode response");
-                if let Some(response) = response {
-                    dwm1001.leds.D12.enable();
-                    delay.delay_ms(10u32);
-                    dwm1001.leds.D12.disable();
+            continue;
+        }
 
-                    // If this is not a PAN ID and short address, it doesn't
-                    // come from a compatible node. Ignore it.
-                    let (pan_id, addr) = match response.source {
-                        mac::Address::Short(pan_id, addr) =>
-                            (pan_id, addr),
-                        _ =>
-                            continue,
-                    };
-
-                    // Ranging response received. Compute distance.
-                    match ranging::compute_distance_mm(&response) {
-                        Some(distance_mm) => {
-                            dwm1001.leds.D9.enable();
-                            delay.delay_ms(10u32);
-                            dwm1001.leds.D9.disable();
-
-                            print!("{:04x}:{:04x} - {} mm\n",
-                                pan_id.0,
-                                addr.0,
-                                distance_mm,
-                            );
-                        }
-                        None => {
-                            print!("Distance too large; can't compute");
-                            continue;
-                        }
-                    }
-
-                    continue;
-                }
-
-                print!("Ignored message that was neither ping nor response\n");
-            };
-            (_error) {
-                // ignore error
-            };
-        );
+        print!("Ignored message that was neither ping nor response\n");
     }
 }
