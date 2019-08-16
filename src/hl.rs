@@ -279,7 +279,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// be used to wait for a message.
     ///
     /// Only frames addressed to this device will be received.
-    pub fn receive(mut self)
+    pub fn receive(mut self, config: RxConfig)
         -> Result<DW1000<SPI, CS, Receiving>, Error<SPI, CS>>
     {
         // For unknown reasons, the DW1000 gets stuck in RX mode without ever
@@ -313,17 +313,23 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         // dropping fewer frames now.
         self.force_idle()?;
 
-        // Enable frame filtering
-        self.ll
-            .sys_cfg()
-            .modify(|_, w|
-                w
-                    .ffen(0b1) // enable frame filtering
-                    .ffab(0b1) // receive beacon frames
-                    .ffad(0b1) // receive data frames
-                    .ffaa(0b1) // receive acknowledgement frames
-                    .ffam(0b1) // receive MAC command frames
-            )?;
+        if config.frame_filtering {
+            self.ll
+                .sys_cfg()
+                .modify(|_, w|
+                    w
+                        .ffen(0b1) // enable frame filtering
+                        .ffab(0b1) // receive beacon frames
+                        .ffad(0b1) // receive data frames
+                        .ffaa(0b1) // receive acknowledgement frames
+                        .ffam(0b1) // receive MAC command frames
+                )?;
+        }
+        else {
+            self.ll
+                .sys_cfg()
+                .modify(|_, w| w.ffen(0b0))?; // disable frame filtering
+        }
 
         // Set PLLLDT bit in EC_CTRL. According to the documentation of the
         // CLKPLL_LL bit in SYS_STATUS, this bit needs to be set to ensure the
@@ -751,6 +757,26 @@ impl<SPI, CS, State> fmt::Debug for DW1000<SPI, CS, State>
         write!(f, ", .. }}")?;
 
         Ok(())
+    }
+}
+
+
+/// Receive configuration
+pub struct RxConfig {
+    /// Enable frame filtering
+    ///
+    /// If true, only frames directly addressed to this node and broadcasts will
+    /// be received.
+    ///
+    /// Defaults to `true`.
+    pub frame_filtering: bool,
+}
+
+impl Default for RxConfig {
+    fn default() -> Self {
+        Self {
+            frame_filtering: true,
+        }
     }
 }
 
