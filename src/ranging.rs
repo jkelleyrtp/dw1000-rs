@@ -286,7 +286,7 @@ impl Request {
     /// affected.
     pub fn new<SPI, CS>(
         dw1000: &mut DW1000<SPI, CS, Ready>,
-        ping:   RxMessage<Ping>,
+        ping:   &RxMessage<Ping>,
     )
         -> Result<TxMessage<Self>, Error<SPI, CS>>
         where
@@ -350,7 +350,7 @@ impl Response {
     /// affected.
     pub fn new<SPI, CS>(
         dw1000:  &mut DW1000<SPI, CS, Ready>,
-        request: RxMessage<Request>,
+        request: &RxMessage<Request>,
     )
         -> Result<TxMessage<Self>, Error<SPI, CS>>
         where
