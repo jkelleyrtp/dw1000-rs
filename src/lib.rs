@@ -42,6 +42,7 @@ pub use crate::hl::{
     Message,
     Ready,
     Receiving,
+    RxConfig,
     Sending,
     Uninitialized,
 };
