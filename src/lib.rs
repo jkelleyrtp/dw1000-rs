@@ -898,7 +898,9 @@ impl DW_IRQ {
             nrf52::NVIC::unpend(Interrupt::GPIOTE);
             nrf52::NVIC::unpend(T::INTERRUPT);
 
-            nvic.enable(Interrupt::GPIOTE);
+            // Safe, as I don't believe this can interfere with the critical
+            // section we're in.
+            unsafe { nrf52::NVIC::unmask(Interrupt::GPIOTE); }
             timer.enable_interrupt(nvic);
 
             asm::dsb();
@@ -906,7 +908,7 @@ impl DW_IRQ {
 
             // If we don't do this, the (probably non-existing) interrupt
             // handler will be called as soon as we exit this closure.
-            nvic.disable(Interrupt::GPIOTE);
+            nrf52::NVIC::mask(Interrupt::GPIOTE);
             timer.disable_interrupt(nvic);
         });
 
