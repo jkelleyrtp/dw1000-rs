@@ -15,7 +15,6 @@ extern crate panic_semihosting;
 
 
 use cortex_m_rt::entry;
-use nb::block;
 
 use dwm1001::{
     prelude::*,
@@ -134,7 +133,7 @@ fn main() -> ! {
                 .expect("Failed to initiate request transmission");
 
             timeout_timer.start(500_000u32);
-            block!({
+            block_timeout!(&mut timeout_timer, {
                 dw_irq.wait_for_interrupts(
                     &mut nvic,
                     &mut gpiote,
