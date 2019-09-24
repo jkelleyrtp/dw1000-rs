@@ -405,8 +405,8 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         Ok(())
     }
 
-    /// Clear all interrupt flags
-    pub fn clear_interrupts(&mut self)
+    /// Disables all interrupts
+    pub fn disable_interrupts(&mut self)
         -> Result<(), Error<SPI, CS>>
     {
         self.ll.sys_mask().write(|w| w)?;
