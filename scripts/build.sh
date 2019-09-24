@@ -2,5 +2,7 @@
 
 export RUSTFLAGS="-D warnings"
 
-cargo test --verbose &&
-cargo doc
+(
+    cd dw1000 &&
+    cargo test --verbose &&
+    cargo doc)
