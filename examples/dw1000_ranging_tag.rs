@@ -88,15 +88,11 @@ fn main() -> ! {
     let mut buf = [0; 128];
 
     loop {
-        dwm1001.leds.D10.enable();
-        delay.delay_ms(10u32);
-        dwm1001.leds.D10.disable();
-
         let mut receiving = dw1000
             .receive(RxConfig::default())
             .expect("Failed to receive message");
 
-        timeout_timer.start(100_000u32);
+        timeout_timer.start(500_000u32);
         let message = block_timeout!(&mut timeout_timer, {
             dw_irq.wait_for_interrupts(
                 &mut nvic,
@@ -124,16 +120,20 @@ fn main() -> ! {
             // Received ping from an anchor. Reply with a ranging
             // request.
 
+            dwm1001.leds.D10.enable();
+            delay.delay_ms(10u32);
+            dwm1001.leds.D10.disable();
+
+            // Wait for a moment, to give the anchor a chance to start listening
+            // for the reply.
+            delay.delay_ms(100u32);
+
             let mut sending = ranging::Request::new(&mut dw1000, &ping)
                 .expect("Failed to initiate request")
                 .send(dw1000)
                 .expect("Failed to initiate request transmission");
 
-            dwm1001.leds.D11.enable();
-            delay.delay_ms(10u32);
-            dwm1001.leds.D11.disable();
-
-            timeout_timer.start(100_000u32);
+            timeout_timer.start(500_000u32);
             block!({
                 dw_irq.wait_for_interrupts(
                     &mut nvic,
@@ -157,9 +157,12 @@ fn main() -> ! {
             >(&message)
                 .expect("Failed to decode response");
         if let Some(response) = response {
-            dwm1001.leds.D12.enable();
+            // Received ranging response from anchor. Now we can compute the
+            // distance.
+
+            dwm1001.leds.D11.enable();
             delay.delay_ms(10u32);
-            dwm1001.leds.D12.disable();
+            dwm1001.leds.D11.disable();
 
             // If this is not a PAN ID and short address, it doesn't
             // come from a compatible node. Ignore it.
