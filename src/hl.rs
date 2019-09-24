@@ -376,7 +376,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     pub fn enable_tx_interrupts(&mut self)
         -> Result<(), Error<SPI, CS>>
     {
-        self.ll.sys_mask().write(|w| w.mtxfrs(0b1))?;
+        self.ll.sys_mask().modify(|_, w| w.mtxfrs(0b1))?;
         Ok(())
     }
 
@@ -388,7 +388,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     {
         self.ll()
             .sys_mask()
-            .write(|w|
+            .modify(|_, w|
                 w
                     .mrxdfr(0b1)
                     .mrxfce(0b1)
