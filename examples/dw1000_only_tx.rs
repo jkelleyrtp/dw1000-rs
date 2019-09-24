@@ -26,7 +26,7 @@ fn main() -> ! {
     let mut dw1000  = dwm1001.DW1000.init().unwrap();
 
     loop {
-        let mut tx = dw1000
+        let mut sending = dw1000
             .send(
                 b"ping",
                 mac::Address::broadcast(&mac::AddressMode::Short),
@@ -34,8 +34,11 @@ fn main() -> ! {
             )
             .expect("Failed to start receiver");
 
-        block!(tx.wait())
+        block!(sending.wait())
             .expect("Failed to send data");
+
+        dw1000 = sending.finish_sending()
+            .expect("Failed to finish sending");
 
         print!(".");
     }

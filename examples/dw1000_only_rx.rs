@@ -12,6 +12,13 @@ use cortex_m_rt::entry;
 use dwm1001::{
     block_timeout,
     debug,
+    dw1000::{
+        RxConfig,
+        ranging::{
+            self,
+            Message as _,
+        },
+    },
     DWM1001,
     nrf52832_hal::Delay,
     prelude::*,
@@ -34,8 +41,11 @@ fn main() -> ! {
     let mut timer = dwm1001.TIMER0.constrain();
 
     loop {
-        let mut rx = dw1000
-            .receive()
+        let mut receiving = dw1000
+            .receive(RxConfig {
+                frame_filtering: false,
+                .. RxConfig::default()
+            })
             .expect("Failed to start receiver");
 
         let mut buffer = [0; 1024];
@@ -43,7 +53,12 @@ fn main() -> ! {
         // Set timer for timeout
         timer.start(5_000_000u32);
 
-        let message = match block_timeout!(&mut timer, rx.wait(&mut buffer)) {
+        let result = block_timeout!(&mut timer, receiving.wait(&mut buffer));
+
+        dw1000 = receiving.finish_receiving()
+            .expect("Failed to finish receiving");
+
+        let message = match result {
             Ok(message) => {
                 message
             }
@@ -53,14 +68,29 @@ fn main() -> ! {
             }
         };
 
-        print!("Received frame: {:x?}\n", message.frame);
-
-        // Signal that data was received
-        for _ in 0..20 {
+        if message.frame.payload.starts_with(ranging::Ping::PRELUDE.0) {
             dwm1001.leds.D10.enable();
-            delay.delay_ms(30u32);
+            delay.delay_ms(10u32);
             dwm1001.leds.D10.disable();
-            delay.delay_ms(30u32);
+            continue;
         }
+        if message.frame.payload.starts_with(ranging::Request::PRELUDE.0) {
+            dwm1001.leds.D11.enable();
+            delay.delay_ms(10u32);
+            dwm1001.leds.D11.disable();
+            continue;
+        }
+        if message.frame.payload.starts_with(ranging::Response::PRELUDE.0) {
+            dwm1001.leds.D12.enable();
+            delay.delay_ms(10u32);
+            dwm1001.leds.D12.disable();
+            continue;
+        }
+
+        dwm1001.leds.D9.enable();
+        delay.delay_ms(10u32);
+        dwm1001.leds.D9.disable();
+
+        print!("Received frame: {:x?}\n", message.frame);
     }
 }

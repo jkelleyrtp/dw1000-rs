@@ -33,7 +33,7 @@ fn main() -> ! {
             .expect("Failed to read system time");
         let tx_time = sys_time + Duration::from_nanos(10_000_000);
 
-        let mut tx = dw1000
+        let mut sending = dw1000
             .send(
                 b"ping",
                 mac::Address::broadcast(&mac::AddressMode::Short),
@@ -43,8 +43,11 @@ fn main() -> ! {
 
         print!("Sending... ");
 
-        block!(tx.wait())
+        block!(sending.wait())
             .expect("Failed to send data");
+
+        dw1000 = sending.finish_sending()
+            .expect("Failed to finish sending");
 
         print!("done\n");
     }

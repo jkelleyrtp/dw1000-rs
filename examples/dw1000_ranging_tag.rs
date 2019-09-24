@@ -15,12 +15,12 @@ extern crate panic_semihosting;
 
 
 use cortex_m_rt::entry;
-use nb::block;
 
 use dwm1001::{
     prelude::*,
     debug,
     dw1000::{
+        RxConfig,
         mac,
         ranging::{
             self,
@@ -28,6 +28,11 @@ use dwm1001::{
         },
     },
     nrf52832_hal::{
+        gpio::{
+            p0::P0_17,
+            Output,
+            PushPull,
+        },
         nrf52832_pac::SPIM2,
         Delay,
         Spim,
@@ -50,6 +55,11 @@ fn main() -> ! {
     dwm1001.DW_RST.reset_dw1000(&mut delay);
     let mut dw1000 = dwm1001.DW1000.init()
         .expect("Failed to initialize DW1000");
+
+    dw1000.enable_tx_interrupts()
+        .expect("Failed to enable TX interrupts");
+    dw1000.enable_rx_interrupts()
+        .expect("Failed to enable RX interrupts");
 
     let mut dw_irq = dwm1001.DW_IRQ;
     let mut nvic   = dwm1001.NVIC;
@@ -77,69 +87,81 @@ fn main() -> ! {
     let mut buf = [0; 128];
 
     loop {
-        dwm1001.leds.D10.enable();
-        delay.delay_ms(10u32);
-        dwm1001.leds.D10.disable();
-
-        let mut future = dw1000
-            .receive()
+        let mut receiving = dw1000
+            .receive(RxConfig::default())
             .expect("Failed to receive message");
-        future.enable_interrupts()
-            .expect("Failed to enable interrupts");
 
-        timeout_timer.start(100_000u32);
+        timeout_timer.start(500_000u32);
         let message = block_timeout!(&mut timeout_timer, {
             dw_irq.wait_for_interrupts(
                 &mut nvic,
                 &mut gpiote,
                 &mut timeout_timer,
             );
-            future.wait(&mut buf)
+            receiving.wait(&mut buf)
         });
+
+        dw1000 = receiving.finish_receiving()
+            .expect("Failed to finish receiving");
 
         let message = match message {
             Ok(message) => message,
             Err(_)      => continue, //ignore error
         };
 
-        let ping = ranging::Ping::decode::<Spim<SPIM2>>(&message)
-            .expect("Failed to decode ping");
+        let ping =
+            ranging::Ping::decode::<
+                Spim<SPIM2>,
+                P0_17<Output<PushPull>>,
+            >(&message)
+                .expect("Failed to decode ping");
         if let Some(ping) = ping {
             // Received ping from an anchor. Reply with a ranging
             // request.
 
-            let mut future = ranging::Request::new(&mut dw1000, ping)
-                .expect("Failed to initiate request")
-                .send(&mut dw1000)
-                .expect("Failed to initiate request transmission");
-            future.enable_interrupts()
-                .expect("Failed to enable interrupts");
-
-            dwm1001.leds.D11.enable();
+            dwm1001.leds.D10.enable();
             delay.delay_ms(10u32);
-            dwm1001.leds.D11.disable();
+            dwm1001.leds.D10.disable();
 
-            timeout_timer.start(100_000u32);
-            block!({
+            // Wait for a moment, to give the anchor a chance to start listening
+            // for the reply.
+            delay.delay_ms(100u32);
+
+            let mut sending = ranging::Request::new(&mut dw1000, &ping)
+                .expect("Failed to initiate request")
+                .send(dw1000)
+                .expect("Failed to initiate request transmission");
+
+            timeout_timer.start(500_000u32);
+            block_timeout!(&mut timeout_timer, {
                 dw_irq.wait_for_interrupts(
                     &mut nvic,
                     &mut gpiote,
                     &mut timeout_timer,
                 );
-                future.wait()
+                sending.wait()
             })
             .expect("Failed to send ranging request");
+
+            dw1000 = sending.finish_sending()
+                .expect("Failed to finish sending");
 
             continue;
         }
 
         let response =
-            ranging::Response::decode::<Spim<SPIM2>>(&message)
+            ranging::Response::decode::<
+                Spim<SPIM2>,
+                P0_17<Output<PushPull>>,
+            >(&message)
                 .expect("Failed to decode response");
         if let Some(response) = response {
-            dwm1001.leds.D12.enable();
+            // Received ranging response from anchor. Now we can compute the
+            // distance.
+
+            dwm1001.leds.D11.enable();
             delay.delay_ms(10u32);
-            dwm1001.leds.D12.disable();
+            dwm1001.leds.D11.disable();
 
             // If this is not a PAN ID and short address, it doesn't
             // come from a compatible node. Ignore it.
