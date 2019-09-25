@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
-export RUSTFLAGS="-D warnings"
+(
+    cd dw1000 &&
+    ./scripts/build.sh)
 
-cargo test --verbose &&
-cargo doc
+(
+    cd dwm1001 &&
+    ./scripts/build.sh)
