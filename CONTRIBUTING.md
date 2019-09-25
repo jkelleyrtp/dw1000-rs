@@ -53,9 +53,10 @@ $ git pull upstream master
 
 10. Tag the release (latest commit is assumed to be the appropriate one here)
 ```
-$ git tag vx.y.z
+$ git tag <crate>_vx.y.z
 $ git push --tag upstream
 ```
+`<crate>` should be replaced with the appropriate crate name (`dw1000` or `dwm1001`).
 
 
 [open an issue]: https://github.com/braun-robotics/rust-dw1000/issues/new
