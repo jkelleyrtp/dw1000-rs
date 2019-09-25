@@ -14,7 +14,7 @@ keywords      = ["decawave", "dw1000", "radio", "embedded-hal", "embedded-hal-dr
 
 
 [badges]
-travis-ci = { repository = "braun-robotics/rust-dw1000" }
+travis-ci = { repository = "braun-embedded/rust-dw1000" }
 
 
 [dependencies]
