@@ -45,18 +45,22 @@ $ git push -u origin release-x.y.z
 $ cargo publish
 ```
 
-9. Merge pull request and update your local repository
+9. Tag the release
+```
+$ git tag <crate>_vx.y.z
+```
+`<crate>` should be replaced with the appropriate crate name (`dw1000` or `dwm1001`).
+
+10. Merge pull request and update your local repository
 ```
 $ git checkout master
 $ git pull upstream master
 ```
 
-10. Tag the release (latest commit is assumed to be the appropriate one here)
+11. Push the release tag
 ```
-$ git tag <crate>_vx.y.z
 $ git push --tag upstream
 ```
-`<crate>` should be replaced with the appropriate crate name (`dw1000` or `dwm1001`).
 
 
 [open an issue]: https://github.com/braun-robotics/rust-dw1000/issues/new
