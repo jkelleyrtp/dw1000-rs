@@ -13,11 +13,11 @@ Driver for the Decawave [DW1000] UWB transceiver, written in the [Rust] programm
 
 This driver covers the main features of the DW1000, wireless communication and distance measurement, although the distance measurement is currently lacking range bias compensation, making it somewhat imprecise.
 
-As of this writing, the driver is well-tested ([examples] are available in the rust-dwm1001 repository), but has yet to be proven in real-world use cases.
+As of this writing, the driver is well-tested (see [examples] based on the DWM1001 module), but has yet to be proven in real-world use cases.
 
 This project is still in development. No guarantee of API stability is made, so expect future versions to require updates in your code.
 
-[examples]: https://github.com/braun-embedded/rust-dwm1001/tree/master/examples
+[examples]: ../dwm1001/examples
 
 
 ## Usage
@@ -33,10 +33,10 @@ dw1000 = "0.2"
 
 Please refer to the **[API Reference]**.
 
-[Example programs] are available in the rust-dwm1001 repository.
+[Example programs] are available in the `dwm1001` crate.
 
 [API Reference]: https://docs.rs/dw1000
-[Example programs]: https://github.com/braun-embedded/rust-dwm1001/tree/master/examples
+[Example programs]: ../dwm1001/examples
 
 
 ## License
@@ -45,8 +45,8 @@ This project is open source software, licensed under the terms of the [Zero Clau
 
 See [LICENSE] for full details.
 
-[Zero Clause BSD License]: https://opensource.org/licenses/FPL-1.0.0
-[LICENSE]: https://github.com/braun-embedded/rust-dw1000/blob/master/LICENSE
+[Zero Clause BSD License]: https://opensource.org/licenses/0BSD
+[LICENSE]: LICENSE
 
 
 **Created by [Braun Embedded](https://braun-embedded.com/)** <br />

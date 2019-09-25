@@ -43,7 +43,7 @@ Please refer to the **[API Reference]** for further documentation.
 [Example programs] are available in the GitHub repository.
 
 [API Reference]: https://docs.rs/dwm1001
-[Example programs]: https://github.com/braun-embedded/rust-dwm1001/tree/master/examples
+[Example programs]: examples
 
 
 ## License
@@ -52,8 +52,8 @@ This project is open source software, licensed under the terms of the [Zero Clau
 
 See [LICENSE] for full details.
 
-[Zero Clause BSD License]: https://opensource.org/licenses/FPL-1.0.0
-[LICENSE]: https://github.com/braun-embedded/rust-dwm1001/blob/master/LICENSE
+[Zero Clause BSD License]: https://opensource.org/licenses/0BSD
+[LICENSE]: LICENSE
 
 
 **Created by [Braun Embedded](https://braun-embedded.com/)** <br />
