@@ -1,3 +1,22 @@
+<a name="v0.3.0"></a>
+### v0.3.0 (2019-09-25)
+
+- Upgrade to latest `dw1000` ([#97])
+- Various minor documentation updates ([#98])
+- Update dependencies ([#99], [#100])
+- Improve examples ([#101], [#102])
+- Various minor fixes ([#103])
+- [Merge repository with `dw1000` repository](https://github.com/braun-embedded/rust-dw1000/pull/102)
+
+[#97]: https://github.com/braun-embedded/rust-dwm1001/pull/97
+[#98]: https://github.com/braun-embedded/rust-dwm1001/pull/98
+[#99]: https://github.com/braun-embedded/rust-dwm1001/pull/99
+[#100]: https://github.com/braun-embedded/rust-dwm1001/pull/100
+[#101]: https://github.com/braun-embedded/rust-dwm1001/pull/101
+[#102]: https://github.com/braun-embedded/rust-dwm1001/pull/102
+[#103]: https://github.com/braun-embedded/rust-dwm1001/pull/103
+
+
 <a name="v0.2.1"></a>
 ### v0.2.1 (2019-05-17)
 
