@@ -1,11 +1,9 @@
 //! Accesses the LIS2DH12 3-axis accelerometer
 //!
-//! To build:
-//! cargo build --example lis2dh12 --features "dev rt semihosting" --release
-//!
-//! To debug:
-//! openocd -f openocd_jlink.cfg
-//! arm-none-eabi-gdb target/thumbv7em-none-eabihf/release/examples/lis2dh12 -x debug.gdb
+//! The example use the lis2dh2 driver
+//! [lis2dh12](https://crates.io/crates/lis2dh12)
+//! The driver implements the `Accelerometer` triat
+//! [Accelerometer](https://crates.io/crates/accelerometer)
 
 #![no_main]
 #![no_std]
