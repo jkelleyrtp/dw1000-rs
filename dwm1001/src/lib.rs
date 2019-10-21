@@ -239,8 +239,11 @@ pub struct DWM1001 {
 
     /// LIS2DH12 3-axis accelerometer
     ///
-    /// So far no Rust driver exists for the LIS2DH12, so this provides direct
-    /// access to the I2C bus it's connected to.
+    /// LIS2DH12 can be used either bare or together with the
+    /// [lis2dh12](https://crates.io/crates/lis2dh12) driver.
+    ///
+    /// The `lis2dh12` driver implements the
+    /// [Accelerometer](https://crates.io/crates/accelerometer) trait
     pub LIS2DH12: Twim<nrf52::TWIM1>,
 
     /// nRF52 nRF52 core peripheral: Cache and branch predictor maintenance
