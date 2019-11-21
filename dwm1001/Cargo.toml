@@ -26,7 +26,7 @@ cortex-m-rt             = { version = "0.6.3", optional = true }
 cortex-m-semihosting    = "0.3.0"
 embedded-hal            = "0.2.1"
 embedded-timeout-macros = "0.2.0"
-lis2dh12                = "0.2.0"
+lis2dh12                = "0.3.0"
 
 [dependencies.dw1000]
 version = "0.3.0"
