@@ -5,7 +5,7 @@ authors = ["Hanno Braun <hanno@braun-embedded.com>"]
 edition = "2018"
 
 description   = "Board Support Crate for the Decawave DWM1001 module and development board"
-documentation = "https://docs.rs/dw1000"
+documentation = "https://docs.rs/dwm1001"
 repository    = "https://github.com/braun-embedded/rust-dw1000"
 license       = "0BSD"
 readme        = "README.md"
