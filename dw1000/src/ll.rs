@@ -991,6 +991,11 @@ impl_register! {
         lderune,   17, 17, u8; /// LDE Run Enable
         khzclkdiv, 26, 31, u8; /// Kilohertz Clock Divisor
     }
+    0x36, 0x28, 4, RW, PMSC_LEDC(pmsc_ledc) { /// PMSC LED Control Register
+        blink_tim, 0, 7, u8; /// Blink time count value
+        blnken, 8, 8, u8; /// Blink Enable
+        blnknow, 16, 19, u8; // Manually triggers an LED blink. There is one trigger bit per LED IO
+    }
 }
 
 

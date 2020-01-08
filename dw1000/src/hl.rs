@@ -420,7 +420,17 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// SFDLED will change GPIO1
     /// RXLED will change GPIO2
     /// TXLED will change GPIO3
-    pub fn configure_leds(&mut self, enable_rx_ok: bool, enable_sfd: bool, enable_rx: bool, enable_tx: bool) {
+    ///
+    /// blink_time is in units of 14 ms
+    pub fn configure_leds(&mut self, enable_rx_ok: bool, enable_sfd: bool, enable_rx: bool, enable_tx: bool, blink_time: u8) {
+        // Turn on the led blinking
+        self.ll.pmsc_ledc().modify(|_, w| {
+           w
+               .blnken((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
+               .blink_tim(blink_time)
+        });
+
+        // Set the proper gpio mode
         self.ll.gpio_mode().modify(|_, w| {
             w
                 .msgp0(enable_rx_ok as u8)
