@@ -414,12 +414,14 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     }
 
     /// Configures the gpio pins to operate as LED output.
-    /// Note: This means that the function of the gpio pins change
     ///
-    /// RXOKLED will change GPIO0
-    /// SFDLED will change GPIO1
-    /// RXLED will change GPIO2
-    /// TXLED will change GPIO3
+    /// - Note: This means that the function of the gpio pins change
+    /// - Note: Both the kilohertz and debounce clock will be turned on or off
+    /// ---
+    /// - RXOKLED will change GPIO0
+    /// - SFDLED will change GPIO1
+    /// - RXLED will change GPIO2
+    /// - TXLED will change GPIO3
     ///
     /// blink_time is in units of 14 ms
     pub fn configure_leds(
@@ -432,7 +434,9 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         -> Result<(), Error<SPI, CS>> {
         // Turn on the timer that will control the blinking (The debounce clock)
         self.ll.pmsc_ctrl0().modify(|_, w| {
-            w.gpdce((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
+            w
+                .gpdce((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
+                .khzclken((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
         });
 
         // Turn on the led blinking
