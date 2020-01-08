@@ -430,6 +430,11 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         enable_tx: bool,
         blink_time: u8)
         -> Result<(), Error<SPI, CS>> {
+        // Turn on the timer that will control the blinking (The debounce clock)
+        self.ll.pmsc_ctrl0().modify(|_, w| {
+            w.gpdce((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
+        });
+
         // Turn on the led blinking
         self.ll.pmsc_ledc().modify(|_, w| {
            w
