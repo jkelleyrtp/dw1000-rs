@@ -412,6 +412,23 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         self.ll.sys_mask().write(|w| w)?;
         Ok(())
     }
+
+    /// Configures the gpio pins to operate as LED output.
+    /// Note: This means that the function of the gpio pins change
+    ///
+    /// RXOKLED will change GPIO0
+    /// SFDLED will change GPIO1
+    /// RXLED will change GPIO2
+    /// TXLED will change GPIO3
+    pub fn configure_leds(&mut self, enable_rx_ok: bool, enable_sfd: bool, enable_rx: bool, enable_tx: bool) {
+        self.ll.gpio_mode().modify(|_, w| {
+            w
+                .msgp0(enable_rx_ok as u8)
+                .msgp1(enable_sfd as u8)
+                .msgp2(enable_rx as u8)
+                .msgp3(enable_tx as u8)
+        });
+    }
 }
 
 impl<SPI, CS> DW1000<SPI, CS, Sending>

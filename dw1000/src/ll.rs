@@ -788,6 +788,134 @@ impl_register! {
         wait,    3, 10, u8; /// Wait Counter
         ostrm,  11, 11, u8; /// External Timebase Reset Mode Enable
     }
+    0x26, 0x00, 4, RW, GPIO_MODE(gpio_mode) { /// GPIO Mode Control Register
+        msgp0,  6,  7, u8; /// Mode Selection for GPIO0/RXOKLED
+        msgp1,  8,  9, u8; /// Mode Selection for GPIO1/SFDLED
+        msgp2, 10, 11, u8; /// Mode Selection for GPIO2/RXLED
+        msgp3, 12, 13, u8; /// Mode Selection for GPIO3/TXLED
+        msgp4, 14, 15, u8; /// Mode Selection for GPIO4/EXTPA
+        msgp5, 16, 17, u8; /// Mode Selection for GPIO5/EXTTXE
+        msgp6, 18, 19, u8; /// Mode Selection for GPIO6/EXTRXE
+        msgp7, 20, 21, u8; /// Mode Selection for SYNC/GPIO7
+        msgp8, 22, 23, u8; /// Mode Selection for IRQ/GPIO8
+    }
+    0x26, 0x08, 4, RW, GPIO_DIR(gpio_dir) { /// GPIO Direction Control Register
+        gdp0,  0,  0, u8; /// Direction Selection for GPIO0
+        gdp1,  1,  1, u8; /// Direction Selection for GPIO1
+        gdp2,  2,  2, u8; /// Direction Selection for GPIO2
+        gdp3,  3,  3, u8; /// Direction Selection for GPIO3
+        gdm0,  4,  4, u8; /// Mask for setting the direction of GPIO0
+        gdm1,  5,  5, u8; /// Mask for setting the direction of GPIO1
+        gdm2,  6,  6, u8; /// Mask for setting the direction of GPIO2
+        gdm3,  7,  7, u8; /// Mask for setting the direction of GPIO3
+        gdp4,  8,  8, u8; /// Direction Selection for GPIO4
+        gdp5,  9,  9, u8; /// Direction Selection for GPIO5
+        gdp6, 10, 10, u8; /// Direction Selection for GPIO6
+        gdp7, 11, 11, u8; /// Direction Selection for GPIO7
+        gdm4, 12, 12, u8; /// Mask for setting the direction of GPIO4
+        gdm5, 13, 13, u8; /// Mask for setting the direction of GPIO5
+        gdm6, 14, 14, u8; /// Mask for setting the direction of GPIO6
+        gdm7, 15, 15, u8; /// Mask for setting the direction of GPIO7
+        gdp8, 16, 16, u8; /// Direction Selection for GPIO8
+        gdm8, 20, 20, u8; /// Mask for setting the direction of GPIO8
+    }
+    0x26, 0x0C, 4, RW, GPIO_DOUT(gpio_dout) { /// GPIO Data Output register
+        gop0,  0,  0, u8; /// Output state setting for GPIO0
+        gop1,  1,  1, u8; /// Output state setting for GPIO1
+        gop2,  2,  2, u8; /// Output state setting for GPIO2
+        gop3,  3,  3, u8; /// Output state setting for GPIO3
+        gom0,  4,  4, u8; /// Mask for setting the output state of GPIO0
+        gom1,  5,  5, u8; /// Mask for setting the output state of GPIO1
+        gom2,  6,  6, u8; /// Mask for setting the output state of GPIO2
+        gom3,  7,  7, u8; /// Mask for setting the output state of GPIO3
+        gop4,  8,  8, u8; /// Output state setting for GPIO4
+        gop5,  9,  9, u8; /// Output state setting for GPIO5
+        gop6, 10, 10, u8; /// Output state setting for GPIO6
+        gop7, 11, 11, u8; /// Output state setting for GPIO7
+        gom4, 12, 12, u8; /// Mask for setting the output state of GPIO4
+        gom5, 13, 13, u8; /// Mask for setting the output state of GPIO5
+        gom6, 14, 14, u8; /// Mask for setting the output state of GPIO6
+        gom7, 15, 15, u8; /// Mask for setting the output state of GPIO7
+        gop8, 16, 16, u8; /// Output state setting for GPIO8
+        gom8, 20, 20, u8; /// Mask for setting the output state of GPIO8
+    }
+    0x26, 0x10, 4, RW, GPIO_IRQE(gpio_irqe) { /// GPIO Interrupt Enable
+        girqe0,  0,  0, u8; /// GPIO IRQ Enable for GPIO0 input
+        girqe1,  1,  1, u8; /// GPIO IRQ Enable for GPIO1 input
+        girqe2,  2,  2, u8; /// GPIO IRQ Enable for GPIO2 input
+        girqe3,  3,  3, u8; /// GPIO IRQ Enable for GPIO3 input
+        girqe4,  4,  4, u8; /// GPIO IRQ Enable for GPIO4 input
+        girqe5,  5,  5, u8; /// GPIO IRQ Enable for GPIO5 input
+        girqe6,  6,  6, u8; /// GPIO IRQ Enable for GPIO6 input
+        girqe7,  7,  7, u8; /// GPIO IRQ Enable for GPIO7 input
+        girqe8,  8,  8, u8; /// GPIO IRQ Enable for GPIO8 input
+    }
+    0x26, 0x14, 4, RW, GPIO_ISEN(gpio_isen) { /// GPIO Interrupt Sense Selection
+        gisen0,  0,  0, u8; /// GPIO IRQ sense for GPIO0 input
+        gisen1,  1,  1, u8; /// GPIO IRQ sense for GPIO1 input
+        gisen2,  2,  2, u8; /// GPIO IRQ sense for GPIO2 input
+        gisen3,  3,  3, u8; /// GPIO IRQ sense for GPIO3 input
+        gisen4,  4,  4, u8; /// GPIO IRQ sense for GPIO4 input
+        gisen5,  5,  5, u8; /// GPIO IRQ sense for GPIO5 input
+        gisen6,  6,  6, u8; /// GPIO IRQ sense for GPIO6 input
+        gisen7,  7,  7, u8; /// GPIO IRQ sense for GPIO7 input
+        gisen8,  8,  8, u8; /// GPIO IRQ sense for GPIO8 input
+    }
+    0x26, 0x18, 4, RW, GPIO_IMODE(gpio_imode) { /// GPIO Interrupt Mode (Level / Edge)
+        gimod0,  0,  0, u8; /// GPIO IRQ mode selection for GPIO0 input
+        gimod1,  1,  1, u8; /// GPIO IRQ mode selection for GPIO1 input
+        gimod2,  2,  2, u8; /// GPIO IRQ mode selection for GPIO2 input
+        gimod3,  3,  3, u8; /// GPIO IRQ mode selection for GPIO3 input
+        gimod4,  4,  4, u8; /// GPIO IRQ mode selection for GPIO4 input
+        gimod5,  5,  5, u8; /// GPIO IRQ mode selection for GPIO5 input
+        gimod6,  6,  6, u8; /// GPIO IRQ mode selection for GPIO6 input
+        gimod7,  7,  7, u8; /// GPIO IRQ mode selection for GPIO7 input
+        gimod8,  8,  8, u8; /// GPIO IRQ mode selection for GPIO8 input
+    }
+    0x26, 0x1C, 4, RW, GPIO_IBES(gpio_ibes) { /// GPIO Interrupt “Both Edge” Select
+        gibes0,  0,  0, u8; /// GPIO IRQ "Both Edges" selection for GPIO0 input
+        gibes1,  1,  1, u8; /// GPIO IRQ "Both Edges" selection for GPIO1 input
+        gibes2,  2,  2, u8; /// GPIO IRQ "Both Edges" selection for GPIO2 input
+        gibes3,  3,  3, u8; /// GPIO IRQ "Both Edges" selection for GPIO3 input
+        gibes4,  4,  4, u8; /// GPIO IRQ "Both Edges" selection for GPIO4 input
+        gibes5,  5,  5, u8; /// GPIO IRQ "Both Edges" selection for GPIO5 input
+        gibes6,  6,  6, u8; /// GPIO IRQ "Both Edges" selection for GPIO6 input
+        gibes7,  7,  7, u8; /// GPIO IRQ "Both Edges" selection for GPIO7 input
+        gibes8,  8,  8, u8; /// GPIO IRQ "Both Edges" selection for GPIO8 input
+    }
+    0x26, 0x20, 4, RW, GPIO_ICLR(gpio_iclr) { /// GPIO Interrupt Latch Clear
+        giclr0,  0,  0, u8; /// GPIO IRQ latch clear for GPIO0 input
+        giclr1,  1,  1, u8; /// GPIO IRQ latch clear for GPIO1 input
+        giclr2,  2,  2, u8; /// GPIO IRQ latch clear for GPIO2 input
+        giclr3,  3,  3, u8; /// GPIO IRQ latch clear for GPIO3 input
+        giclr4,  4,  4, u8; /// GPIO IRQ latch clear for GPIO4 input
+        giclr5,  5,  5, u8; /// GPIO IRQ latch clear for GPIO5 input
+        giclr6,  6,  6, u8; /// GPIO IRQ latch clear for GPIO6 input
+        giclr7,  7,  7, u8; /// GPIO IRQ latch clear for GPIO7 input
+        giclr8,  8,  8, u8; /// GPIO IRQ latch clear for GPIO8 input
+    }
+    0x26, 0x24, 4, RW, GPIO_IDBE(gpio_idbe) { /// GPIO Interrupt De-bounce Enable
+        gidbe0,  0,  0, u8; /// GPIO IRQ de-bounce enable for GPIO0
+        gidbe1,  1,  1, u8; /// GPIO IRQ de-bounce enable for GPIO1
+        gidbe2,  2,  2, u8; /// GPIO IRQ de-bounce enable for GPIO2
+        gidbe3,  3,  3, u8; /// GPIO IRQ de-bounce enable for GPIO3
+        gidbe4,  4,  4, u8; /// GPIO IRQ de-bounce enable for GPIO4
+        gidbe5,  5,  5, u8; /// GPIO IRQ de-bounce enable for GPIO5
+        gidbe6,  6,  6, u8; /// GPIO IRQ de-bounce enable for GPIO6
+        gidbe7,  7,  7, u8; /// GPIO IRQ de-bounce enable for GPIO7
+        gidbe8,  8,  8, u8; /// GPIO IRQ de-bounce enable for GPIO8
+    }
+    0x26, 0x28, 4, RW, GPIO_RAW(gpio_raw) { /// GPIO raw state
+        grawp0,  0,  0, u8; /// GPIO0 port raw state
+        grawp1,  1,  1, u8; /// GPIO1 port raw state
+        grawp2,  2,  2, u8; /// GPIO2 port raw state
+        grawp3,  3,  3, u8; /// GPIO3 port raw state
+        grawp4,  4,  4, u8; /// GPIO4 port raw state
+        grawp5,  5,  5, u8; /// GPIO5 port raw state
+        grawp6,  6,  6, u8; /// GPIO6 port raw state
+        grawp7,  7,  7, u8; /// GPIO7 port raw state
+        grawp8,  8,  8, u8; /// GPIO8 port raw state
+    }
     0x27, 0x08, 4, RW, DRX_TUNE2(drx_tune2) { /// Digital Tuning Register 2
         value, 0, 31, u32; /// DRX_TUNE2 tuning value
     }
