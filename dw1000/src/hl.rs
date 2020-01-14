@@ -437,7 +437,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
             w
                 .gpdce((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
                 .khzclken((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
-        });
+        })?;
 
         // Turn on the led blinking
         self.ll.pmsc_ledc().modify(|_, w| {

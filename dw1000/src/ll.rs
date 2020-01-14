@@ -916,8 +916,32 @@ impl_register! {
         grawp7,  7,  7, u8; /// GPIO7 port raw state
         grawp8,  8,  8, u8; /// GPIO8 port raw state
     }
+    0x27, 0x02, 2, RW, DRX_TUNE0B(drx_tune0b) { /// Digital Tuning Register 0b
+        value, 0, 15, u16; /// DRX_TUNE0B tuning value
+    }
+    0x27, 0x04, 2, RW, DRX_TUNE1A(drx_tune1a) { /// Digital Tuning Register 1a
+        value, 0, 15, u16; /// DRX_TUNE1A tuning value
+    }
+    0x27, 0x06, 2, RW, DRX_TUNE1B(drx_tune1b) { /// Digital Tuning Register 1b
+        value, 0, 15, u16; /// DRX_TUNE1B tuning value
+    }
     0x27, 0x08, 4, RW, DRX_TUNE2(drx_tune2) { /// Digital Tuning Register 2
         value, 0, 31, u32; /// DRX_TUNE2 tuning value
+    }
+    0x27, 0x20, 2, RW, DRX_SFDTOC(drx_sfdtoc) { /// SFD timeout
+        count, 0, 15, u16; /// SFD detection timeout count
+    }
+    0x27, 0x24, 2, RW, DRX_PRETOC(drx_pretoc) { /// Preamble detection timeou
+        count, 0, 15, u16; /// Preamble detection timeout count
+    }
+    0x27, 0x26, 2, RW, DRX_TUNE4H(drx_tune4h) { /// Digital Tuning Register 4h
+        value, 0, 15, u16; /// DRX_TUNE4H tuning value
+    }
+    0x27, 0x28, 2, RO, DRX_CAR_INT(dxr_car_int) { /// Carrier Recovery Integrator Register
+        value, 0, 15, u16; /// value
+    }
+    0x27, 0x2C, 2, RO, RXPACC_NOSAT(rxpacc_nosat) { /// Digital debug register. Unsaturated accumulated preamble symbols.
+        value, 0, 15, u16; /// value
     }
     0x28, 0x0C, 3, RW, RF_TXCTRL(rf_txctrl) { /// Analog TX Control Register
         txmtune, 5,  8, u8; /// Transmit mixer tuning register
