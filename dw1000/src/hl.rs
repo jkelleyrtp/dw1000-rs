@@ -35,6 +35,7 @@ use crate::{
         SfdSequence
     },
 };
+use crate::configs::BitRate;
 
 
 /// Entry point to the DW1000 driver API
@@ -385,10 +386,32 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
                     .clkpll_ll(0b1)
             )?;
 
-        // If we were going to receive at 110 kbps, we'd need to set the RXM110K
-        // bit in the System Configuration register. We're expecting to receive
-        // at 850 kbps though, so the default is fine. See section 4.1.3 for a
-        // detailed explanation.
+        // Apply the config
+        self.ll.chan_ctrl().modify(|_, w| {
+            w
+                .rx_chan(config.channel as u8)
+                .dwsfd((config.sfd_sequence == SfdSequence::Decawave) as u8)
+                .rxprf(config.pulse_repetition_frequency as u8)
+                .rnssfd((config.sfd_sequence == SfdSequence::User) as u8)
+                .rx_pcode(config.channel.get_recommended_preamble_code(config.pulse_repetition_frequency))
+        })?;
+
+        // Set general tuning
+        self.ll.drx_tune0b().write(|w| w.value(config.bitrate.get_recommended_drx_tune0b(config.sfd_sequence)))?;
+        self.ll.drx_tune1a().write(|w| w.value(config.pulse_repetition_frequency.get_recommended_drx_tune1a()))?;
+        let drx_tune1b = config.expected_preamble_length.get_recommended_drx_tune1b(config.bitrate)?;
+        self.ll.drx_tune1b().write(|w| w.value(drx_tune1b))?;
+        let drx_tune2 = config.pulse_repetition_frequency.get_recommended_drx_tune2(config.expected_preamble_length.get_recommended_pac_size())?;
+        self.ll.drx_tune2().write(|w| w.value(drx_tune2))?;
+        self.ll.drx_tune4h().write(|w| w.value(config.expected_preamble_length.get_recommended_dxr_tune4h()))?;
+
+        // Set channel tuning
+        self.ll.rf_rxctrlh().write(|w| w.value(config.channel.get_recommended_rf_rxctrlh()))?;
+        self.ll.fs_pllcfg().write(|w| w.value(config.channel.get_recommended_fs_pllcfg()))?;
+        self.ll.fs_plltune().write(|w| w.value(config.channel.get_recommended_fs_plltune()))?;
+
+        // Set the rx bitrate
+        self.ll.sys_cfg().modify(|_, w| w.rxm110k((config.bitrate == BitRate::Kbps110) as u8))?;
 
         self.ll
             .sys_ctrl()
@@ -900,6 +923,9 @@ pub enum Error<SPI, CS>
 
     /// An error occured while serializing or deserializing data
     Ssmarshal(ssmarshal::Error),
+
+    /// The configuration was not valid. Some combinations of settings are not allowed.
+    InvalidConfiguration,
 }
 
 impl<SPI, CS> From<ll::Error<SPI, CS>> for Error<SPI, CS>
@@ -966,6 +992,8 @@ impl<SPI, CS> fmt::Debug for Error<SPI, CS>
                 write!(f, "DelayedSendPowerUpWarning"),
             Error::Ssmarshal(error) =>
                 write!(f, "Ssmarshal({:?})", error),
+            Error::InvalidConfiguration =>
+                write!(f, "InvalidConfiguration"),
         }
     }
 }

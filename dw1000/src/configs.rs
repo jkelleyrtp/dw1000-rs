@@ -3,7 +3,11 @@
 //! This module houses the datastructures that control how frames are transmitted and received.
 //! The configs are passed to the send and receive functions.
 
-use crate::time::Duration;
+use crate::Error;
+use embedded_hal::{
+    blocking::spi,
+    digital::v2::OutputPin,
+};
 
 /// Transmit configuration
 pub struct TxConfig {
@@ -53,6 +57,21 @@ impl Default for BitRate {
     }
 }
 
+impl BitRate {
+    /// Gets the recommended drx_tune0b value for the bitrate and sfd.
+    pub fn get_recommended_drx_tune0b(&self, sfd_sequence: SfdSequence) -> u16 {
+        // Values are taken from Table 30 of the DW1000 User Manual.
+        match (self, sfd_sequence) {
+            (BitRate::Kbps110, SfdSequence::IEEE) => 0x000A,
+            (BitRate::Kbps110, _) => 0x0016,
+            (BitRate::Kbps850, SfdSequence::IEEE) => 0x0001,
+            (BitRate::Kbps850, _) => 0x0006,
+            (BitRate::Kbps6800, SfdSequence::IEEE) => 0x0001,
+            (BitRate::Kbps6800, _) => 0x0002,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 /// The PRF value
 pub enum PulseRepetitionFrequency {
@@ -65,6 +84,38 @@ pub enum PulseRepetitionFrequency {
 impl Default for PulseRepetitionFrequency {
     fn default() -> Self {
         PulseRepetitionFrequency::Mhz16
+    }
+}
+
+impl PulseRepetitionFrequency {
+    /// Gets the recommended value for the drx_tune1a register based on the PRF
+    pub fn get_recommended_drx_tune1a(&self) -> u16 {
+        // Values taken from Table 31 of the DW1000 User Manual.
+        match self {
+            PulseRepetitionFrequency::Mhz16 => 0x0087,
+            PulseRepetitionFrequency::Mhz64 => 0x008D,
+        }
+    }
+
+    /// Gets the recommended value for the drx_tune2 register based on the PRF and PAC size
+    pub fn get_recommended_drx_tune2<SPI, CS>(&self, pac_size: u8) -> Result<u32, Error<SPI, CS>>
+        where
+            SPI: spi::Transfer<u8> + spi::Write<u8>,
+            CS:  OutputPin,
+    {
+        // Values taken from Table 33 of the DW1000 User Manual.
+        match (self, pac_size) {
+            (PulseRepetitionFrequency::Mhz16, 8) => Ok(0x311A002D),
+            (PulseRepetitionFrequency::Mhz64, 8) => Ok(0x313B006B),
+            (PulseRepetitionFrequency::Mhz16, 16) => Ok(0x331A0052),
+            (PulseRepetitionFrequency::Mhz64, 16) => Ok(0x333B00BE),
+            (PulseRepetitionFrequency::Mhz16, 32) => Ok(0x351A009A),
+            (PulseRepetitionFrequency::Mhz64, 32) => Ok(0x353B015E),
+            (PulseRepetitionFrequency::Mhz16, 64) => Ok(0x371A011D),
+            (PulseRepetitionFrequency::Mhz64, 64) => Ok(0x373B0296),
+            // The PAC size is something we didn't expect
+            _ => Err(Error::InvalidConfiguration)
+        }
     }
 }
 
@@ -113,6 +164,56 @@ impl Default for PreambleLength {
     }
 }
 
+impl PreambleLength {
+    /// Gets the recommended PAC size based on the preamble length.
+    pub fn get_recommended_pac_size(&self) -> u8 {
+        // Values are taken from Table 6 of the DW1000 User manual
+        match self {
+            PreambleLength::Bits64 => 8,
+            PreambleLength::Bits128 => 8,
+            PreambleLength::Bits256 => 16,
+            PreambleLength::Bits512 => 16,
+            PreambleLength::Bits1024 => 32,
+            PreambleLength::Bits1536 => 64,
+            PreambleLength::Bits2048 => 64,
+            PreambleLength::Bits4096 => 64,
+        }
+    }
+
+    /// Gets the recommended drx_tune1b register value based on the preamble length and the bitrate.
+    pub fn get_recommended_drx_tune1b<SPI, CS>(&self, bitrate: BitRate) -> Result<u16, Error<SPI, CS>>
+        where
+            SPI: spi::Transfer<u8> + spi::Write<u8>,
+            CS:  OutputPin,
+    {
+        // Values are taken from Table 32 of the DW1000 User manual
+        match (self, bitrate) {
+            (PreambleLength::Bits64, BitRate::Kbps6800)   => Ok(0x0010),
+            (PreambleLength::Bits128, BitRate::Kbps6800)  => Ok(0x0020),
+            (PreambleLength::Bits256, BitRate::Kbps6800)  => Ok(0x0020),
+            (PreambleLength::Bits512, BitRate::Kbps6800)  => Ok(0x0020),
+            (PreambleLength::Bits1024, BitRate::Kbps6800) => Ok(0x0020),
+            (PreambleLength::Bits128, BitRate::Kbps850)   => Ok(0x0020),
+            (PreambleLength::Bits256, BitRate::Kbps850)   => Ok(0x0020),
+            (PreambleLength::Bits512, BitRate::Kbps850)   => Ok(0x0020),
+            (PreambleLength::Bits1024, BitRate::Kbps850)  => Ok(0x0020),
+            (PreambleLength::Bits1536, BitRate::Kbps110)  => Ok(0x0064),
+            (PreambleLength::Bits2048, BitRate::Kbps110)  => Ok(0x0064),
+            (PreambleLength::Bits4096, BitRate::Kbps110)  => Ok(0x0064),
+            _ => Err(Error::InvalidConfiguration)
+        }
+    }
+
+    /// Gets the recommended dxr_tune4h register value based on the preamble length.
+    pub fn get_recommended_dxr_tune4h(&self) -> u16 {
+        // Values are taken from Table 34 of the DW1000 User manual
+        match self {
+            PreambleLength::Bits64 => 0x0010,
+            _ => 0x0028,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 /// An enum that allows the selection between different SFD sequences
 pub enum SfdSequence {
@@ -149,10 +250,6 @@ pub struct RxConfig {
     pub bitrate: BitRate,
     /// The type of SFD sequence that will be scanned for
     pub sfd_sequence: SfdSequence,
-    /// The time after which reception is aborted when a preamble isn't detected.
-    /// A value of 0 disables the timeout.
-    /// If the value is greater than the maximum time, then the maximum time will be used.
-    pub preamble_timeout: Duration,
     /// The channel that the DW1000 will listen at.
     pub channel: UwbChannel,
     /// Sets the PRF value of the reception
@@ -166,7 +263,6 @@ impl Default for RxConfig {
             expected_preamble_length: Default::default(),
             bitrate: Default::default(),
             sfd_sequence: Default::default(),
-            preamble_timeout: Duration::from_nanos(0),
             channel: Default::default(),
             pulse_repetition_frequency: Default::default(),
         }
@@ -275,6 +371,15 @@ impl UwbChannel {
             UwbChannel::Channel2 | UwbChannel::Channel4 => 0x26,
             UwbChannel::Channel3 => 0x56,
             UwbChannel::Channel5 | UwbChannel::Channel7 => 0xBE,
+        }
+    }
+
+    /// Gets the recommended value for the rf_rxctrlh register
+    pub fn get_recommended_rf_rxctrlh(&self) -> u8 {
+        // Values based on Table 37 of the DW1000 User Manual
+        match self {
+            UwbChannel::Channel1 | UwbChannel::Channel2 | UwbChannel::Channel3 | UwbChannel::Channel5 => 0xD8,
+            UwbChannel::Channel4 | UwbChannel::Channel7 => 0xBC,
         }
     }
 }

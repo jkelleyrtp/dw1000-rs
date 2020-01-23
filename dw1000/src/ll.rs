@@ -956,6 +956,9 @@ impl_register! {
     0x27, 0x2C, 2, RO, RXPACC_NOSAT(rxpacc_nosat) { /// Digital debug register. Unsaturated accumulated preamble symbols.
         value, 0, 15, u16; /// value
     }
+    0x28, 0x0B, 1, RW, RF_RXCTRLH(rf_rxctrlh) { /// Analog RX Control Register
+        value, 0, 7, u8; /// Analog RX Control Register
+    }
     0x28, 0x0C, 3, RW, RF_TXCTRL(rf_txctrl) { /// Analog TX Control Register
         txmtune, 5,  8, u8; /// Transmit mixer tuning register
         txmq,    9, 11, u8; /// Transmit mixer Q-factor tuning register
