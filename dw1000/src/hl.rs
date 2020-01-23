@@ -29,6 +29,11 @@ use crate::{
         Duration,
         Instant,
     },
+    configs::{
+        TxConfig,
+        RxConfig,
+        SfdSequence
+    },
 };
 
 
@@ -193,6 +198,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         data:         &[u8],
         destination:  mac::Address,
         delayed_time: Option<Instant>,
+        config: TxConfig,
     )
         -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>>
     {
@@ -255,7 +261,34 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
                     .tflen(tflen) // data length + two-octet CRC
                     .tfle(0)      // no non-standard length extension
                     .txboffs(0)   // no offset in TX_BUFFER
+                    .txbr(config.bitrate as u8) // configured bitrate
+                    .tr(config.ranging_enable as u8) // configured ranging bit
+                    .txprf(config.pulse_repetition_frequency as u8) // configured PRF
+                    .txpsr(((config.preamble_length as u8) & 0b1100) >> 2) // first two bits of configured preamble length
+                    .pe((config.preamble_length as u8) & 0b0011) // last two bits of configured preamble length
             })?;
+
+        // Set the channel and sfd settings
+        self.ll
+            .chan_ctrl()
+            .modify(|_, w| {
+                w
+                    .tx_chan(config.channel as u8)
+                    .dwsfd((config.sfd_sequence == SfdSequence::Decawave) as u8)
+                    .tnssfd((config.sfd_sequence == SfdSequence::User) as u8)
+                    .tx_pcode(config.channel.get_recommended_preamble_code(config.pulse_repetition_frequency))
+            })?;
+
+        // 16 will always work.
+        self.ll.sfd_length().write(|w| w.value(16))?;
+
+        // Tune for the correct channel
+        self.ll.rf_txctrl().write(|w| w.value(config.channel.get_recommended_rf_txctrl()))?;
+        self.ll.tc_pgdelay().write(|w| w.value(config.channel.get_recommended_tc_pgdelay()))?;
+        self.ll.fs_pllcfg().write(|w| w.value(config.channel.get_recommended_fs_pllcfg()))?;
+        self.ll.fs_plltune().write(|w| w.value(config.channel.get_recommended_fs_plltune()))?;
+
+        // Todo: Power control (register 0x1E)
 
         // Start transmission
         self.ll
@@ -804,27 +837,6 @@ impl<SPI, CS, State> fmt::Debug for DW1000<SPI, CS, State>
         Ok(())
     }
 }
-
-
-/// Receive configuration
-pub struct RxConfig {
-    /// Enable frame filtering
-    ///
-    /// If true, only frames directly addressed to this node and broadcasts will
-    /// be received.
-    ///
-    /// Defaults to `true`.
-    pub frame_filtering: bool,
-}
-
-impl Default for RxConfig {
-    fn default() -> Self {
-        Self {
-            frame_filtering: true,
-        }
-    }
-}
-
 
 /// An error that can occur when sending or receiving data
 pub enum Error<SPI, CS>

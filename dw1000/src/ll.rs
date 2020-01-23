@@ -775,6 +775,19 @@ impl_register! {
         // maximum flexibility.
         value, 0, 31, u32; /// TX Power Control value
     }
+    0x1F, 0x00, 4, RW, CHAN_CTRL(chan_ctrl) { /// Channel Control Register
+        tx_chan, 0, 3, u8; /// Selects the transmit channel.
+        rx_chan, 4, 7, u8; /// Selects the receive channel.
+        dwsfd, 17, 17, u8; /// Enables the non-standard Decawave proprietary SFD sequence.
+        rxprf, 18, 19, u8; /// Selects the PRF used in the receiver.
+        tnssfd, 20, 20, u8; /// This bit enables the use of a user specified (non-standard) SFDin the transmitter.
+        rnssfd, 21, 21, u8; /// This bit enables the use of a user specified (non-standard) SFDin the receiver.
+        tx_pcode, 22, 26, u8; /// This field selects the preamble code used in the transmitter.
+        rx_pcode, 27, 31, u8; /// This field selects the preamble code used in the receiver.
+    }
+    0x21, 0x00, 1, RW, SFD_LENGTH(sfd_length) { /// This is the length of the SFD sequence used when the data rate is 850kbps and higher.
+        value, 0, 7, u8; /// This is the length of the SFD sequence used when the data rate is 850kbps and higher.
+    }
     0x23, 0x04, 2, RW, AGC_TUNE1(agc_tune1) { /// AGC Tuning register 1
         value, 0, 15, u16; /// AGC Tuning register 1 value
     }
@@ -946,12 +959,16 @@ impl_register! {
     0x28, 0x0C, 3, RW, RF_TXCTRL(rf_txctrl) { /// Analog TX Control Register
         txmtune, 5,  8, u8; /// Transmit mixer tuning register
         txmq,    9, 11, u8; /// Transmit mixer Q-factor tuning register
+        value, 0, 23, u32; /// The entire register
     }
     0x28, 0x30, 5, RW, LDOTUNE(ldotune) { /// LDO voltage tuning parameter
         value, 0, 39, u64; /// Internal LDO voltage tuning parameter
     }
     0x2A, 0x0B, 1, RW, TC_PGDELAY(tc_pgdelay) { /// Pulse Generator Delay
         value, 0, 7, u8; /// Transmitter Calibration - Pulse Generator Delay
+    }
+    0x2B, 0x07, 4, RW, FS_PLLCFG(fs_pllcfg) { /// Frequency synth - PLL configuration
+        value, 0, 31, u32; /// /// Frequency synth - PLL configuration
     }
     0x2B, 0x0B, 1, RW, FS_PLLTUNE(fs_plltune) { /// Frequency synth - PLL Tuning
         value, 0, 7, u8; /// Frequency synthesiser - PLL Tuning
