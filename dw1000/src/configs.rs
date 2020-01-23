@@ -4,10 +4,7 @@
 //! The configs are passed to the send and receive functions.
 
 use crate::Error;
-use embedded_hal::{
-    blocking::spi,
-    digital::v2::OutputPin,
-};
+use embedded_hal::{blocking::spi, digital::v2::OutputPin};
 
 /// Transmit configuration
 pub struct TxConfig {
@@ -33,6 +30,42 @@ impl Default for TxConfig {
             ranging_enable: false,
             pulse_repetition_frequency: Default::default(),
             preamble_length: Default::default(),
+            channel: Default::default(),
+            sfd_sequence: Default::default(),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+/// Receive configuration
+pub struct RxConfig {
+    /// The bitrate that will be used for reception
+    pub bitrate: BitRate,
+    /// Enable frame filtering
+    ///
+    /// If true, only frames directly addressed to this node and broadcasts will
+    /// be received.
+    ///
+    /// Defaults to `true`.
+    pub frame_filtering: bool,
+    /// Sets the PRF value of the reception
+    pub pulse_repetition_frequency: PulseRepetitionFrequency,
+    /// The expected preamble length.
+    /// This affects the chosen PAC size.
+    pub expected_preamble_length: PreambleLength,
+    /// The channel that the DW1000 will listen at.
+    pub channel: UwbChannel,
+    /// The type of SFD sequence that will be scanned for
+    pub sfd_sequence: SfdSequence,
+}
+
+impl Default for RxConfig {
+    fn default() -> Self {
+        Self {
+            bitrate: Default::default(),
+            frame_filtering: true,
+            pulse_repetition_frequency: Default::default(),
+            expected_preamble_length: Default::default(),
             channel: Default::default(),
             sfd_sequence: Default::default(),
         }
@@ -78,7 +111,7 @@ pub enum PulseRepetitionFrequency {
     /// 16 megahertz
     Mhz16 = 0b01,
     /// 64 megahertz
-    Mhz64 = 0b10
+    Mhz64 = 0b10,
 }
 
 impl Default for PulseRepetitionFrequency {
@@ -99,9 +132,9 @@ impl PulseRepetitionFrequency {
 
     /// Gets the recommended value for the drx_tune2 register based on the PRF and PAC size
     pub fn get_recommended_drx_tune2<SPI, CS>(&self, pac_size: u8) -> Result<u32, Error<SPI, CS>>
-        where
-            SPI: spi::Transfer<u8> + spi::Write<u8>,
-            CS:  OutputPin,
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
     {
         // Values taken from Table 33 of the DW1000 User Manual.
         match (self, pac_size) {
@@ -114,7 +147,7 @@ impl PulseRepetitionFrequency {
             (PulseRepetitionFrequency::Mhz16, 64) => Ok(0x371A011D),
             (PulseRepetitionFrequency::Mhz64, 64) => Ok(0x373B0296),
             // The PAC size is something we didn't expect
-            _ => Err(Error::InvalidConfiguration)
+            _ => Err(Error::InvalidConfiguration),
         }
     }
 }
@@ -129,19 +162,19 @@ impl PulseRepetitionFrequency {
 pub enum PreambleLength {
     /// 64 bits of preamble.
     /// Only supported at Bitrate::Kbps6800.
-    Bits64   = 0b0100,
+    Bits64 = 0b0100,
     /// 128 bits of preamble.
     /// Only supported at Bitrate::Kbps850 & Bitrate::Kbps6800.
     /// Unofficial extension from decawave.
-    Bits128  = 0b0101,
+    Bits128 = 0b0101,
     /// 256 bits of preamble.
     /// Only supported at Bitrate::Kbps850 & Bitrate::Kbps6800.
     /// Unofficial extension from decawave.
-    Bits256  = 0b0110,
+    Bits256 = 0b0110,
     /// 512 bits of preamble.
     /// Only supported at Bitrate::Kbps850 & Bitrate::Kbps6800.
     /// Unofficial extension from decawave.
-    Bits512  = 0b0111,
+    Bits512 = 0b0111,
     /// 1024 bits of preamble.
     /// Only supported at Bitrate::Kbps850 & Bitrate::Kbps6800.
     Bits1024 = 0b1000,
@@ -181,26 +214,29 @@ impl PreambleLength {
     }
 
     /// Gets the recommended drx_tune1b register value based on the preamble length and the bitrate.
-    pub fn get_recommended_drx_tune1b<SPI, CS>(&self, bitrate: BitRate) -> Result<u16, Error<SPI, CS>>
-        where
-            SPI: spi::Transfer<u8> + spi::Write<u8>,
-            CS:  OutputPin,
+    pub fn get_recommended_drx_tune1b<SPI, CS>(
+        &self,
+        bitrate: BitRate,
+    ) -> Result<u16, Error<SPI, CS>>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
     {
         // Values are taken from Table 32 of the DW1000 User manual
         match (self, bitrate) {
-            (PreambleLength::Bits64, BitRate::Kbps6800)   => Ok(0x0010),
-            (PreambleLength::Bits128, BitRate::Kbps6800)  => Ok(0x0020),
-            (PreambleLength::Bits256, BitRate::Kbps6800)  => Ok(0x0020),
-            (PreambleLength::Bits512, BitRate::Kbps6800)  => Ok(0x0020),
+            (PreambleLength::Bits64, BitRate::Kbps6800) => Ok(0x0010),
+            (PreambleLength::Bits128, BitRate::Kbps6800) => Ok(0x0020),
+            (PreambleLength::Bits256, BitRate::Kbps6800) => Ok(0x0020),
+            (PreambleLength::Bits512, BitRate::Kbps6800) => Ok(0x0020),
             (PreambleLength::Bits1024, BitRate::Kbps6800) => Ok(0x0020),
-            (PreambleLength::Bits128, BitRate::Kbps850)   => Ok(0x0020),
-            (PreambleLength::Bits256, BitRate::Kbps850)   => Ok(0x0020),
-            (PreambleLength::Bits512, BitRate::Kbps850)   => Ok(0x0020),
-            (PreambleLength::Bits1024, BitRate::Kbps850)  => Ok(0x0020),
-            (PreambleLength::Bits1536, BitRate::Kbps110)  => Ok(0x0064),
-            (PreambleLength::Bits2048, BitRate::Kbps110)  => Ok(0x0064),
-            (PreambleLength::Bits4096, BitRate::Kbps110)  => Ok(0x0064),
-            _ => Err(Error::InvalidConfiguration)
+            (PreambleLength::Bits128, BitRate::Kbps850) => Ok(0x0020),
+            (PreambleLength::Bits256, BitRate::Kbps850) => Ok(0x0020),
+            (PreambleLength::Bits512, BitRate::Kbps850) => Ok(0x0020),
+            (PreambleLength::Bits1024, BitRate::Kbps850) => Ok(0x0020),
+            (PreambleLength::Bits1536, BitRate::Kbps110) => Ok(0x0064),
+            (PreambleLength::Bits2048, BitRate::Kbps110) => Ok(0x0064),
+            (PreambleLength::Bits4096, BitRate::Kbps110) => Ok(0x0064),
+            _ => Err(Error::InvalidConfiguration),
         }
     }
 
@@ -224,48 +260,12 @@ pub enum SfdSequence {
     Decawave,
     /// Uses the sequence that is programmed in by the user.
     /// This is an unofficial addition.
-    User
+    User,
 }
 
 impl Default for SfdSequence {
     fn default() -> Self {
         SfdSequence::IEEE
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-/// Receive configuration
-pub struct RxConfig {
-    /// Enable frame filtering
-    ///
-    /// If true, only frames directly addressed to this node and broadcasts will
-    /// be received.
-    ///
-    /// Defaults to `true`.
-    pub frame_filtering: bool,
-    /// The expected preamble length.
-    /// This affects the chosen PAC size.
-    pub expected_preamble_length: PreambleLength,
-    /// The bitrate that will be used for reception
-    pub bitrate: BitRate,
-    /// The type of SFD sequence that will be scanned for
-    pub sfd_sequence: SfdSequence,
-    /// The channel that the DW1000 will listen at.
-    pub channel: UwbChannel,
-    /// Sets the PRF value of the reception
-    pub pulse_repetition_frequency: PulseRepetitionFrequency,
-}
-
-impl Default for RxConfig {
-    fn default() -> Self {
-        Self {
-            frame_filtering: true,
-            expected_preamble_length: Default::default(),
-            bitrate: Default::default(),
-            sfd_sequence: Default::default(),
-            channel: Default::default(),
-            pulse_repetition_frequency: Default::default(),
-        }
     }
 }
 
@@ -378,7 +378,10 @@ impl UwbChannel {
     pub fn get_recommended_rf_rxctrlh(&self) -> u8 {
         // Values based on Table 37 of the DW1000 User Manual
         match self {
-            UwbChannel::Channel1 | UwbChannel::Channel2 | UwbChannel::Channel3 | UwbChannel::Channel5 => 0xD8,
+            UwbChannel::Channel1
+            | UwbChannel::Channel2
+            | UwbChannel::Channel3
+            | UwbChannel::Channel5 => 0xD8,
             UwbChannel::Channel4 | UwbChannel::Channel7 => 0xBC,
         }
     }
