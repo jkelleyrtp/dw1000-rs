@@ -8,14 +8,14 @@ use embedded_hal::{blocking::spi, digital::v2::OutputPin};
 
 /// Transmit configuration
 pub struct TxConfig {
-    /// Sets the bitrate of the transmission
+    /// Sets the bitrate of the transmission.
     pub bitrate: BitRate,
     /// Sets the ranging bit in the transmitted frame.
-    /// This has no effect on the capabilities of the DW1000
+    /// This has no effect on the capabilities of the DW1000.
     pub ranging_enable: bool,
-    /// Sets the PRF value of the transmission
+    /// Sets the PRF value of the transmission.
     pub pulse_repetition_frequency: PulseRepetitionFrequency,
-    /// The length of the preamble
+    /// The length of the preamble.
     pub preamble_length: PreambleLength,
     /// The channel that the DW1000 will transmit at.
     pub channel: UwbChannel,
@@ -39,7 +39,7 @@ impl Default for TxConfig {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 /// Receive configuration
 pub struct RxConfig {
-    /// The bitrate that will be used for reception
+    /// The bitrate that will be used for reception.
     pub bitrate: BitRate,
     /// Enable frame filtering
     ///
@@ -51,11 +51,14 @@ pub struct RxConfig {
     /// Sets the PRF value of the reception
     pub pulse_repetition_frequency: PulseRepetitionFrequency,
     /// The expected preamble length.
+    ///
     /// This affects the chosen PAC size.
+    /// This should be the same as the preamble length that is used to send the messages.
+    /// It is not a filter, though, so other preamble lengths may still be received.
     pub expected_preamble_length: PreambleLength,
     /// The channel that the DW1000 will listen at.
     pub channel: UwbChannel,
-    /// The type of SFD sequence that will be scanned for
+    /// The type of SFD sequence that will be scanned for.
     pub sfd_sequence: SfdSequence,
 }
 
@@ -160,40 +163,40 @@ impl PulseRepetitionFrequency {
 ///
 /// For the bit pattern, see table 16 in the user manual. Two bits TXPSR,then two bits PE.
 pub enum PreambleLength {
-    /// 64 bits of preamble.
+    /// 64 symbols of preamble.
     /// Only supported at Bitrate::Kbps6800.
-    Bits64 = 0b0100,
-    /// 128 bits of preamble.
+    Symbols64 = 0b0100,
+    /// 128 symbols of preamble.
     /// Only supported at Bitrate::Kbps850 & Bitrate::Kbps6800.
     /// Unofficial extension from decawave.
-    Bits128 = 0b0101,
-    /// 256 bits of preamble.
+    Symbols128 = 0b0101,
+    /// 256 symbols of preamble.
     /// Only supported at Bitrate::Kbps850 & Bitrate::Kbps6800.
     /// Unofficial extension from decawave.
-    Bits256 = 0b0110,
-    /// 512 bits of preamble.
+    Symbols256 = 0b0110,
+    /// 512 symbols of preamble.
     /// Only supported at Bitrate::Kbps850 & Bitrate::Kbps6800.
     /// Unofficial extension from decawave.
-    Bits512 = 0b0111,
-    /// 1024 bits of preamble.
+    Symbols512 = 0b0111,
+    /// 1024 symbols of preamble.
     /// Only supported at Bitrate::Kbps850 & Bitrate::Kbps6800.
-    Bits1024 = 0b1000,
-    /// 1536 bits of preamble.
+    Symbols1024 = 0b1000,
+    /// 1536 symbols of preamble.
     /// Only supported at Bitrate::Kbps110.
     /// Unofficial extension from decawave.
-    Bits1536 = 0b1001,
-    /// 2048 bits of preamble.
+    Symbols1536 = 0b1001,
+    /// 2048 symbols of preamble.
     /// Only supported at Bitrate::Kbps110.
     /// Unofficial extension from decawave.
-    Bits2048 = 0b1010,
-    /// 4096 bits of preamble.
+    Symbols2048 = 0b1010,
+    /// 4096 symbols of preamble.
     /// Only supported at Bitrate::Kbps110.
-    Bits4096 = 0b1100,
+    Symbols4096 = 0b1100,
 }
 
 impl Default for PreambleLength {
     fn default() -> Self {
-        PreambleLength::Bits128
+        PreambleLength::Symbols128
     }
 }
 
@@ -202,14 +205,14 @@ impl PreambleLength {
     pub fn get_recommended_pac_size(&self) -> u8 {
         // Values are taken from Table 6 of the DW1000 User manual
         match self {
-            PreambleLength::Bits64 => 8,
-            PreambleLength::Bits128 => 8,
-            PreambleLength::Bits256 => 16,
-            PreambleLength::Bits512 => 16,
-            PreambleLength::Bits1024 => 32,
-            PreambleLength::Bits1536 => 64,
-            PreambleLength::Bits2048 => 64,
-            PreambleLength::Bits4096 => 64,
+            PreambleLength::Symbols64 => 8,
+            PreambleLength::Symbols128 => 8,
+            PreambleLength::Symbols256 => 16,
+            PreambleLength::Symbols512 => 16,
+            PreambleLength::Symbols1024 => 32,
+            PreambleLength::Symbols1536 => 64,
+            PreambleLength::Symbols2048 => 64,
+            PreambleLength::Symbols4096 => 64,
         }
     }
 
@@ -224,18 +227,18 @@ impl PreambleLength {
     {
         // Values are taken from Table 32 of the DW1000 User manual
         match (self, bitrate) {
-            (PreambleLength::Bits64, BitRate::Kbps6800) => Ok(0x0010),
-            (PreambleLength::Bits128, BitRate::Kbps6800) => Ok(0x0020),
-            (PreambleLength::Bits256, BitRate::Kbps6800) => Ok(0x0020),
-            (PreambleLength::Bits512, BitRate::Kbps6800) => Ok(0x0020),
-            (PreambleLength::Bits1024, BitRate::Kbps6800) => Ok(0x0020),
-            (PreambleLength::Bits128, BitRate::Kbps850) => Ok(0x0020),
-            (PreambleLength::Bits256, BitRate::Kbps850) => Ok(0x0020),
-            (PreambleLength::Bits512, BitRate::Kbps850) => Ok(0x0020),
-            (PreambleLength::Bits1024, BitRate::Kbps850) => Ok(0x0020),
-            (PreambleLength::Bits1536, BitRate::Kbps110) => Ok(0x0064),
-            (PreambleLength::Bits2048, BitRate::Kbps110) => Ok(0x0064),
-            (PreambleLength::Bits4096, BitRate::Kbps110) => Ok(0x0064),
+            (PreambleLength::Symbols64, BitRate::Kbps6800) => Ok(0x0010),
+            (PreambleLength::Symbols128, BitRate::Kbps6800) => Ok(0x0020),
+            (PreambleLength::Symbols256, BitRate::Kbps6800) => Ok(0x0020),
+            (PreambleLength::Symbols512, BitRate::Kbps6800) => Ok(0x0020),
+            (PreambleLength::Symbols1024, BitRate::Kbps6800) => Ok(0x0020),
+            (PreambleLength::Symbols128, BitRate::Kbps850) => Ok(0x0020),
+            (PreambleLength::Symbols256, BitRate::Kbps850) => Ok(0x0020),
+            (PreambleLength::Symbols512, BitRate::Kbps850) => Ok(0x0020),
+            (PreambleLength::Symbols1024, BitRate::Kbps850) => Ok(0x0020),
+            (PreambleLength::Symbols1536, BitRate::Kbps110) => Ok(0x0064),
+            (PreambleLength::Symbols2048, BitRate::Kbps110) => Ok(0x0064),
+            (PreambleLength::Symbols4096, BitRate::Kbps110) => Ok(0x0064),
             _ => Err(Error::InvalidConfiguration),
         }
     }
@@ -244,7 +247,7 @@ impl PreambleLength {
     pub fn get_recommended_dxr_tune4h(&self) -> u16 {
         // Values are taken from Table 34 of the DW1000 User manual
         match self {
-            PreambleLength::Bits64 => 0x0010,
+            PreambleLength::Symbols64 => 0x0010,
             _ => 0x0028,
         }
     }

@@ -191,6 +191,11 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// `delayed_time` to `Some(instant)`. If you want to send the frame as soon
     /// as possible, just pass `None` instead.
     ///
+    /// The config parameter struct allows for setting the channel, bitrate, and
+    /// more. This configuration needs to be the same as the configuration used
+    /// by the receiver, or the message may not be received.
+    /// The defaults are a sane starting point.
+    ///
     /// This method starts the transmission and returns immediately thereafter.
     /// It consumes this instance of `DW1000` and returns another instance which
     /// is in the `Sending` state, and can be used to wait for the transmission
@@ -320,7 +325,10 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// and returns another instance which is in the `Receiving` state, and can
     /// be used to wait for a message.
     ///
-    /// Only frames addressed to this device will be received.
+    /// The config parameter allows for the configuration of bitrate, channel
+    /// and more. Make sure that the values used are the same as of the frames
+    /// that are transmitted. The default works with the TxConfig's default and
+    /// is a sane starting point.
     pub fn receive(mut self, config: RxConfig)
         -> Result<DW1000<SPI, CS, Receiving>, Error<SPI, CS>>
     {
