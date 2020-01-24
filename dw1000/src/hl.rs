@@ -32,11 +32,10 @@ use crate::{
     configs::{
         TxConfig,
         RxConfig,
-        SfdSequence
+        SfdSequence,
+        BitRate,
     },
 };
-use crate::configs::BitRate;
-
 
 /// Entry point to the DW1000 driver API
 pub struct DW1000<SPI, CS, State> {
