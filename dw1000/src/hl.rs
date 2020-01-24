@@ -275,13 +275,21 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
             .modify(|_, w| {
                 w
                     .tx_chan(config.channel as u8)
-                    .dwsfd((config.sfd_sequence == SfdSequence::Decawave) as u8)
-                    .tnssfd((config.sfd_sequence == SfdSequence::User) as u8)
+                    .rx_chan(config.channel as u8)
+                    .dwsfd((config.sfd_sequence == SfdSequence::Decawave || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
+                    .rxprf(config.pulse_repetition_frequency as u8)
+                    .tnssfd((config.sfd_sequence == SfdSequence::User || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
+                    .rnssfd((config.sfd_sequence == SfdSequence::User || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
                     .tx_pcode(config.channel.get_recommended_preamble_code(config.pulse_repetition_frequency))
+                    .rx_pcode(config.channel.get_recommended_preamble_code(config.pulse_repetition_frequency))
             })?;
 
-        // 16 will always work.
-        self.ll.sfd_length().write(|w| w.value(16))?;
+        match config.sfd_sequence {
+            SfdSequence::IEEE => {}, // IEEE has predefined sfd lengths and the register has no effect.
+            SfdSequence::Decawave => self.ll.sfd_length().write(|w| w.value(8))?, // This isn't entirely necessary as the Decawave8 settings in chan_ctrl already force it to 8
+            SfdSequence::DecawaveAlt => self.ll.sfd_length().write(|w| w.value(16))?, // Set to 16
+            SfdSequence::User => {}, // Users are responsible for setting the lengths themselves
+        }
 
         // Tune for the correct channel
         self.ll.rf_txctrl().write(|w| w.value(config.channel.get_recommended_rf_txctrl()))?;
@@ -389,12 +397,22 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         // Apply the config
         self.ll.chan_ctrl().modify(|_, w| {
             w
+                .tx_chan(config.channel as u8)
                 .rx_chan(config.channel as u8)
-                .dwsfd((config.sfd_sequence == SfdSequence::Decawave) as u8)
+                .dwsfd((config.sfd_sequence == SfdSequence::Decawave || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
                 .rxprf(config.pulse_repetition_frequency as u8)
-                .rnssfd((config.sfd_sequence == SfdSequence::User) as u8)
+                .tnssfd((config.sfd_sequence == SfdSequence::User || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
+                .rnssfd((config.sfd_sequence == SfdSequence::User || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
+                .tx_pcode(config.channel.get_recommended_preamble_code(config.pulse_repetition_frequency))
                 .rx_pcode(config.channel.get_recommended_preamble_code(config.pulse_repetition_frequency))
         })?;
+
+        match config.sfd_sequence {
+            SfdSequence::IEEE => {}, // IEEE has predefined sfd lengths and the register has no effect.
+            SfdSequence::Decawave => self.ll.sfd_length().write(|w| w.value(8))?, // This isn't entirely necessary as the Decawave8 settings in chan_ctrl already force it to 8
+            SfdSequence::DecawaveAlt => self.ll.sfd_length().write(|w| w.value(16))?, // Set to 16
+            SfdSequence::User => {}, // Users are responsible for setting the lengths themselves
+        }
 
         // Set general tuning
         self.ll.drx_tune0b().write(|w| w.value(config.bitrate.get_recommended_drx_tune0b(config.sfd_sequence)))?;
