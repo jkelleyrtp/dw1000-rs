@@ -15,6 +15,7 @@ use dwm1001::{
     dw1000::{
         mac,
         time::Duration,
+        TxConfig,
     },
     DWM1001,
     print,
@@ -38,6 +39,7 @@ fn main() -> ! {
                 b"ping",
                 mac::Address::broadcast(&mac::AddressMode::Short),
                 Some(tx_time),
+                TxConfig::default(),
             )
             .expect("Failed to start receiver");
 

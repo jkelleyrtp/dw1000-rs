@@ -53,18 +53,10 @@ use serde::{
 };
 use ssmarshal;
 
-use crate::{
-    hl,
-    mac,
-    time::{
-        Duration,
-        Instant,
-    },
-    DW1000,
-    Error,
-    Ready,
-    Sending,
-};
+use crate::{hl, mac, time::{
+    Duration,
+    Instant,
+}, DW1000, Error, Ready, Sending, TxConfig};
 
 
 /// The transmission delay
@@ -198,6 +190,7 @@ impl<T> TxMessage<T> where T: Message {
             &buf[..T::LEN],
             self.recipient,
             Some(self.tx_time),
+            TxConfig::default()
         )?;
 
         Ok(future)

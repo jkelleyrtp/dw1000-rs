@@ -31,6 +31,7 @@ pub mod ll;
 pub mod hl;
 pub mod ranging;
 pub mod time;
+pub mod configs;
 
 
 #[doc(no_inline)]
@@ -42,7 +43,11 @@ pub use crate::hl::{
     Message,
     Ready,
     Receiving,
-    RxConfig,
     Sending,
     Uninitialized,
+};
+
+pub use crate::configs::{
+    TxConfig,
+    RxConfig
 };

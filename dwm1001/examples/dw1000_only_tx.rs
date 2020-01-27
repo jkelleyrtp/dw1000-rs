@@ -12,7 +12,10 @@ use nb::block;
 
 use dwm1001::{
     debug,
-    dw1000::mac,
+    dw1000::{
+        mac,
+        TxConfig,
+    },
     DWM1001,
     print,
 };
@@ -31,6 +34,7 @@ fn main() -> ! {
                 b"ping",
                 mac::Address::broadcast(&mac::AddressMode::Short),
                 None,
+                TxConfig::default(),
             )
             .expect("Failed to start receiver");
 

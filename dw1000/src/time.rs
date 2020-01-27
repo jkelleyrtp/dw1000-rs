@@ -119,7 +119,7 @@ impl Add<Duration> for Instant {
 /// A duration between two instants in DW1000 system time
 ///
 /// Internally uses the same 40-bit timestamps that the DW1000 uses.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[repr(C)]
 pub struct Duration(u64);
 

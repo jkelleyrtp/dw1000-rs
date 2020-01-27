@@ -29,8 +29,13 @@ use crate::{
         Duration,
         Instant,
     },
+    configs::{
+        TxConfig,
+        RxConfig,
+        SfdSequence,
+        BitRate,
+    },
 };
-
 
 /// Entry point to the DW1000 driver API
 pub struct DW1000<SPI, CS, State> {
@@ -185,6 +190,11 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// `delayed_time` to `Some(instant)`. If you want to send the frame as soon
     /// as possible, just pass `None` instead.
     ///
+    /// The config parameter struct allows for setting the channel, bitrate, and
+    /// more. This configuration needs to be the same as the configuration used
+    /// by the receiver, or the message may not be received.
+    /// The defaults are a sane starting point.
+    ///
     /// This method starts the transmission and returns immediately thereafter.
     /// It consumes this instance of `DW1000` and returns another instance which
     /// is in the `Sending` state, and can be used to wait for the transmission
@@ -193,6 +203,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         data:         &[u8],
         destination:  mac::Address,
         delayed_time: Option<Instant>,
+        config: TxConfig,
     )
         -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>>
     {
@@ -255,7 +266,42 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
                     .tflen(tflen) // data length + two-octet CRC
                     .tfle(0)      // no non-standard length extension
                     .txboffs(0)   // no offset in TX_BUFFER
+                    .txbr(config.bitrate as u8) // configured bitrate
+                    .tr(config.ranging_enable as u8) // configured ranging bit
+                    .txprf(config.pulse_repetition_frequency as u8) // configured PRF
+                    .txpsr(((config.preamble_length as u8) & 0b1100) >> 2) // first two bits of configured preamble length
+                    .pe((config.preamble_length as u8) & 0b0011) // last two bits of configured preamble length
             })?;
+
+        // Set the channel and sfd settings
+        self.ll
+            .chan_ctrl()
+            .modify(|_, w| {
+                w
+                    .tx_chan(config.channel as u8)
+                    .rx_chan(config.channel as u8)
+                    .dwsfd((config.sfd_sequence == SfdSequence::Decawave || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
+                    .rxprf(config.pulse_repetition_frequency as u8)
+                    .tnssfd((config.sfd_sequence == SfdSequence::User || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
+                    .rnssfd((config.sfd_sequence == SfdSequence::User || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
+                    .tx_pcode(config.channel.get_recommended_preamble_code(config.pulse_repetition_frequency))
+                    .rx_pcode(config.channel.get_recommended_preamble_code(config.pulse_repetition_frequency))
+            })?;
+
+        match config.sfd_sequence {
+            SfdSequence::IEEE => {}, // IEEE has predefined sfd lengths and the register has no effect.
+            SfdSequence::Decawave => self.ll.sfd_length().write(|w| w.value(8))?, // This isn't entirely necessary as the Decawave8 settings in chan_ctrl already force it to 8
+            SfdSequence::DecawaveAlt => self.ll.sfd_length().write(|w| w.value(16))?, // Set to 16
+            SfdSequence::User => {}, // Users are responsible for setting the lengths themselves
+        }
+
+        // Tune for the correct channel
+        self.ll.rf_txctrl().write(|w| w.value(config.channel.get_recommended_rf_txctrl()))?;
+        self.ll.tc_pgdelay().write(|w| w.value(config.channel.get_recommended_tc_pgdelay()))?;
+        self.ll.fs_pllcfg().write(|w| w.value(config.channel.get_recommended_fs_pllcfg()))?;
+        self.ll.fs_plltune().write(|w| w.value(config.channel.get_recommended_fs_plltune()))?;
+
+        // Todo: Power control (register 0x1E)
 
         // Start transmission
         self.ll
@@ -278,7 +324,10 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// and returns another instance which is in the `Receiving` state, and can
     /// be used to wait for a message.
     ///
-    /// Only frames addressed to this device will be received.
+    /// The config parameter allows for the configuration of bitrate, channel
+    /// and more. Make sure that the values used are the same as of the frames
+    /// that are transmitted. The default works with the TxConfig's default and
+    /// is a sane starting point.
     pub fn receive(mut self, config: RxConfig)
         -> Result<DW1000<SPI, CS, Receiving>, Error<SPI, CS>>
     {
@@ -352,10 +401,42 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
                     .clkpll_ll(0b1)
             )?;
 
-        // If we were going to receive at 110 kbps, we'd need to set the RXM110K
-        // bit in the System Configuration register. We're expecting to receive
-        // at 850 kbps though, so the default is fine. See section 4.1.3 for a
-        // detailed explanation.
+        // Apply the config
+        self.ll.chan_ctrl().modify(|_, w| {
+            w
+                .tx_chan(config.channel as u8)
+                .rx_chan(config.channel as u8)
+                .dwsfd((config.sfd_sequence == SfdSequence::Decawave || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
+                .rxprf(config.pulse_repetition_frequency as u8)
+                .tnssfd((config.sfd_sequence == SfdSequence::User || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
+                .rnssfd((config.sfd_sequence == SfdSequence::User || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
+                .tx_pcode(config.channel.get_recommended_preamble_code(config.pulse_repetition_frequency))
+                .rx_pcode(config.channel.get_recommended_preamble_code(config.pulse_repetition_frequency))
+        })?;
+
+        match config.sfd_sequence {
+            SfdSequence::IEEE => {}, // IEEE has predefined sfd lengths and the register has no effect.
+            SfdSequence::Decawave => self.ll.sfd_length().write(|w| w.value(8))?, // This isn't entirely necessary as the Decawave8 settings in chan_ctrl already force it to 8
+            SfdSequence::DecawaveAlt => self.ll.sfd_length().write(|w| w.value(16))?, // Set to 16
+            SfdSequence::User => {}, // Users are responsible for setting the lengths themselves
+        }
+
+        // Set general tuning
+        self.ll.drx_tune0b().write(|w| w.value(config.bitrate.get_recommended_drx_tune0b(config.sfd_sequence)))?;
+        self.ll.drx_tune1a().write(|w| w.value(config.pulse_repetition_frequency.get_recommended_drx_tune1a()))?;
+        let drx_tune1b = config.expected_preamble_length.get_recommended_drx_tune1b(config.bitrate)?;
+        self.ll.drx_tune1b().write(|w| w.value(drx_tune1b))?;
+        let drx_tune2 = config.pulse_repetition_frequency.get_recommended_drx_tune2(config.expected_preamble_length.get_recommended_pac_size())?;
+        self.ll.drx_tune2().write(|w| w.value(drx_tune2))?;
+        self.ll.drx_tune4h().write(|w| w.value(config.expected_preamble_length.get_recommended_dxr_tune4h()))?;
+
+        // Set channel tuning
+        self.ll.rf_rxctrlh().write(|w| w.value(config.channel.get_recommended_rf_rxctrlh()))?;
+        self.ll.fs_pllcfg().write(|w| w.value(config.channel.get_recommended_fs_pllcfg()))?;
+        self.ll.fs_plltune().write(|w| w.value(config.channel.get_recommended_fs_plltune()))?;
+
+        // Set the rx bitrate
+        self.ll.sys_cfg().modify(|_, w| w.rxm110k((config.bitrate == BitRate::Kbps110) as u8))?;
 
         self.ll
             .sys_ctrl()
@@ -410,6 +491,51 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         -> Result<(), Error<SPI, CS>>
     {
         self.ll.sys_mask().write(|w| w)?;
+        Ok(())
+    }
+
+    /// Configures the gpio pins to operate as LED output.
+    ///
+    /// - Note: This means that the function of the gpio pins change
+    /// - Note: Both the kilohertz and debounce clock will be turned on or off
+    /// ---
+    /// - RXOKLED will change GPIO0
+    /// - SFDLED will change GPIO1
+    /// - RXLED will change GPIO2
+    /// - TXLED will change GPIO3
+    ///
+    /// blink_time is in units of 14 ms
+    pub fn configure_leds(
+        &mut self,
+        enable_rx_ok: bool,
+        enable_sfd: bool,
+        enable_rx: bool,
+        enable_tx: bool,
+        blink_time: u8)
+        -> Result<(), Error<SPI, CS>> {
+        // Turn on the timer that will control the blinking (The debounce clock)
+        self.ll.pmsc_ctrl0().modify(|_, w| {
+            w
+                .gpdce((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
+                .khzclken((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
+        })?;
+
+        // Turn on the led blinking
+        self.ll.pmsc_ledc().modify(|_, w| {
+           w
+               .blnken((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
+               .blink_tim(blink_time)
+        })?;
+
+        // Set the proper gpio mode
+        self.ll.gpio_mode().modify(|_, w| {
+            w
+                .msgp0(enable_rx_ok as u8)
+                .msgp1(enable_sfd as u8)
+                .msgp2(enable_rx as u8)
+                .msgp3(enable_tx as u8)
+        })?;
+
         Ok(())
     }
 }
@@ -760,27 +886,6 @@ impl<SPI, CS, State> fmt::Debug for DW1000<SPI, CS, State>
     }
 }
 
-
-/// Receive configuration
-pub struct RxConfig {
-    /// Enable frame filtering
-    ///
-    /// If true, only frames directly addressed to this node and broadcasts will
-    /// be received.
-    ///
-    /// Defaults to `true`.
-    pub frame_filtering: bool,
-}
-
-impl Default for RxConfig {
-    fn default() -> Self {
-        Self {
-            frame_filtering: true,
-        }
-    }
-}
-
-
 /// An error that can occur when sending or receiving data
 pub enum Error<SPI, CS>
     where
@@ -843,6 +948,9 @@ pub enum Error<SPI, CS>
 
     /// An error occured while serializing or deserializing data
     Ssmarshal(ssmarshal::Error),
+
+    /// The configuration was not valid. Some combinations of settings are not allowed.
+    InvalidConfiguration,
 }
 
 impl<SPI, CS> From<ll::Error<SPI, CS>> for Error<SPI, CS>
@@ -909,6 +1017,8 @@ impl<SPI, CS> fmt::Debug for Error<SPI, CS>
                 write!(f, "DelayedSendPowerUpWarning"),
             Error::Ssmarshal(error) =>
                 write!(f, "Ssmarshal({:?})", error),
+            Error::InvalidConfiguration =>
+                write!(f, "InvalidConfiguration"),
         }
     }
 }
