@@ -971,7 +971,7 @@ impl_register! {
         value, 0, 7, u8; /// Transmitter Calibration - Pulse Generator Delay
     }
     0x2B, 0x07, 4, RW, FS_PLLCFG(fs_pllcfg) { /// Frequency synth - PLL configuration
-        value, 0, 31, u32; /// /// Frequency synth - PLL configuration
+        value, 0, 31, u32; /// Frequency synth - PLL configuration
     }
     0x2B, 0x0B, 1, RW, FS_PLLTUNE(fs_plltune) { /// Frequency synth - PLL Tuning
         value, 0, 7, u8; /// Frequency synthesiser - PLL Tuning
