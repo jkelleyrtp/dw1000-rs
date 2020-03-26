@@ -362,6 +362,7 @@ macro_rules! impl_register {
                                 // the if condition above.
                                 let mut i = 1;
                                 #[allow(exceeding_bitshifts)]
+                                #[allow(arithmetic_overflow)]
                                 while i < LEN {
                                     bytes[i - 1] |=
                                         bytes[i] << 8 - OFFSET_IN_BYTE;
@@ -388,6 +389,7 @@ macro_rules! impl_register {
                                 // encountered at runtime, due to the if
                                 // condition.
                                 #[allow(exceeding_bitshifts)]
+                                #[allow(arithmetic_overflow)]
                                 {
                                     bytes[LAST_INDEX] <<= BITS_ABOVE_FIELD;
                                     bytes[LAST_INDEX] >>= BITS_ABOVE_FIELD;
