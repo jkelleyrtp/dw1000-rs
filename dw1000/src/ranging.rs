@@ -383,6 +383,10 @@ impl Message for Response {
 pub fn compute_distance_mm(response: &RxMessage<Response>)
     -> Result<u64, ComputeDistanceError>
 {
+    // To keep variable names to a reasonable length, this function uses `rt` as
+    // a short-hand for "reply time" and `rtt` and a short-hand for "round-trip
+    // time".
+
     let ping_rt = response.payload.ping_reply_time.value();
     let ping_rtt = response.payload.ping_round_trip_time.value();
     let request_rt = response.payload.request_reply_time.value();
