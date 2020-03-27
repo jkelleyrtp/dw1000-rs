@@ -173,23 +173,17 @@ fn main() -> ! {
             };
 
             // Ranging response received. Compute distance.
-            match ranging::compute_distance_mm(&response) {
-                Some(distance_mm) => {
-                    dwm1001.leds.D9.enable();
-                    delay.delay_ms(10u32);
-                    dwm1001.leds.D9.disable();
+            let distance_mm = ranging::compute_distance_mm(&response).unwrap();
 
-                    print!("{:04x}:{:04x} - {} mm\n",
-                        pan_id.0,
-                        addr.0,
-                        distance_mm,
-                    );
-                }
-                None => {
-                    print!("Distance too large; can't compute");
-                    continue;
-                }
-            }
+            dwm1001.leds.D9.enable();
+            delay.delay_ms(10u32);
+            dwm1001.leds.D9.disable();
+
+            print!("{:04x}:{:04x} - {} mm\n",
+                pan_id.0,
+                addr.0,
+                distance_mm,
+            );
 
             continue;
         }

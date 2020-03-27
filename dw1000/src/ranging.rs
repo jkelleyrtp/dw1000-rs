@@ -380,10 +380,9 @@ impl Message for Response {
 
 
 /// Computes the distance to another node from a ranging response
-///
-/// Returns `None`, if the computed time of flight is so large the distance
-/// calculation would overflow.
-pub fn compute_distance_mm(response: &RxMessage<Response>) -> Option<u64> {
+pub fn compute_distance_mm(response: &RxMessage<Response>)
+    -> Result<u64, ComputeDistanceError>
+{
     let ping_rt = response.payload.ping_reply_time.value();
     let ping_rtt = response.payload.ping_round_trip_time.value();
     let request_rt = response.payload.request_reply_time.value();
@@ -403,8 +402,17 @@ pub fn compute_distance_mm(response: &RxMessage<Response>) -> Option<u64> {
 
     const SPEED_OF_LIGHT: u64 = 299_792_458; // m/s or nm/ns
 
-    let distance_nm_times_64 = SPEED_OF_LIGHT.checked_mul(time_of_flight)?;
+    let distance_nm_times_64 = SPEED_OF_LIGHT.checked_mul(time_of_flight)
+        .ok_or(ComputeDistanceError::TimeOfFlightTooLarge)?;
     let distance_mm          = distance_nm_times_64 / 64 / 1_000_000;
 
-    Some(distance_mm)
+    Ok(distance_mm)
+}
+
+
+/// Returned from [`compute_distance_mm`] in case of an error
+#[derive(Debug)]
+pub enum ComputeDistanceError {
+    /// The time of flight is so large, the distance calculation would overflow
+    TimeOfFlightTooLarge,
 }
