@@ -396,9 +396,16 @@ pub fn compute_distance_mm(response: &RxMessage<Response>)
 
     // Compute time of flight according to the formula given in the DW1000 user
     // manual, section 12.3.2.
-    let rtt_product = ping_rtt * request_rtt;
-    let rt_product = ping_rt * request_rt;
-    let sum = ping_rtt + request_rtt + ping_rt + request_rt;
+    let rtt_product = ping_rtt.checked_mul(request_rtt)
+        .ok_or(ComputeDistanceError::RoundTripTimesTooLarge)?;
+    let rt_product = ping_rt.checked_mul(request_rt)
+        .ok_or(ComputeDistanceError::ReplyTimesTooLarge)?;
+    let rt_sum = ping_rt.checked_add(request_rt)
+        .ok_or(ComputeDistanceError::SumTooLarge)?;
+    let rtt_sum = ping_rtt.checked_add(request_rtt)
+        .ok_or(ComputeDistanceError::SumTooLarge)?;
+    let sum = rt_sum.checked_add(rtt_sum)
+        .ok_or(ComputeDistanceError::SumTooLarge)?;
     let time_of_flight = (rtt_product - rt_product) / sum;
 
     // Nominally, all time units are based on a 64 Ghz clock, meaning each time
@@ -417,6 +424,15 @@ pub fn compute_distance_mm(response: &RxMessage<Response>)
 /// Returned from [`compute_distance_mm`] in case of an error
 #[derive(Debug)]
 pub enum ComputeDistanceError {
+    /// Reply times are too large to be multiplied
+    ReplyTimesTooLarge,
+
+    /// Round-trip times are too large to be multiplied
+    RoundTripTimesTooLarge,
+
+    /// The sum computed as part of the algorithm is too large
+    SumTooLarge,
+
     /// The time of flight is so large, the distance calculation would overflow
     TimeOfFlightTooLarge,
 }
