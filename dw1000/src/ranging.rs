@@ -380,35 +380,59 @@ impl Message for Response {
 
 
 /// Computes the distance to another node from a ranging response
-///
-/// Returns `None`, if the computed time of flight is so large the distance
-/// calculation would overflow.
-pub fn compute_distance_mm(response: &RxMessage<Response>) -> Option<u64> {
-    let request_round_trip_time =
-        response.rx_time.duration_since(response.payload.request_tx_time);
+pub fn compute_distance_mm(response: &RxMessage<Response>)
+    -> Result<u64, ComputeDistanceError>
+{
+    // To keep variable names to a reasonable length, this function uses `rt` as
+    // a short-hand for "reply time" and `rtt` and a short-hand for "round-trip
+    // time".
+
+    let ping_rt = response.payload.ping_reply_time.value();
+    let ping_rtt = response.payload.ping_round_trip_time.value();
+    let request_rt = response.payload.request_reply_time.value();
+    let request_rtt = response.rx_time
+        .duration_since(response.payload.request_tx_time)
+        .value();
 
     // Compute time of flight according to the formula given in the DW1000 user
     // manual, section 12.3.2.
-    let rtt_product =
-        response.payload.ping_round_trip_time.value() *
-        request_round_trip_time.value();
-    let reply_time_product =
-        response.payload.ping_reply_time.value() *
-        response.payload.request_reply_time.value();
-    let complete_sum =
-        response.payload.ping_round_trip_time.value() +
-        request_round_trip_time.value() +
-        response.payload.ping_reply_time.value() +
-        response.payload.request_reply_time.value();
-    let time_of_flight = (rtt_product - reply_time_product) / complete_sum;
+    let rtt_product = ping_rtt.checked_mul(request_rtt)
+        .ok_or(ComputeDistanceError::RoundTripTimesTooLarge)?;
+    let rt_product = ping_rt.checked_mul(request_rt)
+        .ok_or(ComputeDistanceError::ReplyTimesTooLarge)?;
+    let rt_sum = ping_rt.checked_add(request_rt)
+        .ok_or(ComputeDistanceError::SumTooLarge)?;
+    let rtt_sum = ping_rtt.checked_add(request_rtt)
+        .ok_or(ComputeDistanceError::SumTooLarge)?;
+    let sum = rt_sum.checked_add(rtt_sum)
+        .ok_or(ComputeDistanceError::SumTooLarge)?;
+    let time_of_flight = (rtt_product - rt_product) / sum;
 
     // Nominally, all time units are based on a 64 Ghz clock, meaning each time
     // unit is 1/64 ns.
 
     const SPEED_OF_LIGHT: u64 = 299_792_458; // m/s or nm/ns
 
-    let distance_nm_times_64 = SPEED_OF_LIGHT.checked_mul(time_of_flight)?;
+    let distance_nm_times_64 = SPEED_OF_LIGHT.checked_mul(time_of_flight)
+        .ok_or(ComputeDistanceError::TimeOfFlightTooLarge)?;
     let distance_mm          = distance_nm_times_64 / 64 / 1_000_000;
 
-    Some(distance_mm)
+    Ok(distance_mm)
+}
+
+
+/// Returned from [`compute_distance_mm`] in case of an error
+#[derive(Debug)]
+pub enum ComputeDistanceError {
+    /// Reply times are too large to be multiplied
+    ReplyTimesTooLarge,
+
+    /// Round-trip times are too large to be multiplied
+    RoundTripTimesTooLarge,
+
+    /// The sum computed as part of the algorithm is too large
+    SumTooLarge,
+
+    /// The time of flight is so large, the distance calculation would overflow
+    TimeOfFlightTooLarge,
 }
