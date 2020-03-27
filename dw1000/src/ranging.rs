@@ -395,12 +395,8 @@ pub fn compute_distance_mm(response: &RxMessage<Response>) -> Option<u64> {
     // manual, section 12.3.2.
     let rtt_product = ping_rtt * request_rtt;
     let reply_time_product = ping_rt * request_rt;
-    let complete_sum =
-        ping_rtt +
-        request_rtt +
-        ping_rt +
-        request_rt;
-    let time_of_flight = (rtt_product - reply_time_product) / complete_sum;
+    let sum = ping_rtt + request_rtt + ping_rt + request_rt;
+    let time_of_flight = (rtt_product - reply_time_product) / sum;
 
     // Nominally, all time units are based on a 64 Ghz clock, meaning each time
     // unit is 1/64 ns.
