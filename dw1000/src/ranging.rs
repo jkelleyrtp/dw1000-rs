@@ -393,9 +393,9 @@ pub fn compute_distance_mm(response: &RxMessage<Response>)
     // Compute time of flight according to the formula given in the DW1000 user
     // manual, section 12.3.2.
     let rtt_product = ping_rtt * request_rtt;
-    let reply_time_product = ping_rt * request_rt;
+    let rt_product = ping_rt * request_rt;
     let sum = ping_rtt + request_rtt + ping_rt + request_rt;
-    let time_of_flight = (rtt_product - reply_time_product) / sum;
+    let time_of_flight = (rtt_product - rt_product) / sum;
 
     // Nominally, all time units are based on a 64 Ghz clock, meaning each time
     // unit is 1/64 ns.
