@@ -167,7 +167,7 @@ fn main() -> ! {
 
         // Wait for a moment, to give the tag a chance to start listening for
         // the reply.
-        delay.delay_ms(100u32);
+        delay.delay_ms(10u32);
 
         // Send ranging response
         let mut sending = ranging::Response::new(&mut dw1000, &request)

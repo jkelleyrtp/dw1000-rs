@@ -125,7 +125,7 @@ fn main() -> ! {
 
             // Wait for a moment, to give the anchor a chance to start listening
             // for the reply.
-            delay.delay_ms(100u32);
+            delay.delay_ms(10u32);
 
             let mut sending = ranging::Request::new(&mut dw1000, &ping)
                 .expect("Failed to initiate request")
