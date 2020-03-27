@@ -384,6 +384,7 @@ impl Message for Response {
 /// Returns `None`, if the computed time of flight is so large the distance
 /// calculation would overflow.
 pub fn compute_distance_mm(response: &RxMessage<Response>) -> Option<u64> {
+    let ping_rt = response.payload.ping_reply_time.value();
     let ping_rtt = response.payload.ping_round_trip_time.value();
     let request_rtt = response.rx_time
         .duration_since(response.payload.request_tx_time)
@@ -393,12 +394,12 @@ pub fn compute_distance_mm(response: &RxMessage<Response>) -> Option<u64> {
     // manual, section 12.3.2.
     let rtt_product = ping_rtt * request_rtt;
     let reply_time_product =
-        response.payload.ping_reply_time.value() *
+        ping_rt *
         response.payload.request_reply_time.value();
     let complete_sum =
         ping_rtt +
         request_rtt +
-        response.payload.ping_reply_time.value() +
+        ping_rt +
         response.payload.request_reply_time.value();
     let time_of_flight = (rtt_product - reply_time_product) / complete_sum;
 
