@@ -1,3 +1,20 @@
+<a name="v0.4.0"></a>
+### v0.4.0 (2020-03-30)
+
+- Integrate `lis2dh12` driver ([#111], [#113])
+- Fix link to documentation ([#114])
+- Update dependencies ([#116])
+- Update OpenOCD/GDB configuration ([#116])
+- Update `dw1000` dependency to 0.4.0 ([#115], [#119], [#120])
+
+[#111]: https://github.com/braun-embedded/rust-dw1000/pull/111
+[#113]: https://github.com/braun-embedded/rust-dw1000/pull/113
+[#114]: https://github.com/braun-embedded/rust-dw1000/pull/114
+[#115]: https://github.com/braun-embedded/rust-dw1000/pull/115
+[#116]: https://github.com/braun-embedded/rust-dw1000/pull/116
+[#119]: https://github.com/braun-embedded/rust-dw1000/pull/119
+[#120]: https://github.com/braun-embedded/rust-dw1000/pull/120
+
 <a name="v0.3.0"></a>
 ### v0.3.0 (2019-09-25)
 
