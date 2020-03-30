@@ -1,3 +1,17 @@
+<a name="v0.4.0"></a>
+### v0.4.0 (2020-03-30)
+
+- Require `embedded-hal` 0.2.3 ([#112])
+- Add more radio configuration options ([#115])
+- Update dependencies ([#116])
+- Fix panic, improve error reporting in ranging ([#119])
+
+
+[#112]: https://github.com/braun-embedded/rust-dw1000/pull/112
+[#115]: https://github.com/braun-embedded/rust-dw1000/pull/115
+[#116]: https://github.com/braun-embedded/rust-dw1000/pull/116
+[#119]: https://github.com/braun-embedded/rust-dw1000/pull/119
+
 <a name="v0.3.0"></a>
 ### v0.3.0 (2019-09-25)
 
