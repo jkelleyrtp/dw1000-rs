@@ -174,7 +174,6 @@ fn main() -> ! {
             };
 
             // Ranging response received. Compute distance.
-            let distance_mm = ranging::compute_distance_mm(&response).unwrap();
             let distance_mm = ranging::compute_distance_mm(&response, config).unwrap();
 
             dwm1001.leds.D9.enable();
