@@ -787,6 +787,28 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
         })
     }
 
+    pub fn read_rx_quality(&mut self) -> Result<RxQuality, Error<SPI, CS>> {
+        if !self.state.finished {
+            return Err(Error::RxNotFinished);
+        }
+
+        // First, let's get all the data we need (APS006 Part-3 table 1)
+        let rx_time_register = self.ll().rx_time().read()?;
+        // Todo: Check if this read is correct. Two subregisters were combined into one
+        let rx_fqual_register = self.ll().rx_fqual().read()?;
+        let lde_cfg1_register = self.ll().lde_cfg1().read()?;
+
+        let path_position: u16 = rx_time_register.fp_index();
+        let fp_ampl1: u16 = rx_time_register.fp_ampl1();
+        let fp_ampl2: u16 = rx_fqual_register.fp_ampl2();
+        let fp_ampl3: u16 = rx_fqual_register.fp_ampl3();
+        let peak_path_index: u16 = self.ll().lde_ppindx().read()?.value();
+        let peak_path_amplitude: u16 = self.ll().lde_ppampl().read()?.value();
+        let noise_threshold: u16 = rx_fqual_register.std_noise() * lde_cfg1_register.ntm() as u16;
+
+        Ok(RxQuality { los_confidence_level: 0.0, rssi: 0.0 })
+    }
+
     /// Finishes receiving and returns to the `Ready` state
     ///
     /// If the receive operation has finished, as indicated by `wait`, this is a
@@ -951,6 +973,9 @@ pub enum Error<SPI, CS>
 
     /// The configuration was not valid. Some combinations of settings are not allowed.
     InvalidConfiguration,
+
+    /// The receive operation hasn't finished yet
+    RxNotFinished,
 }
 
 impl<SPI, CS> From<ll::Error<SPI, CS>> for Error<SPI, CS>
@@ -1019,6 +1044,8 @@ impl<SPI, CS> fmt::Debug for Error<SPI, CS>
                 write!(f, "Ssmarshal({:?})", error),
             Error::InvalidConfiguration =>
                 write!(f, "InvalidConfiguration"),
+            Error::RxNotFinished =>
+                write!(f, "RxNotFinished"),
         }
     }
 }
@@ -1056,4 +1083,9 @@ pub struct Message<'l> {
 
     /// The MAC frame
     pub frame: mac::Frame<'l>,
+}
+
+pub struct RxQuality {
+    los_confidence_level: f32,
+    rssi: f32
 }

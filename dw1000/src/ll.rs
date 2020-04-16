@@ -752,6 +752,12 @@ impl_register! {
         rxprfr, 16, 17, u8; /// RX Pulse Repetition Rate Report
         rxpsr,  18, 19, u8; /// RX Preamble Repetition
     }
+    0x12, 0x00, 8, RO, RX_FQUAL(rx_fqual) { /// Rx Frame Quality Information
+        std_noise, 0, 15, u16; /// Standard Deviation of Noise
+        fp_ampl2, 16, 31, u16; /// First Path Amplitude point 2
+        fp_ampl3, 32, 47, u16; /// First Path Amplitude point 3
+        cir_pwr,  48, 63, u16; /// Channel Impulse Response Power
+    }
     0x15, 0x00, 14, RO, RX_TIME(rx_time) { /// Receive Time Stamp
         rx_stamp,  0,  39, u64; /// Fully adjusted time stamp
         fp_index, 40,  55, u16; /// First Path Index
@@ -995,6 +1001,12 @@ impl_register! {
     0x2E, 0x0806, 1, RW, LDE_CFG1(lde_cfg1) { /// LDE Configuration Register 1
         ntm,   0, 4, u8; /// Noise Threshold Multiplier
         pmult, 5, 7, u8; /// Peak Multiplier
+    }
+    0x2E, 0x1000, 2, RO, LDE_PPINDX(lde_ppindx) { /// LDE Peak Path Index
+        value, 0, 15, u16; /// LDE Peak Path Index
+    }
+    0x2E, 0x1002, 2, RO, LDE_PPAMPL(lde_ppampl) { /// LDE Peak Path Amplitude
+        value, 0, 15, u16; /// LDE Peak Path Amplitude
     }
     0x2E, 0x1804, 2, RW, LDE_RXANTD(lde_rxantd) { /// RX Antenna Delay
         value, 0, 15, u16; /// RX Antenna Delay
