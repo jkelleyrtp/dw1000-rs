@@ -23,10 +23,10 @@ ieee802154   = "0.3.0"
 nb           = "0.1.2"
 
 [dependencies.serde]
-version = "1.0.105"
+version = "1.0.106"
 default-features = false
 features = ["derive"]
 
 [dependencies.ssmarshal]
-version = "1.0"
+version = "1.0.0"
 default-features = false

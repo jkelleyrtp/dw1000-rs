@@ -262,17 +262,49 @@ impl PreambleLength {
 pub enum SfdSequence {
     /// The standard sequence defined by the IEEE standard.
     /// Most likely the best choice for 6.8 Mbps connections.
+    ///
+    /// Using a given data rate, this is what the register get set to:
+    ///
+    /// | Data rate | DWSFD | TNSSFD | RNSSFD | Symbol Length| Raw SFD |
+    /// |:----------|:-----:|:------:|:------:|:------------:|:--------|
+    /// | 110 kbps  | 0     | 0      | 0      | Not set      | IEEE 64 symbols, not recommended |
+    /// | 850 kbps  | 0     | 0      | 0      | Not set      | IEEE 8 symbols, not recommended |
+    /// | 6.8 mbps  | 0     | 0      | 0      | Not set      | IEEE 8 symbol |
     IEEE,
     /// A sequence defined by Decawave that is supposed to be more robust.
     /// This is an unofficial addition.
     /// Most likely the best choice for 110 Kbps connections.
+    ///
+    /// Using a given data rate, this is what the register get set to:
+    ///
+    /// | Data rate | DWSFD | TNSSFD | RNSSFD | Symbol Length| Raw SFD |
+    /// |:----------|:-----:|:------:|:------:|:------------:|:--------|
+    /// | 110 kbps  | 1     | 0      | 0      | 8            | Deca 64 symbols |
+    /// | 850 kbps  | 1     | 0      | 0      | 8            | Deca 8 symbols, not recommended |
+    /// | 6.8 mbps  | 1     | 0      | 0      | 8            | Undefined by manual, not recommended |
     Decawave,
     /// A sequence defined by Decawave that is supposed to be more robust.
     /// This is an unofficial addition.
     /// Most likely the best choice for 850 Kbps connections.
+    ///
+    /// Using a given data rate, this is what the register get set to:
+    ///
+    /// | Data rate | DWSFD | TNSSFD | RNSSFD | Symbol Length| Raw SFD |
+    /// |:----------|:-----:|:------:|:------:|:------------:|:--------|
+    /// | 110 kbps  | 1     | 0      | 0      | 16           | Deca 64 symbols, not recommended |
+    /// | 850 kbps  | 1     | 0      | 0      | 16           | Deca 16 symbols |
+    /// | 6.8 mbps  | 1     | 0      | 0      | 16           | Undefined by manual, not recommended |
     DecawaveAlt,
     /// Uses the sequence that is programmed in by the user.
     /// This is an unofficial addition.
+    ///
+    /// Using a given data rate, this is what the register get set to:
+    ///
+    /// | Data rate | DWSFD | TNSSFD | RNSSFD | Symbol Length| Raw SFD |
+    /// |:----------|:-----:|:------:|:------:|:------------:|:--------|
+    /// | 110 kbps  | 0     | 1      | 1      | Set by user  | Custom, not recommended |
+    /// | 850 kbps  | 0     | 1      | 1      | Set by user  | Custom, not recommended |
+    /// | 6.8 mbps  | 0     | 1      | 1      | Set by user  | Custom, not recommended |
     User,
 }
 
