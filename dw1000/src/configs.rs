@@ -314,6 +314,36 @@ impl Default for SfdSequence {
     }
 }
 
+impl SfdSequence {
+    /// Gets the adjustment that needs to be made to the rxpacc field of the RX Frame Information Register.
+    /// Follows table 18 of the user manual.
+    pub fn get_rxpacc_adjustment(&self, bit_rate: BitRate) -> i8 {
+        match self {
+            SfdSequence::IEEE => {
+                match bit_rate {
+                    BitRate::Kbps110 => 64, // 64 Symbols
+                    BitRate::Kbps850 | BitRate::Kbps6800 => -5, // 8 Symbols
+                }
+            },
+            SfdSequence::Decawave => {
+                match bit_rate {
+                    BitRate::Kbps110 => 82, // 64 Symbols
+                    BitRate::Kbps850 => -10, // 8 Symbols
+                    BitRate::Kbps6800 => 0, // Undefined setting
+                }
+            },
+            SfdSequence::DecawaveAlt => {
+                match bit_rate {
+                    BitRate::Kbps110 => 82, // 64 Symbols
+                    BitRate::Kbps850 => -18, // 16 Symbols
+                    BitRate::Kbps6800 => 0, // Undefined setting
+                }
+            },
+            SfdSequence::User => 0, // Undefined setting
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 /// All the available UWB channels.
 ///

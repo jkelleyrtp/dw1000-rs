@@ -48,6 +48,45 @@ impl<SPI, CS> DW1000<SPI, CS> {
             chip_select,
         }
     }
+
+    fn block_read(&mut self, id: u8, start_sub_id: u16, buffer: &mut [u8]) -> Result<(), Error<SPI, CS>>
+        where
+            SPI: spi::Transfer<u8> + spi::Write<u8>,
+            CS:  OutputPin,
+    {
+        // Make it simple and use the 3 byte header
+        let header_buffer = [
+            (((start_sub_id as u8) << 6) & 0x40) |  (id & 0x3f),
+            0x80 | (start_sub_id & 0x7F) as u8,
+            ((start_sub_id & 0x7f80) >> 7) as u8
+        ];
+
+        self.chip_select.set_low()
+            .map_err(|err| Error::ChipSelect(err))?;
+        // Send the header
+        self.spi.write(&header_buffer)
+            .map_err(|err| Error::Write(err))?;
+        // Read the data
+        self.spi.transfer(buffer)
+            .map_err(|err| Error::Transfer(err))?;
+        self.chip_select.set_high()
+            .map_err(|err| Error::ChipSelect(err))?;
+
+        Ok(())
+    }
+
+    /// Reads the CIR accumulator.
+    ///
+    /// Starts reading from the start_index and puts all results in the buffer.
+    ///
+    /// *NOTE: The first byte in the buffer will be a dummy byte that shouldn't be used.*
+    pub fn cir(&mut self, start_index: u16, buffer: &mut [u8]) -> Result<(), Error<SPI, CS>>
+        where
+            SPI: spi::Transfer<u8> + spi::Write<u8>,
+            CS:  OutputPin,
+    {
+        self.block_read(0x25, start_index, buffer)
+    }
 }
 
 
@@ -134,6 +173,7 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
 
         Ok(())
     }
+
 }
 
 
@@ -751,6 +791,7 @@ impl_register! {
         rng,    15, 15, u8; /// Receiver Ranging
         rxprfr, 16, 17, u8; /// RX Pulse Repetition Rate Report
         rxpsr,  18, 19, u8; /// RX Preamble Repetition
+        rxpacc, 20, 31, u16; /// Preamble Accumulation Count
     }
     0x12, 0x00, 8, RO, RX_FQUAL(rx_fqual) { /// Rx Frame Quality Information
         std_noise, 0, 15, u16; /// Standard Deviation of Noise
