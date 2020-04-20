@@ -5,7 +5,9 @@
 
 use crate::Error;
 use embedded_hal::{blocking::spi, digital::v2::OutputPin};
+use serde::{Serialize, Deserialize};
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 /// Transmit configuration
 pub struct TxConfig {
     /// Sets the bitrate of the transmission.
@@ -36,7 +38,7 @@ impl Default for TxConfig {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 /// Receive configuration
 pub struct RxConfig {
     /// The bitrate that will be used for reception.
@@ -75,7 +77,7 @@ impl Default for RxConfig {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 /// The bitrate at which a message is transmitted
 pub enum BitRate {
     /// 110 kilobits per second.
@@ -108,7 +110,7 @@ impl BitRate {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 /// The PRF value
 pub enum PulseRepetitionFrequency {
     /// 16 megahertz
@@ -155,7 +157,7 @@ impl PulseRepetitionFrequency {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 /// An enum that specifies the length of the preamble.
 ///
 /// Longer preambles improve the reception quality and thus range.
@@ -253,7 +255,7 @@ impl PreambleLength {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 /// An enum that allows the selection between different SFD sequences
 ///
 /// The difference between the two Decawave sequences is that there are two ways to enable it in the chip.
@@ -344,7 +346,7 @@ impl SfdSequence {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 /// All the available UWB channels.
 ///
 /// Note that while a channel may have more bandwidth than ~900 Mhz, the DW1000 can only send up to ~900 Mhz
