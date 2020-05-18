@@ -87,6 +87,26 @@ impl<SPI, CS> DW1000<SPI, CS> {
     {
         self.block_read(0x25, start_index, buffer)
     }
+
+    /// Allows for an access to the spi type.
+    /// This can be used to change the speed.
+    ///
+    /// In closure you get ownership of the SPI
+    /// so you can destruct it and build it up again if necessary.
+    pub fn access_spi<F>(&mut self, f: F)
+        where F: FnOnce(SPI) -> SPI
+    {
+        // This is unsafe because we create a zeroed spi.
+        // Its safety is guaranteed, though, because the zeroed spi is never used.
+        unsafe {
+            // Create a zeroed spi.
+            let spi = core::mem::zeroed();
+            // Get the spi in the struct.
+            let spi = core::mem::replace(&mut self.spi, spi);
+            // Give the spi to the closure and put the result back into the struct.
+            self.spi = f(spi);
+        }
+    }
 }
 
 
