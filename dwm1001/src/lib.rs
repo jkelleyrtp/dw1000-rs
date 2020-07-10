@@ -46,7 +46,6 @@ use cortex_m::{
 use dw1000::DW1000;
 use embedded_hal::blocking::delay::DelayMs;
 use nrf52832_hal::{
-    prelude::*,
     gpio::{
         p0::{
             self,
@@ -64,7 +63,7 @@ use nrf52832_hal::{
         Output,
         PushPull,
     },
-    nrf52832_pac::{
+    pac::{
         self as nrf52,
         CorePeripherals,
         Interrupt,
@@ -92,7 +91,7 @@ use nrf52832_hal::{
         },
         Pin,
     },
-    nrf52832_pac::{
+    pac::{
         UARTE0,
     },
     uarte::{
@@ -152,7 +151,9 @@ pub fn new_dw1000<SCK, MOSI, MISO, CS>(
         orc: 0,
     });
 
-    let spim = spim.constrain(spim::Pins {
+    let spim = Spim::new(
+        spim,
+        spim::Pins {
             sck : sck.into_push_pull_output(Level::Low).degrade(),
             mosi: Some(mosi.into_push_pull_output(Level::Low).degrade()),
             miso: Some(miso.into_floating_input().degrade()),
@@ -171,7 +172,8 @@ pub fn new_acc_twim<SCL, SDA>(
     scl: P0_28<SCL>,
     sda: P0_29<SDA>,
 ) -> Twim<nrf52::TWIM1> {
-    twim.constrain(
+    Twim::new(
+        twim,
         twim::Pins {
             scl: scl.into_floating_input().degrade(),
             sda: sda.into_floating_input().degrade(),
@@ -497,7 +499,7 @@ impl DWM1001 {
     }
 
     fn new(cp: CorePeripherals, p: Peripherals) -> Self {
-        let pins = p.P0.split();
+        let pins = nrf52832_hal::gpio::p0::Parts::new(p.P0);
 
 
         // Some notes about the hardcoded configuration of `Uarte`:
@@ -882,11 +884,10 @@ impl DW_IRQ {
     /// - This method disables interrupt handlers. No interrupt handler will be
     ///   called while this method is active.
     pub fn wait_for_interrupts<T>(&mut self,
-        nvic:   &mut nrf52::NVIC,
         gpiote: &mut nrf52::GPIOTE,
         timer:  &mut Timer<T>,
     )
-        where T: TimerExt
+        where T: nrf52832_hal::timer::Instance
     {
         gpiote.config[0].write(|w| {
             let w = w
@@ -904,7 +905,7 @@ impl DW_IRQ {
             // Safe, as I don't believe this can interfere with the critical
             // section we're in.
             unsafe { nrf52::NVIC::unmask(Interrupt::GPIOTE); }
-            timer.enable_interrupt(nvic);
+            timer.enable_interrupt();
 
             asm::dsb();
             asm::wfi();
@@ -912,7 +913,7 @@ impl DW_IRQ {
             // If we don't do this, the (probably non-existing) interrupt
             // handler will be called as soon as we exit this closure.
             nrf52::NVIC::mask(Interrupt::GPIOTE);
-            timer.disable_interrupt(nvic);
+            timer.disable_interrupt();
         });
 
         gpiote.events_in[0].write(|w| unsafe { w.bits(0) });
