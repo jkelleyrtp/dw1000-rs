@@ -100,6 +100,8 @@ use nrf52832_hal::{
     },
 };
 
+use embedded_hal::digital::v2::OutputPin;
+
 /// Optional Configuration struct for SPIM, not including pins
 pub struct SpimConfig {
     /// SPIM Frequency
@@ -121,7 +123,9 @@ pub fn new_usb_uarte<TX, RX>(
     rxd_pin: P0_11<RX>,
     config: UsbUarteConfig
 ) -> Uarte<nrf52::UARTE0> {
-    uart0.constrain(uarte::Pins {
+    Uarte::new(
+        uart0,
+        uarte::Pins {
             txd: txd_pin.into_push_pull_output(Level::High).degrade(),
             rxd: rxd_pin.into_floating_input().degrade(),
             cts: None,
@@ -798,16 +802,12 @@ impl Led {
 
     /// Enable the LED
     pub fn enable(&mut self) {
-        // https://github.com/braun-robotics/rust-dwm1001/issues/94
-        #[allow(deprecated)]
-        self.0.set_low()
+        self.0.set_low().unwrap()
     }
 
     /// Disable the LED
     pub fn disable(&mut self) {
-        // https://github.com/braun-robotics/rust-dwm1001/issues/94
-        #[allow(deprecated)]
-        self.0.set_high()
+        self.0.set_high().unwrap()
     }
 }
 

@@ -14,7 +14,7 @@ use cortex_m_rt::entry;
 
 use dwm1001::{debug, print, DWM1001};
 
-use lis2dh12::{self, Accelerometer};
+use lis2dh12::{self, RawAccelerometer};
 
 #[entry]
 fn main() -> ! {
@@ -70,6 +70,6 @@ fn main() -> ! {
     print!("STATUS: {:?}\n", lis2dh12.get_status());
 
     loop {
-        print!("ACC: {:?}\n", lis2dh12.acceleration());
+        print!("ACC: {:?}\n", lis2dh12.accel_raw());
     }
 }

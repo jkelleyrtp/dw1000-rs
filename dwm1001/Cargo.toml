@@ -1,6 +1,6 @@
 [package]
 name    = "dwm1001"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["Hanno Braun <hanno@braun-embedded.com>"]
 edition = "2018"
 
@@ -37,7 +37,7 @@ version  = "0.6.2"
 features = [ "const-fn" ]
 
 [dependencies.nrf52832-hal]
-version          = "0.10.0"
+version          = "0.11.0"
 default-features = false
 features         = [ "xxAA-package" ]
 
