@@ -33,7 +33,7 @@ version = "0.4.0"
 path    = "../dw1000"
 
 [dependencies.cortex-m]
-version  = "0.6.2"
+version  = "0.6.3"
 
 [dependencies.nrf52832-hal]
 version          = "0.11.0"
