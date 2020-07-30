@@ -1090,7 +1090,7 @@ impl<SPI, CS> DW1000<SPI, CS, Sleeping>
         self.ll.sys_mask().modify(|_, w| w.mslp2init(0).mcplock(0))?;
 
         // Reset the wakeupstatus
-        self.ll.sys_status().modify(|_, w| w.slp2init(1).cplock(1))?;
+        self.ll.sys_status().write(|w| w.slp2init(1).cplock(1))?;
 
         // Restore the tx antenna delay
         let delay = self.state.tx_antenna_delay;
