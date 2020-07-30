@@ -1082,9 +1082,14 @@ impl<SPI, CS> DW1000<SPI, CS, Sleeping>
         CS:  OutputPin,
 {
     /// Wakes the radio up.
-    pub fn wake_up(mut self) -> Result<DW1000<SPI, CS, Ready>, Error<SPI, CS>> {
+    pub fn wake_up<DELAY: embedded_hal::blocking::delay::DelayUs<u16>>(mut self, delay: &mut DELAY) -> Result<DW1000<SPI, CS, Ready>, Error<SPI, CS>> {
         // Wake up using the spi
-        self.ll.assert_cs_500_us().map_err(|e| Error::Spi(e))?;
+        self.ll.assert_cs_low().map_err(|e| Error::Spi(e))?;
+        delay.delay_us(500);
+        self.ll.assert_cs_high().map_err(|e| Error::Spi(e))?;
+
+        // Now we must wait 4 ms so all the clocks start running.
+        delay.delay_us(4000);
 
         // Let's check that we're actually awake now
         if self.ll.dev_id().read()?.ridtag() != 0xDECA {

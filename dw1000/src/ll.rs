@@ -108,10 +108,8 @@ impl<SPI, CS> DW1000<SPI, CS> {
         }
     }
 
-    /// Internal function for pulling the cs low for 500 us. Used for sleep wakeup.
-    ///
-    /// This is done by sending 1500 zero bits. This is with the assumption that the spi speed <= 3 MHz.
-    pub(crate) fn assert_cs_500_us(&mut self) -> Result<(), Error<SPI, CS>>
+    /// Internal function for pulling the cs low. Used for sleep wakeup.
+    pub(crate) fn assert_cs_low(&mut self) -> Result<(), Error<SPI, CS>>
         where
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
@@ -119,9 +117,15 @@ impl<SPI, CS> DW1000<SPI, CS> {
         self.chip_select.set_low()
             .map_err(|err| Error::ChipSelect(err))?;
 
-        self.spi.write(&[0; 188])
-            .map_err(|err| Error::Write(err))?;
+        Ok(())
+    }
 
+    /// Internal function for pulling the cs high. Used for sleep wakeup.
+    pub(crate) fn assert_cs_high(&mut self) -> Result<(), Error<SPI, CS>>
+        where
+            SPI: spi::Transfer<u8> + spi::Write<u8>,
+            CS:  OutputPin,
+    {
         self.chip_select.set_high()
             .map_err(|err| Error::ChipSelect(err))?;
 
