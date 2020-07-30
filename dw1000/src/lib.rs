@@ -45,6 +45,7 @@ pub use crate::hl::{
     Receiving,
     Sending,
     Uninitialized,
+    Sleeping,
 };
 
 pub use crate::configs::{
