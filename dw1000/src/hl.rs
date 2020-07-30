@@ -1086,6 +1086,12 @@ impl<SPI, CS> DW1000<SPI, CS, Sleeping>
         // Wake up using the spi
         self.ll.assert_cs_500_us().map_err(|e| Error::Spi(e))?;
 
+        // Let's check that we're actually awake now
+        if self.ll.dev_id().read()?.ridtag() != 0xDECA {
+            // Oh dear... We have not woken up!
+            return Err(Error::StillAsleep);
+        }
+
         // Disable the interrupt
         self.ll.sys_mask().modify(|_, w| w.mslp2init(0).mcplock(0))?;
 
@@ -1187,6 +1193,9 @@ pub enum Error<SPI, CS>
 
     /// The receive operation hasn't finished yet
     RxNotFinished,
+
+    /// It was expected that the radio would have woken up, but it hasn't.
+    StillAsleep,
 }
 
 impl<SPI, CS> From<ll::Error<SPI, CS>> for Error<SPI, CS>
@@ -1257,6 +1266,8 @@ impl<SPI, CS> fmt::Debug for Error<SPI, CS>
                 write!(f, "InvalidConfiguration"),
             Error::RxNotFinished =>
                 write!(f, "RxNotFinished"),
+            Error::StillAsleep =>
+                write!(f, "StillAsleep"),
         }
     }
 }
