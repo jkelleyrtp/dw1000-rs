@@ -121,15 +121,8 @@ impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
         self.ll.pmsc_ctrl0().modify(|_, w| w.sysclks(0b00))?;
 
         // Set LDOTUNE. See user manual, section 2.5.5.11.
-        self.ll.otp_addr().write(|w| w.value(0x004))?;
-        self.ll.otp_ctrl().modify(|_, w|
-            w
-                .otprden(0b1)
-                .otpread(0b1)
-        )?;
-        while self.ll.otp_ctrl().read()?.otpread() == 0b1 {}
-        let ldotune_low = self.ll.otp_rdat().read()?.value();
-        if ldotune_low != 0 {
+        let (calibrated, ldotune_low) = self.is_ldo_tune_calibrated()?;
+        if calibrated {
             self.ll.otp_addr().write(|w| w.value(0x005))?;
             self.ll.otp_ctrl().modify(|_, w|
                 w
@@ -545,6 +538,67 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
 
         Ok(())
     }
+
+    /// Puts the dw1000 into sleep mode.
+    ///
+    /// - `irq_on_wakeup`: When set to true, the IRQ pin will be asserted when the radio wakes up
+    /// - `sleep_duration`: When `None`, the radio will not wake up by itself and go into the deep sleep mode.
+    /// When `Some`, then the radio will wake itself up after the given time. Every tick is ~431ms, but there may
+    /// be a significant deviation from this due to the chip's manufacturing process.
+    ///
+    /// *Note: The SPI speed may be at most 3 Mhz when calling this function.*
+    pub fn enter_sleep(mut self, irq_on_wakeup: bool, sleep_duration: Option<u16>)
+        -> Result<DW1000<SPI, CS, Sleeping>, Error<SPI, CS>>
+    {
+        let tx_antenna_delay = self.get_tx_antenna_delay()?;
+
+        let lld0 = self.is_ldo_tune_calibrated()?.0 as u8;
+
+        // Setup everything that needs to be stored in AON
+        self.ll.aon_wcfg().modify(|_, w| w
+            .onw_leui(1)
+            .onw_ldc(1)
+            .pres_sleep(1)
+            .onw_llde(1)
+            .onw_lld0(lld0)
+        )?;
+        // Now set the sleep_cen 0.
+        self.ll.aon_cfg1().modify(|_, w| w.sleep_cen(0))?;
+        // Setup the wakeup sources.
+        self.ll.aon_cfg0().modify(|_, w| w
+            .wake_spi(1)
+            .wake_cnt(sleep_duration.is_some() as u8)
+        )?;
+
+        // Setup the interrupt.
+        if irq_on_wakeup {
+            self.ll.sys_mask().modify(|_, w| w.mslp2init(1).mcplock(1))?;
+        }
+
+        if let Some(sd) = sleep_duration {
+            self.ll.aon_ctrl().modify(|_, w| w.upl_cfg(1))?;
+            self.ll.aon_cfg0().modify(|_, w| w.sleep_tim(sd))?;
+            self.ll.aon_cfg1().modify(|_, w| w.sleep_cen(1))?;
+            self.ll.aon_ctrl().modify(|_, w| w.upl_cfg(1))?;
+        }
+
+        // Set SMXX 0
+        self.ll.aon_cfg1().modify(|_, w| w.smxx(0))?;
+
+        // Set sleep_en 1
+        self.ll.aon_cfg0().modify(|_, w| w.sleep_en(1))?;
+
+        // Last, set UPL_CFG to 1 and DCA_ENAB to 0
+        self.ll.aon_ctrl().modify(|_, w| w.upl_cfg(1).dca_enab(0))?;
+
+        Ok(DW1000 {
+            ll:    self.ll,
+            seq:   self.seq,
+            state: Sleeping {
+                tx_antenna_delay
+            },
+        })
+    }
 }
 
 impl<SPI, CS> DW1000<SPI, CS, Sending>
@@ -949,6 +1003,7 @@ impl<SPI, CS, State> DW1000<SPI, CS, State>
     where
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         CS:  OutputPin,
+        State: Awake,
 {
     /// Returns the TX antenna delay
     pub fn get_tx_antenna_delay(&mut self)
@@ -1003,6 +1058,50 @@ impl<SPI, CS, State> DW1000<SPI, CS, State>
         while self.ll.sys_ctrl().read()?.trxoff() == 0b1 {}
 
         Ok(())
+    }
+
+    /// Checks whether the ldo tune is calibrated.
+    ///
+    /// The bool in the tuple is the answer and the int is the raw ldotune_low value.
+    fn is_ldo_tune_calibrated(&mut self) -> Result<(bool, u32), Error<SPI, CS>> {
+        self.ll.otp_addr().write(|w| w.value(0x004))?;
+        self.ll.otp_ctrl().modify(|_, w|
+            w
+                .otprden(0b1)
+                .otpread(0b1)
+        )?;
+        while self.ll.otp_ctrl().read()?.otpread() == 0b1 {}
+        let ldotune_low = self.ll.otp_rdat().read()?.value();
+        Ok((ldotune_low != 0, ldotune_low))
+    }
+}
+
+impl<SPI, CS> DW1000<SPI, CS, Sleeping>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS:  OutputPin,
+{
+    /// Wakes the radio up.
+    pub fn wake_up(mut self) -> Result<DW1000<SPI, CS, Ready>, Error<SPI, CS>> {
+        // Wake up using the spi
+        self.ll.assert_cs_500_us().map_err(|e| Error::Spi(e))?;
+
+        // Disable the interrupt
+        self.ll.sys_mask().modify(|_, w| w.mslp2init(0).mcplock(0))?;
+
+        // Reset the wakeupstatus
+        self.ll.sys_status().modify(|_, w| w.slp2init(1).cplock(1))?;
+
+        // Restore the tx antenna delay
+        let delay = self.state.tx_antenna_delay;
+        self.ll.tx_antd().write(|w| w.value(delay.value() as u16))?;
+
+        // All other values should be restored, so return the ready radio.
+        Ok(DW1000 {
+            ll:    self.ll,
+            seq:   self.seq,
+            state: Ready,
+        })
     }
 }
 
@@ -1184,6 +1283,22 @@ pub struct Receiving {
     used_config: RxConfig,
 }
 
+/// Indicates that the `DW1000` instance is currently sleeping
+#[derive(Debug)]
+pub struct Sleeping {
+    /// Tx antenna delay isn't stored in AON, so we'll do it ourselves.
+    tx_antenna_delay: Duration,
+}
+
+/// Any state struct that implements this trait signals that the radio is **not** sleeping.
+pub trait Awake { }
+impl Awake for Uninitialized { }
+impl Awake for Ready { }
+impl Awake for Sending { }
+impl Awake for Receiving { }
+/// Any state struct that implements this trait signals that the radio is sleeping.
+pub trait Asleep { }
+impl Asleep for Sleeping { }
 
 /// An incoming message
 #[derive(Debug)]

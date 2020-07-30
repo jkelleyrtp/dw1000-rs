@@ -107,6 +107,26 @@ impl<SPI, CS> DW1000<SPI, CS> {
             self.spi = f(spi);
         }
     }
+
+    /// Internal function for pulling the cs low for 500 us. Used for sleep wakeup.
+    ///
+    /// This is done by sending 1500 zero bits. This is with the assumption that the spi speed <= 3 MHz.
+    pub(crate) fn assert_cs_500_us(&mut self) -> Result<(), Error<SPI, CS>>
+        where
+            SPI: spi::Transfer<u8> + spi::Write<u8>,
+            CS:  OutputPin,
+    {
+        self.chip_select.set_low()
+            .map_err(|err| Error::ChipSelect(err))?;
+
+        self.spi.write(&[0; 188])
+            .map_err(|err| Error::Write(err))?;
+
+        self.chip_select.set_high()
+            .map_err(|err| Error::ChipSelect(err))?;
+
+        Ok(())
+    }
 }
 
 
@@ -738,7 +758,7 @@ impl_register! {
         hrbpt,     24, 24, u8; /// Host Side RX Buffer Pointer Toggle
     }
     0x0E, 0x00, 4, RW, SYS_MASK(sys_mask) { /// System Event Mask Register
-        mpclock,    1,  1, u8; /// Mask clock PLL lock
+        mcplock,    1,  1, u8; /// Mask clock PLL lock
         mesyncr,    2,  2, u8; /// Mask external sync clock reset
         maat,       3,  3, u8; /// Mask automatic acknowledge trigger
         mtxfrbm,    4,  4, u8; /// Mask transmit frame begins
@@ -1044,6 +1064,37 @@ impl_register! {
     }
     0x2B, 0x0B, 1, RW, FS_PLLTUNE(fs_plltune) { /// Frequency synth - PLL Tuning
         value, 0, 7, u8; /// Frequency synthesiser - PLL Tuning
+    }
+    0x2C, 0x00, 2, RW, AON_WCFG(aon_wcfg) { /// AON Wakeup Configuration Register
+        onw_radc,  0,  0, u8; /// On Wake-up Run the (temperature and voltage) Analog-to-Digital Convertors.
+        onw_rx,    1,  1, u8; /// On Wake-up turn on the Receiver.
+        onw_leui,  3,  3, u8; /// On Wake-up load the EUI from OTP memory into Register file: 0x01 – Extended Unique Identifier.
+        onw_ldc,   6,  6, u8; /// On Wake-upload configurations from the AON memory into the host interface register set.
+        onw_l64p,  7,  7, u8; /// On Wake-up load the Length64 receiver operating parameter set.
+        pres_sleep,8,  8, u8; /// Preserve  Sleep. This bit determines what the DW1000 does with respect to the ARXSLP and ATXSLPsleep controls in Sub-Register 0x36:04 –PMSC_CTRL1after a wake-up event.
+        onw_llde, 11, 11, u8; /// On Wake-up load the LDE microcode
+        onw_lld0, 12, 12, u8; /// On Wake-up load the LDOTUNE value from OTP
+    }
+    0x2C, 0x02, 1, RW, AON_CTRL(aon_ctrl) { /// AON Control Register
+        restore,  0, 0, u8; /// When this bit is set the DW1000 will copy the user configurations from the AON memory to the host interface register set.
+        save,     1, 1, u8; /// When this bit is set the DW1000 will copy the user configurations from the host interface register  set  into  the AON  memory.
+        upl_cfg,  2, 2, u8; /// Upload the AON block configurations to the AON. 
+        dca_read, 3, 3, u8; /// Direct AON memory access read.
+        dca_enab, 7, 7, u8; /// Direct AON memory access enable bit.
+    }
+    0x2C, 0x06, 4, RW, AON_CFG0(aon_cfg0) { /// AON Configuration Register 0
+        sleep_en, 0, 0, u8; /// Sleep enable configuration bit
+        wake_pin, 1, 1, u8; /// Wake using WAKEUP pin
+        wake_spi, 2, 2, u8; /// Wake using SPI access
+        wake_cnt, 3, 3, u8; /// Wake when sleep counter elapses
+        lpdiv_en, 4, 4, u8; /// Low power divider enable configuration.
+        lpclkdiva, 5, 15, u16; /// This field specifies a divider count for dividing the raw DW1000 XTAL oscillator frequency to set an LP clock frequency.
+        sleep_tim, 16, 31, u16; /// Sleep time.  This field configures the sleep time count elapse value.
+    }
+    0x2C, 0x0A, 2, RW, AON_CFG1(aon_cfg1) { /// AON Configuration Register 1
+        sleep_cen, 0, 0, u8; /// This bit enables the sleep counter.
+        smxx, 1, 1, u8; /// Thisbit needs to be set to 0 for correct operation in the SLEEP state within the DW1000. 
+        lposc_cal, 2, 2, u8; /// This bit enables the calibration function that measures the period of the IC’s internal low powered oscillator.
     }
     0x2D, 0x04, 2, RW, OTP_ADDR(otp_addr) { /// OTP Address
         value, 0, 10, u16; /// OTP Address
