@@ -551,6 +551,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         -> Result<DW1000<SPI, CS, Sleeping>, Error<SPI, CS>>
     {
         let tx_antenna_delay = self.get_tx_antenna_delay()?;
+        let sys_mask = self.ll.sys_mask().read()?;
 
         let lld0 = self.is_ldo_tune_calibrated()?.0 as u8;
 
@@ -595,7 +596,8 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
             ll:    self.ll,
             seq:   self.seq,
             state: Sleeping {
-                tx_antenna_delay
+                tx_antenna_delay,
+                sys_mask,
             },
         })
     }
@@ -1097,8 +1099,12 @@ impl<SPI, CS> DW1000<SPI, CS, Sleeping>
             return Err(Error::StillAsleep);
         }
 
+        let original_sys_mask = self.state.sys_mask.0;
         // Disable the interrupt
-        self.ll.sys_mask().modify(|_, w| w.mslp2init(0).mcplock(0))?;
+        self.ll.sys_mask().modify(|_, w| {
+            w.0 = original_sys_mask;
+            w
+        })?;
 
         // Reset the wakeupstatus
         self.ll.sys_status().write(|w| w.slp2init(1).cplock(1))?;
@@ -1304,6 +1310,9 @@ pub struct Receiving {
 pub struct Sleeping {
     /// Tx antenna delay isn't stored in AON, so we'll do it ourselves.
     tx_antenna_delay: Duration,
+    /// Stores the system mask register. The docs say that this is restored during wakeup, but this doesn't seem to be the case.
+    /// So let's do it ourselves.
+    sys_mask: ll::sys_mask::R,
 }
 
 /// Any state struct that implements this trait signals that the radio is **not** sleeping.
