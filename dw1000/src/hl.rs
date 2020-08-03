@@ -1019,6 +1019,18 @@ impl<SPI, CS, State> DW1000<SPI, CS, State>
         Ok(tx_antenna_delay)
     }
 
+    /// Returns the RX antenna delay
+    pub fn get_rx_antenna_delay(&mut self)
+        -> Result<Duration, Error<SPI, CS>>
+    {
+        let rx_antenna_delay = self.ll.lde_rxantd().read()?.value();
+
+        // Since `rx_antenna_delay` is `u16`, the following will never panic.
+        let rx_antenna_delay = Duration::new(rx_antenna_delay.into()).unwrap();
+
+        Ok(rx_antenna_delay)
+    }
+
     /// Returns the network id and address used for sending and receiving
     pub fn get_address(&mut self)
         -> Result<mac::Address, Error<SPI, CS>>
