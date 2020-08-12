@@ -26,7 +26,11 @@ use dwm1001::{
         TxConfig,
         mac,
     },
-    nrf52832_hal::Delay,
+    nrf52832_hal::{
+        Delay,
+        Timer,
+        rng::Rng,
+    },
     DWM1001,
     block_timeout,
     repeat_timeout,
@@ -43,7 +47,7 @@ fn main() -> ! {
     let mut dwm1001 = DWM1001::take().unwrap();
 
     let mut delay  = Delay::new(dwm1001.SYST);
-    let mut rng    = dwm1001.RNG.constrain();
+    let mut rng    = Rng::new(dwm1001.RNG);
 
     dwm1001.DW_RST.reset_dw1000(&mut delay);
     let mut dw1000 = dwm1001.DW1000.init()
@@ -58,9 +62,9 @@ fn main() -> ! {
         .expect("Failed to set address");
 
     // Configure timer
-    let mut task_timer    = dwm1001.TIMER0.constrain();
-    let mut timeout_timer = dwm1001.TIMER1.constrain();
-    let mut output_timer  = dwm1001.TIMER2.constrain();
+    let mut task_timer    = Timer::new(dwm1001.TIMER0);
+    let mut timeout_timer = Timer::new(dwm1001.TIMER1);
+    let mut output_timer  = Timer::new(dwm1001.TIMER2);
 
     let receive_time = 500_000 + (rng.random_u32() % 500_000);
 
