@@ -57,6 +57,7 @@ use crate::{hl, mac, time::{
     Duration,
     Instant,
 }, DW1000, Error, Ready, Sending, TxConfig};
+use crate::hl::SendTime;
 
 
 /// The transmission delay
@@ -189,8 +190,8 @@ impl<T> TxMessage<T> where T: Message {
         let future = dw1000.send(
             &buf[..T::LEN],
             self.recipient,
-            Some(self.tx_time),
-            TxConfig::default()
+            SendTime::Delayed(self.tx_time),
+            TxConfig::default(),
         )?;
 
         Ok(future)

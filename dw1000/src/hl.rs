@@ -199,7 +199,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     pub fn send(mut self,
         data:         &[u8],
         destination:  mac::Address,
-        delayed_time: Option<Instant>,
+        send_time: SendTime,
         config: TxConfig,
     )
         -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>>
@@ -239,13 +239,16 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
             footer: [0; 2],
         };
 
-        delayed_time.map(|time| {
-            self.ll
-                .dx_time()
-                .write(|w|
-                    w.value(time.value())
-                )
-        });
+        match send_time {
+            SendTime::Delayed(time) => {
+                self.ll
+                    .dx_time()
+                    .write(|w|
+                        w.value(time.value())
+                    )?;
+            },
+            _ => {},
+        }
 
         // Prepare transmitter
         let mut len = 0;
@@ -300,13 +303,15 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
 
         // Todo: Power control (register 0x1E)
 
-        // Start transmission
-        self.ll
-            .sys_ctrl()
-            .modify(|_, w|
-                if delayed_time.is_some() { w.txdlys(0b1) } else { w }
-                    .txstrt(0b1)
-            )?;
+        if !matches!(send_time, SendTime::OnSync) {
+            // Start transmission
+            self.ll
+                .sys_ctrl()
+                .modify(|_, w|
+                    if matches!(send_time, SendTime::Delayed(_)) { w.txdlys(0b1) } else { w }
+                        .txstrt(0b1)
+                )?;
+        }
 
         Ok(DW1000 {
             ll:    self.ll,
@@ -1366,4 +1371,14 @@ pub struct RxQuality {
     /// The value is an estimation that is quite accurate up to -85 dBm.
     /// Above -85 dBm, the estimation underestimates the actual value.
     pub rssi: f32
+}
+
+/// The time at which the transmission will start
+pub enum SendTime {
+    /// As fast as possible
+    Now,
+    /// After some time
+    Delayed(Instant),
+    /// After the sync pin is engaged. (Only works when in OSTS mode)
+    OnSync,
 }
