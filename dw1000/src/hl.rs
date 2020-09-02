@@ -178,6 +178,41 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         Ok(())
     }
 
+    /// Sets up the sync pin functionality
+    ///
+    /// After init, it is set to None
+    pub fn set_sync_behaviour(&mut self, behaviour: SyncBehaviour) -> Result<(), Error<SPI, CS>> {
+        match behaviour {
+            SyncBehaviour::None => {
+                // Disable all
+                self.ll
+                    .ec_ctrl()
+                    .modify(|_, w| w.osrsm(0).ostrm(0))?;
+                // Disable the rx pll
+                self.ll.pmsc_ctrl1().modify(|_, w| w.pllsyn(0))?;
+            },
+            SyncBehaviour::TimeBaseReset => {
+                // Enable the time base reset mode
+                self.ll
+                    .ec_ctrl()
+                    .modify(|_, w| w.osrsm(0).ostrm(1))?;
+                // Disable the rx pll
+                self.ll.pmsc_ctrl1().modify(|_, w| w.pllsyn(0))?;
+            },
+            SyncBehaviour::ExternalSync => {
+                // Enable the rx pll
+                self.ll.pmsc_ctrl1().modify(|_, w| w.pllsyn(1))?;
+
+                // Enable the external receive synchronisation mode
+                self.ll
+                    .ec_ctrl()
+                    .modify(|_, w| w.pllldt(0b1).osrsm(1).ostrm(0))?;
+            },
+        }
+
+        Ok(())
+    }
+
     /// Send an IEEE 802.15.4 MAC frame
     ///
     /// The `data` argument is wrapped into an IEEE 802.15.4 MAC frame and sent
@@ -241,12 +276,19 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
 
         match send_time {
             SendTime::Delayed(time) => {
+                // Put the time into the delay register
+                // By setting this register, the chip knows to delay before transmitting
                 self.ll
                     .dx_time()
                     .write(|w|
                         w.value(time.value())
                     )?;
             },
+            SendTime::OnSync => {
+                self.ll
+                    .ec_ctrl()
+                    .modify(|_, w| w.wait(33).ostsm(1))?;
+            }
             _ => {},
         }
 
@@ -695,6 +737,14 @@ impl<SPI, CS> DW1000<SPI, CS, Sending>
             }
         }
 
+        // Turn off the external transmit synchronization
+        match self.ll
+            .ec_ctrl()
+            .modify(|_, w| w.ostsm(0)) {
+            Ok(_) => {}
+            Err(e) => return Err((self, Error::Spi(e))),
+        }
+
         Ok(DW1000 {
             ll:    self.ll,
             seq:   self.seq,
@@ -956,10 +1006,6 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
     ///
     /// This must be called after the [`DW1000::wait`] function has successfully returned.
     pub fn read_rx_quality(&mut self) -> Result<RxQuality, Error<SPI, CS>> {
-        if !self.state.finished {
-            return Err(Error::RxNotFinished);
-        }
-
         let luep = self.calculate_luep()?;
         let prnlos = self.calculate_prnlos()?;
         let mc = self.calculate_mc()?;
@@ -980,6 +1026,20 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
                 rssi,
             }
         )
+    }
+
+    /// Gets the external sync values from the registers.
+    ///
+    /// The tuple contains (cycles_since_sync, nanos_until_tick, raw_timestamp).
+    /// See the user manual at 6.1.3 to see how to calculate the actual time value.
+    /// In the manual, the return values are named (N, T1, RX_RAWST)
+    /// This is left to the user so the precision of the calculations are left to the user to decide.
+    pub fn read_external_sync_time(&mut self) -> Result<(u32, u8, u64), Error<SPI, CS>> {
+        let cycles_since_sync = self.ll().ec_rxtc().read()?.rx_ts_est();
+        let nanos_until_tick = self.ll().ec_golp().read()?.offset_ext();
+        let raw_timestamp = self.ll().rx_time().read()?.rx_rawst();
+
+        Ok((cycles_since_sync, nanos_until_tick, raw_timestamp))
     }
 
     /// Finishes receiving and returns to the `Ready` state
@@ -1379,6 +1439,17 @@ pub enum SendTime {
     Now,
     /// After some time
     Delayed(Instant),
-    /// After the sync pin is engaged. (Only works when in OSTS mode)
+    /// After the sync pin is engaged. (Only works when sync setup is in ExternalSync mode)
     OnSync,
+}
+
+/// The behaviour of the sync pin
+pub enum SyncBehaviour {
+    /// The sync pin does nothing
+    None,
+    /// The radio time will reset to 0 when the sync pin is high and the clock gives a rising edge
+    TimeBaseReset,
+    /// When receiving, instead of reading the internal timestamp, the time since the last sync
+    /// is given back.
+    ExternalSync,
 }

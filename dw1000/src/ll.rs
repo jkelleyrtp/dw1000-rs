@@ -156,10 +156,16 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
 
         init_header::<R>(false, &mut buffer);
 
-        self.0.chip_select.set_low()
-            .map_err(|err| Error::ChipSelect(err))?;
+        for _ in 0..100 {
+            self.0.chip_select.set_low()
+                .map_err(|err| Error::ChipSelect(err))?;
+        }
         self.0.spi.transfer(buffer)
             .map_err(|err| Error::Transfer(err))?;
+        for _ in 0..100 {
+            self.0.chip_select.set_low()
+                .map_err(|err| Error::ChipSelect(err))?;
+        }
         self.0.chip_select.set_high()
             .map_err(|err| Error::ChipSelect(err))?;
 
@@ -179,10 +185,16 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         let buffer = R::buffer(&mut w);
         init_header::<R>(true, buffer);
 
-        self.0.chip_select.set_low()
-            .map_err(|err| Error::ChipSelect(err))?;
+        for _ in 0..100 {
+            self.0.chip_select.set_low()
+                .map_err(|err| Error::ChipSelect(err))?;
+        }
         <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
             .map_err(|err| Error::Write(err))?;
+        for _ in 0..100 {
+            self.0.chip_select.set_low()
+                .map_err(|err| Error::ChipSelect(err))?;
+        }
         self.0.chip_select.set_high()
             .map_err(|err| Error::ChipSelect(err))?;
 
@@ -208,10 +220,16 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         let buffer = <R as Writable>::buffer(&mut w);
         init_header::<R>(true, buffer);
 
-        self.0.chip_select.set_low()
-            .map_err(|err| Error::ChipSelect(err))?;
+        for _ in 0..100 {
+            self.0.chip_select.set_low()
+                .map_err(|err| Error::ChipSelect(err))?;
+        }
         <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
             .map_err(|err| Error::Write(err))?;
+        for _ in 0..100 {
+            self.0.chip_select.set_low()
+                .map_err(|err| Error::ChipSelect(err))?;
+        }
         self.0.chip_select.set_high()
             .map_err(|err| Error::ChipSelect(err))?;
 
@@ -894,6 +912,12 @@ impl_register! {
         wait,    3, 10, u8; /// Wait Counter
         ostrm,  11, 11, u8; /// External Timebase Reset Mode Enable
     }
+    0x24, 0x04, 4, RO, EC_RXTC(ec_rxtc) { /// External clock synchronisation counter captured on RMARKER
+        rx_ts_est, 0, 31, u32; /// External clock synchronisation counter captured on RMARKER
+    }
+    0x24, 0x04, 4, RO, EC_GOLP(ec_golp) { /// External clock offset to first path 1 GHz counter
+        offset_ext, 0, 5, u8; /// This register contains the 1 GHz count from the arrival of the RMARKER and the next edge of the external clock.
+    }
     0x26, 0x00, 4, RW, GPIO_MODE(gpio_mode) { /// GPIO Mode Control Register
         msgp0,  6,  7, u8; /// Mode Selection for GPIO0/RXOKLED
         msgp1,  8,  9, u8; /// Mode Selection for GPIO1/SFDLED
@@ -1056,6 +1080,12 @@ impl_register! {
         txmtune, 5,  8, u8; /// Transmit mixer tuning register
         txmq,    9, 11, u8; /// Transmit mixer Q-factor tuning register
         value, 0, 23, u32; /// The entire register
+    }
+    0x28, 0x2C, 4, RO, RF_STATUS(rf_status) { /// RF Status Register
+        cplllock,  0, 0, u8; /// Clock PLL lock status
+        cplllow,   1, 1, u8; /// Clock PLL low flag
+        cpllhigh,  2, 2, u8; /// Clock PLL high flag
+        rfplllock, 3, 3, u8; /// RF PLL lock status
     }
     0x28, 0x30, 5, RW, LDOTUNE(ldotune) { /// LDO voltage tuning parameter
         value, 0, 39, u64; /// Internal LDO voltage tuning parameter
