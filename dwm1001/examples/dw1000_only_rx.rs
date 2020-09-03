@@ -20,7 +20,10 @@ use dwm1001::{
         },
     },
     DWM1001,
-    nrf52832_hal::Delay,
+    nrf52832_hal::{
+        Delay,
+        Timer,
+    },
     prelude::*,
     print,
 };
@@ -38,7 +41,7 @@ fn main() -> ! {
         .expect("Failed to initialize DW1000");
 
     // Configure timer
-    let mut timer = dwm1001.TIMER0.constrain();
+    let mut timer = Timer::new(dwm1001.TIMER0);
 
     loop {
         let mut receiving = dw1000

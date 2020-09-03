@@ -33,9 +33,11 @@ use dwm1001::{
             Output,
             PushPull,
         },
-        nrf52832_pac::SPIM2,
+        pac::SPIM2,
+        rng::Rng,
         Delay,
         Spim,
+        Timer,
     },
     DWM1001,
     block_timeout,
@@ -50,7 +52,7 @@ fn main() -> ! {
     let mut dwm1001 = DWM1001::take().unwrap();
 
     let mut delay  = Delay::new(dwm1001.SYST);
-    let mut rng    = dwm1001.RNG.constrain();
+    let mut rng    = Rng::new(dwm1001.RNG);
 
     dwm1001.DW_RST.reset_dw1000(&mut delay);
     let mut dw1000 = dwm1001.DW1000.init()
@@ -62,7 +64,6 @@ fn main() -> ! {
         .expect("Failed to enable RX interrupts");
 
     let mut dw_irq = dwm1001.DW_IRQ;
-    let mut nvic   = dwm1001.NVIC;
     let mut gpiote = dwm1001.GPIOTE;
 
     // These are the hardcoded calibration values from the dwm1001-examples
@@ -82,7 +83,7 @@ fn main() -> ! {
         )
         .expect("Failed to set address");
 
-    let mut timeout_timer = dwm1001.TIMER1.constrain();
+    let mut timeout_timer = Timer::new(dwm1001.TIMER1);
 
     let mut buf = [0; 128];
 
@@ -94,7 +95,6 @@ fn main() -> ! {
         timeout_timer.start(500_000u32);
         let message = block_timeout!(&mut timeout_timer, {
             dw_irq.wait_for_interrupts(
-                &mut nvic,
                 &mut gpiote,
                 &mut timeout_timer,
             );
@@ -135,7 +135,6 @@ fn main() -> ! {
             timeout_timer.start(500_000u32);
             block_timeout!(&mut timeout_timer, {
                 dw_irq.wait_for_interrupts(
-                    &mut nvic,
                     &mut gpiote,
                     &mut timeout_timer,
                 );

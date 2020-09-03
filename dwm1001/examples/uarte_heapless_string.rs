@@ -12,7 +12,7 @@ use heapless::String as HString;
 use nb::block;
 
 use dwm1001::{
-    nrf52832_hal::{prelude::*, timer::Timer},
+    nrf52832_hal::{prelude::*, timer::{self, Timer}},
     DWM1001,
 };
 
@@ -21,7 +21,7 @@ use dwm1001::{
 fn main() -> ! {
     let mut dwm1001 = DWM1001::take().unwrap();
 
-    let mut timer = dwm1001.TIMER0.constrain();
+    let mut timer = Timer::new(dwm1001.TIMER0);
 
     let mut s: HString<heapless::consts::U64> = HString::new();
     s.push_str("halp plz ")
@@ -48,7 +48,7 @@ fn main() -> ! {
 
 fn delay<T>(timer: &mut Timer<T>, cycles: u32)
 where
-    T: TimerExt,
+    T: timer::Instance,
 {
     timer.start(cycles);
     block!(timer.wait()).unwrap();

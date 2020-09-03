@@ -72,6 +72,7 @@ use nrf52832_hal::{
         TWIM1,
     },
     spim,
+    timer,
     twim,
     uarte::{
         Parity as UartParity,
@@ -84,6 +85,7 @@ use nrf52832_hal::{
 
 #[cfg(feature = "dev")]
 use nrf52832_hal::{
+    prelude::*,
     gpio::{
         p0::{
             P0_05,
@@ -503,8 +505,7 @@ impl DWM1001 {
     }
 
     fn new(cp: CorePeripherals, p: Peripherals) -> Self {
-        let pins = nrf52832_hal::gpio::p0::Parts::new(p.P0);
-
+        let pins = p0::Parts::new(p.P0);
 
         // Some notes about the hardcoded configuration of `Uarte`:
         // - On the DWM1001-DEV board, the UART is connected (without CTS/RTS
@@ -802,12 +803,14 @@ impl Led {
 
     /// Enable the LED
     pub fn enable(&mut self) {
-        self.0.set_low().unwrap()
+        self.0.set_low()
+            .unwrap();
     }
 
     /// Disable the LED
     pub fn disable(&mut self) {
-        self.0.set_high().unwrap()
+        self.0.set_high()
+            .unwrap();
     }
 }
 
@@ -887,7 +890,7 @@ impl DW_IRQ {
         gpiote: &mut nrf52::GPIOTE,
         timer:  &mut Timer<T>,
     )
-        where T: nrf52832_hal::timer::Instance
+        where T: timer::Instance
     {
         gpiote.config[0].write(|w| {
             let w = w
