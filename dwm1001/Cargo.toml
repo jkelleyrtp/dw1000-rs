@@ -22,11 +22,14 @@ travis-ci = { repository = "braun-embedded/rust-dw1000" }
 
 
 [dependencies]
-cortex-m-rt             = { version = "0.6.13", optional = true }
 cortex-m-semihosting    = "0.3.5"
 embedded-hal            = "0.2.4"
 embedded-timeout-macros = "0.3.0"
 lis2dh12                = "0.6.0"
+
+[dependencies.cortex-m-rt]
+version  = "0.6.13"
+optional = true
 
 [dependencies.dw1000]
 version = "0.5.0"
