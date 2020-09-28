@@ -999,7 +999,7 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
         let n = self.ll.rx_finfo().read()?.rxpacc() as f32
             + sfd_sequence.get_rxpacc_adjustment(data_rate) as f32;
 
-        Ok(10.0 * ((c * (2 << 17) as f32) / (n*n)).log10() - a)
+        Ok(10.0 * ((c * (1 << 17) as f32) / (n*n)).log10() - a)
     }
 
     /// Reads the quality of the received message.
