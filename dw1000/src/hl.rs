@@ -678,7 +678,7 @@ impl<SPI, CS> DW1000<SPI, CS, Sending>
     /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
     /// this.
     pub fn wait(&mut self)
-        -> nb::Result<(), Error<SPI, CS>>
+        -> nb::Result<Instant, Error<SPI, CS>>
     {
         // Check Half Period Warning Counter. If this is a delayed transmission,
         // this will indicate that the delay was too short, and the frame was
@@ -724,7 +724,11 @@ impl<SPI, CS> DW1000<SPI, CS, Sending>
             .map_err(|error| nb::Error::Other(error))?;
         self.state.finished = true;
 
-        Ok(())
+        let tx_timestamp = self.ll.tx_time().read().map_err(|error| nb::Error::Other(Error::Spi(error)))?.tx_stamp();
+        // This is safe because the value read from the device will never be higher than the allowed value.
+        let tx_timestamp = unsafe { Instant::new_unchecked(tx_timestamp) };
+
+        Ok(tx_timestamp)
     }
 
     /// Finishes sending and returns to the `Ready` state
@@ -859,7 +863,7 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
         // `rx_time` comes directly from the register, which should always
         // contain a 40-bit timestamp. Unless the hardware or its documentation
         // are buggy, the following should never panic.
-        let rx_time = Instant::new(rx_time).unwrap();
+        let rx_time = unsafe { Instant::new_unchecked(rx_time) };
 
         // Reset status bits. This is not strictly necessary, but it helps, if
         // you have to inspect SYS_STATUS manually during debugging.

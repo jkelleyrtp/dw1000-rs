@@ -52,6 +52,11 @@ impl Instant {
         }
     }
 
+    /// Creates a new instance of `Instant` without checking the value for validity
+    pub(crate) unsafe fn new_unchecked(value: u64) -> Self {
+        Instant(value)
+    }
+
     /// Returns the raw 40-bit timestamp
     ///
     /// The returned value is guaranteed to be in the following range:
