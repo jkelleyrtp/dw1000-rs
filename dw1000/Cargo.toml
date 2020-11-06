@@ -21,8 +21,8 @@ travis-ci = { repository = "braun-embedded/rust-dw1000" }
 embedded-hal = "0.2.4"
 ieee802154   = "0.3.0"
 nb           = "1.0.0"
-fixed        = "1.2.0"
-micromath    = "1.0.1"
+fixed        = "1.5.0"
+micromath    = "1.1.0"
 
 
 [dependencies.serde]
@@ -33,3 +33,7 @@ features = ["derive"]
 [dependencies.ssmarshal]
 version = "1.0.0"
 default-features = false
+
+[features]
+default = []
+slower-communication = []

@@ -145,6 +145,11 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         CS:  OutputPin,
 {
+    #[cfg(not(feature = "slower-communication"))]
+    const CS_SET_COUNT: u32 = 1;
+    #[cfg(feature = "slower-communication")]
+    const CS_SET_COUNT: u32 = 128;
+
     /// Read from the register
     pub fn read(&mut self)
         -> Result<R::Read, Error<SPI, CS>>
@@ -156,13 +161,13 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
 
         init_header::<R>(false, &mut buffer);
 
-        for _ in 0..100 {
+        for _ in 0..Self::CS_SET_COUNT {
             self.0.chip_select.set_low()
                 .map_err(|err| Error::ChipSelect(err))?;
         }
         self.0.spi.transfer(buffer)
             .map_err(|err| Error::Transfer(err))?;
-        for _ in 0..100 {
+        for _ in 0..Self::CS_SET_COUNT {
             self.0.chip_select.set_low()
                 .map_err(|err| Error::ChipSelect(err))?;
         }
@@ -185,13 +190,13 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         let buffer = R::buffer(&mut w);
         init_header::<R>(true, buffer);
 
-        for _ in 0..100 {
+        for _ in 0..Self::CS_SET_COUNT {
             self.0.chip_select.set_low()
                 .map_err(|err| Error::ChipSelect(err))?;
         }
         <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
             .map_err(|err| Error::Write(err))?;
-        for _ in 0..100 {
+        for _ in 0..Self::CS_SET_COUNT {
             self.0.chip_select.set_low()
                 .map_err(|err| Error::ChipSelect(err))?;
         }
@@ -220,13 +225,13 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         let buffer = <R as Writable>::buffer(&mut w);
         init_header::<R>(true, buffer);
 
-        for _ in 0..100 {
+        for _ in 0..Self::CS_SET_COUNT {
             self.0.chip_select.set_low()
                 .map_err(|err| Error::ChipSelect(err))?;
         }
         <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
             .map_err(|err| Error::Write(err))?;
-        for _ in 0..100 {
+        for _ in 0..Self::CS_SET_COUNT {
             self.0.chip_select.set_low()
                 .map_err(|err| Error::ChipSelect(err))?;
         }
@@ -915,7 +920,7 @@ impl_register! {
     0x24, 0x04, 4, RO, EC_RXTC(ec_rxtc) { /// External clock synchronisation counter captured on RMARKER
         rx_ts_est, 0, 31, u32; /// External clock synchronisation counter captured on RMARKER
     }
-    0x24, 0x04, 4, RO, EC_GOLP(ec_golp) { /// External clock offset to first path 1 GHz counter
+    0x24, 0x08, 4, RO, EC_GOLP(ec_golp) { /// External clock offset to first path 1 GHz counter
         offset_ext, 0, 5, u8; /// This register contains the 1 GHz count from the arrival of the RMARKER and the next edge of the external clock.
     }
     0x26, 0x00, 4, RW, GPIO_MODE(gpio_mode) { /// GPIO Mode Control Register

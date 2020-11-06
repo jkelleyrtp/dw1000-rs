@@ -192,12 +192,13 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
                 self.ll.pmsc_ctrl1().modify(|_, w| w.pllsyn(0))?;
             },
             SyncBehaviour::TimeBaseReset => {
+                // Enable the rx pll
+                self.ll.pmsc_ctrl1().modify(|_, w| w.pllsyn(1))?;
+
                 // Enable the time base reset mode
                 self.ll
                     .ec_ctrl()
-                    .modify(|_, w| w.osrsm(0).ostrm(1))?;
-                // Disable the rx pll
-                self.ll.pmsc_ctrl1().modify(|_, w| w.pllsyn(0))?;
+                    .modify(|_, w| w.pllldt(0b1).osrsm(0).ostrm(1).wait(33))?;
             },
             SyncBehaviour::ExternalSync => {
                 // Enable the rx pll
@@ -206,8 +207,17 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
                 // Enable the external receive synchronisation mode
                 self.ll
                     .ec_ctrl()
-                    .modify(|_, w| w.pllldt(0b1).osrsm(1).ostrm(0))?;
+                    .modify(|_, w| w.pllldt(0b1).osrsm(1).ostrm(0).wait(33))?;
             },
+            SyncBehaviour::ExternalSyncWithReset => {
+                // Enable the rx pll
+                self.ll.pmsc_ctrl1().modify(|_, w| w.pllsyn(1))?;
+
+                // Enable the external receive synchronisation mode
+                self.ll
+                    .ec_ctrl()
+                    .modify(|_, w| w.pllldt(0b1).osrsm(1).ostrm(1).wait(33))?;
+            }
         }
 
         Ok(())
@@ -1452,4 +1462,7 @@ pub enum SyncBehaviour {
     /// When receiving, instead of reading the internal timestamp, the time since the last sync
     /// is given back.
     ExternalSync,
+    /// When receiving, instead of reading the internal timestamp, the time since the last sync
+    /// is given back. Also resets the internal timebase back to 0.
+    ExternalSyncWithReset,
 }
