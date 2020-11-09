@@ -609,6 +609,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     {
         let tx_antenna_delay = self.get_tx_antenna_delay()?;
         let sys_mask = self.ll.sys_mask().read()?;
+        let pan_adr = self.ll.panadr().read()?;
 
         let lld0 = self.is_ldo_tune_calibrated()?.0 as u8;
 
@@ -655,6 +656,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
             state: Sleeping {
                 tx_antenna_delay,
                 sys_mask,
+                pan_adr,
             },
         })
     }
@@ -1190,10 +1192,17 @@ impl<SPI, CS> DW1000<SPI, CS, Sleeping>
             return Err(Error::StillAsleep);
         }
 
+        // Restore the interrupts
         let original_sys_mask = self.state.sys_mask.0;
-        // Disable the interrupt
-        self.ll.sys_mask().modify(|_, w| {
+        self.ll.sys_mask().write(|w| {
             w.0 = original_sys_mask;
+            w
+        })?;
+
+        // Restore the address
+        let original_pan_adr = self.state.pan_adr.0;
+        self.ll.panadr().write(|w| {
+            w.0 = original_pan_adr;
             w
         })?;
 
@@ -1404,6 +1413,8 @@ pub struct Sleeping {
     /// Stores the system mask register. The docs say that this is restored during wakeup, but this doesn't seem to be the case.
     /// So let's do it ourselves.
     sys_mask: ll::sys_mask::R,
+    /// The pan address register
+    pan_adr: ll::panadr::R,
 }
 
 /// Any state struct that implements this trait signals that the radio is **not** sleeping.
