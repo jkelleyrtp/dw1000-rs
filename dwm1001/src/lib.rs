@@ -102,8 +102,6 @@ use nrf52832_hal::{
     },
 };
 
-use embedded_hal::digital::v2::OutputPin;
-
 /// Optional Configuration struct for SPIM, not including pins
 pub struct SpimConfig {
     /// SPIM Frequency
@@ -923,6 +921,7 @@ impl DW_IRQ {
         gpiote.intenclr.modify(|_, w| w.in0().clear());
     }
 
+    /// Frees the irq pin
     pub fn free(self) -> p0::P0_19<Input<Floating>> {
         self.0
     }
