@@ -56,6 +56,7 @@ use nrf52832_hal::{
             P0_28,
             P0_29,
         },
+        Disconnected,
         Floating,
         Input,
         Level,
@@ -660,91 +661,91 @@ impl DWM1001 {
 #[allow(non_snake_case)]
 pub struct Pins {
     /// DWM1001: BT_WAKE_UP; nRF52: P0.02
-    pub BT_WAKE_UP: p0::P0_02<Input<Floating>>,
+    pub BT_WAKE_UP: p0::P0_02<Disconnected>,
 
     /// DWM1001: SPIS_CSn; nRF52: P0.03
-    pub SPIS_CSn: p0::P0_03<Input<Floating>>,
+    pub SPIS_CSn: p0::P0_03<Disconnected>,
 
     /// DWM1001: SPIS_CLK; nRF52: P0.04
-    pub SPIS_CLK: p0::P0_04<Input<Floating>>,
+    pub SPIS_CLK: p0::P0_04<Disconnected>,
 
     /// DWM1001: UART_TX; nRF52: P0.05
     ///
     /// This field is only available, if the `dev` feature is disabled.
     /// Otherwise the pin is used for a UART on the DWM1001-Dev board.
     #[cfg(not(feature = "dev"))]
-    pub UART_TX: p0::P0_05<Input<Floating>>,
+    pub UART_TX: p0::P0_05<Disconnected>,
 
     /// DWM1001: SPIS_MOSI; nRF52: P0.06
-    pub SPIS_MOSI: p0::P0_06<Input<Floating>>,
+    pub SPIS_MOSI: p0::P0_06<Disconnected>,
 
     /// DWM1001: SPIS_MISO; nRF52: P0.07
-    pub SPIS_MISO: p0::P0_07<Input<Floating>>,
+    pub SPIS_MISO: p0::P0_07<Disconnected>,
 
     /// DWM1001: UART_RX; nRF52: P0.11
     ///
     /// This field is only available, if the `dev` feature is disabled.
     /// Otherwise the pin is used for a UART on the DWM1001-Dev board.
     #[cfg(not(feature = "dev"))]
-    pub UART_RX: p0::P0_11<Input<Floating>>,
+    pub UART_RX: p0::P0_11<Disconnected>,
 
     /// DWM1001: RESETn; nRF52: P0.21
-    pub RESETn: p0::P0_21<Input<Floating>>,
+    pub RESETn: p0::P0_21<Disconnected>,
 
     /// DWM1001: READY; nRF52: P0.26
-    pub READY: p0::P0_26<Input<Floating>>,
+    pub READY: p0::P0_26<Disconnected>,
 
     /// DWM1001: GPIO_8; nRF52: P0.08
-    pub GPIO_8: p0::P0_08<Input<Floating>>,
+    pub GPIO_8: p0::P0_08<Disconnected>,
 
     /// DWM1001: GPIO_9; nRF52: P0.09
-    pub GPIO_9: p0::P0_09<Input<Floating>>,
+    pub GPIO_9: p0::P0_09<Disconnected>,
 
     /// DWM1001: GPIO_10; nRF52: P0.10
-    pub GPIO_10: p0::P0_10<Input<Floating>>,
+    pub GPIO_10: p0::P0_10<Disconnected>,
 
     /// DWM1001: GPIO_12; nRF52: P0.12
-    pub GPIO_12: p0::P0_12<Input<Floating>>,
+    pub GPIO_12: p0::P0_12<Disconnected>,
 
     /// DWM1001: GPIO_13; nRF52: P0.13
-    pub GPIO_13: p0::P0_13<Input<Floating>>,
+    pub GPIO_13: p0::P0_13<Disconnected>,
 
     /// DWM1001: GPIO_15; nRF52: P0.15
-    pub GPIO_15: p0::P0_15<Input<Floating>>,
+    pub GPIO_15: p0::P0_15<Disconnected>,
 
     /// DWM1001: GPIO_23; nRF52: P0.23
-    pub GPIO_23: p0::P0_23<Input<Floating>>,
+    pub GPIO_23: p0::P0_23<Disconnected>,
 
     /// DWM1001: GPIO_27; nRF52: P0.27
-    pub GPIO_27: p0::P0_27<Input<Floating>>,
+    pub GPIO_27: p0::P0_27<Disconnected>,
 
     /// DWM1001: GPIO_14; nRF52: P0.14
     ///
     /// This field is only available, if the `dev` feature is disabled.
     /// Otherwise the pin is used for an LED on the DWM1001-Dev board.
     #[cfg(not(feature = "dev"))]
-    pub GPIO_14: p0::P0_14<Input<Floating>>,
+    pub GPIO_14: p0::P0_14<Disconnected>,
 
     /// DWM1001: GPIO_22; nRF52: P0.22
     ///
     /// This field is only available, if the `dev` feature is disabled.
     /// Otherwise the pin is used for an LED on the DWM1001-Dev board.
     #[cfg(not(feature = "dev"))]
-    pub GPIO_22: p0::P0_22<Input<Floating>>,
+    pub GPIO_22: p0::P0_22<Disconnected>,
 
     /// DWM1001: GPIO_30; nRF52: P0.30
     ///
     /// This field is only available, if the `dev` feature is disabled.
     /// Otherwise the pin is used for an LED on the DWM1001-Dev board.
     #[cfg(not(feature = "dev"))]
-    pub GPIO_30: p0::P0_30<Input<Floating>>,
+    pub GPIO_30: p0::P0_30<Disconnected>,
 
     /// DWM1001: GPIO_31; nRF52: P0.31
     ///
     /// This field is only available, if the `dev` feature is disabled.
     /// Otherwise the pin is used for an LED on the DWM1001-Dev board.
     #[cfg(not(feature = "dev"))]
-    pub GPIO_31: p0::P0_31<Input<Floating>>,
+    pub GPIO_31: p0::P0_31<Disconnected>,
 
     // Pins before this comment are available outside the DWM1001. Pins after
     // this comment are connected to components on the board, and should
@@ -753,7 +754,7 @@ pub struct Pins {
     /// DWM1001: IRQ_ACC; nRF52: P0.25
     ///
     /// Connected to the accelerometer.
-    pub IRQ_ACC: p0::P0_25<Input<Floating>>,
+    pub IRQ_ACC: p0::P0_25<Disconnected>,
 }
 
 
