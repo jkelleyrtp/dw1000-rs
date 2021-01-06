@@ -36,4 +36,3 @@ default-features = false
 
 [features]
 default = []
-slower-communication = []

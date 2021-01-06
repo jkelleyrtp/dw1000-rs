@@ -155,6 +155,15 @@ impl PulseRepetitionFrequency {
             _ => Err(Error::InvalidConfiguration),
         }
     }
+
+    /// Get the recommended value for the lde_cfg2 register
+    pub fn get_recommended_lde_cfg2(&self) -> u16 {
+        // Values taken from from the user manual (found at the register description)
+        match self {
+            PulseRepetitionFrequency::Mhz16 => 0x1607,
+            PulseRepetitionFrequency::Mhz64 => 0x0607,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -400,6 +409,21 @@ impl UwbChannel {
             (UwbChannel::Channel4, PulseRepetitionFrequency::Mhz64) => 17,
             (UwbChannel::Channel5, PulseRepetitionFrequency::Mhz64) => 12,
             (UwbChannel::Channel7, PulseRepetitionFrequency::Mhz64) => 18,
+        }
+    }
+
+    /// Get the recommended lde_repc register value
+    pub fn get_recommended_lde_repc_value(&self, pulse_repetition_frequency: PulseRepetitionFrequency, bitrate: BitRate) -> u16 {
+        // Values taken from user manual register description
+        const VALUES: [u16; 24] = [0x5998, 0x5998, 0x51EA, 0x428E, 0x451E, 0x2E14, 0x8000, 0x51EA, 0x28F4, 0x3332, 0x3AE0, 0x3D70, 0x3AE0, 0x35C2, 0x2B84, 0x35C2, 0x3332, 0x35C2, 0x35C2, 0x47AE, 0x3AE0, 0x3850, 0x30A2, 0x3850];
+        
+        let pcode = self.get_recommended_preamble_code(pulse_repetition_frequency);
+        let value = VALUES[pcode as usize];
+
+        if bitrate != BitRate::Kbps110 {
+            value
+        } else {
+            value / 8
         }
     }
 

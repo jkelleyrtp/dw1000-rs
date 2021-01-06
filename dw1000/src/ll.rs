@@ -35,6 +35,7 @@ use embedded_hal::{
 pub struct DW1000<SPI, CS> {
     spi        : SPI,
     chip_select: CS,
+    chip_select_delay: u8,
 }
 
 impl<SPI, CS> DW1000<SPI, CS> {
@@ -46,7 +47,16 @@ impl<SPI, CS> DW1000<SPI, CS> {
         DW1000 {
             spi,
             chip_select,
+            chip_select_delay: 0,
         }
+    }
+
+    /// Set the chip select delay.
+    ///
+    /// This is the amount of times the cs pin will be set low before any data is transfered.
+    /// This way, the chip can be used on fast mcu's just fine.
+    pub fn set_chip_select_delay(&mut self, delay: u8) {
+        self.chip_select_delay = delay;
     }
 
     fn block_read(&mut self, id: u8, start_sub_id: u16, buffer: &mut [u8]) -> Result<(), Error<SPI, CS>>
@@ -61,16 +71,15 @@ impl<SPI, CS> DW1000<SPI, CS> {
             ((start_sub_id & 0x7f80) >> 7) as u8
         ];
 
-        self.chip_select.set_low()
-            .map_err(|err| Error::ChipSelect(err))?;
+        self.assert_cs_low()?;
         // Send the header
         self.spi.write(&header_buffer)
             .map_err(|err| Error::Write(err))?;
         // Read the data
         self.spi.transfer(buffer)
             .map_err(|err| Error::Transfer(err))?;
-        self.chip_select.set_high()
-            .map_err(|err| Error::ChipSelect(err))?;
+        self.assert_cs_low()?;
+        self.assert_cs_high()?;
 
         Ok(())
     }
@@ -114,8 +123,10 @@ impl<SPI, CS> DW1000<SPI, CS> {
             SPI: spi::Transfer<u8> + spi::Write<u8>,
             CS:  OutputPin,
     {
-        self.chip_select.set_low()
-            .map_err(|err| Error::ChipSelect(err))?;
+        for _ in 0..=self.chip_select_delay {
+            self.chip_select.set_low()
+                .map_err(|err| Error::ChipSelect(err))?;
+        }
 
         Ok(())
     }
@@ -145,11 +156,6 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         CS:  OutputPin,
 {
-    #[cfg(not(feature = "slower-communication"))]
-    const CS_SET_COUNT: u32 = 1;
-    #[cfg(feature = "slower-communication")]
-    const CS_SET_COUNT: u32 = 128;
-
     /// Read from the register
     pub fn read(&mut self)
         -> Result<R::Read, Error<SPI, CS>>
@@ -161,18 +167,11 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
 
         init_header::<R>(false, &mut buffer);
 
-        for _ in 0..Self::CS_SET_COUNT {
-            self.0.chip_select.set_low()
-                .map_err(|err| Error::ChipSelect(err))?;
-        }
+        self.0.assert_cs_low()?;
         self.0.spi.transfer(buffer)
             .map_err(|err| Error::Transfer(err))?;
-        for _ in 0..Self::CS_SET_COUNT {
-            self.0.chip_select.set_low()
-                .map_err(|err| Error::ChipSelect(err))?;
-        }
-        self.0.chip_select.set_high()
-            .map_err(|err| Error::ChipSelect(err))?;
+        self.0.assert_cs_low()?;
+        self.0.assert_cs_high()?;
 
         Ok(r)
     }
@@ -190,18 +189,11 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         let buffer = R::buffer(&mut w);
         init_header::<R>(true, buffer);
 
-        for _ in 0..Self::CS_SET_COUNT {
-            self.0.chip_select.set_low()
-                .map_err(|err| Error::ChipSelect(err))?;
-        }
+        self.0.assert_cs_low()?;
         <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
             .map_err(|err| Error::Write(err))?;
-        for _ in 0..Self::CS_SET_COUNT {
-            self.0.chip_select.set_low()
-                .map_err(|err| Error::ChipSelect(err))?;
-        }
-        self.0.chip_select.set_high()
-            .map_err(|err| Error::ChipSelect(err))?;
+        self.0.assert_cs_low()?;
+        self.0.assert_cs_high()?;
 
         Ok(())
     }
@@ -225,18 +217,11 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         let buffer = <R as Writable>::buffer(&mut w);
         init_header::<R>(true, buffer);
 
-        for _ in 0..Self::CS_SET_COUNT {
-            self.0.chip_select.set_low()
-                .map_err(|err| Error::ChipSelect(err))?;
-        }
+        self.0.assert_cs_low()?;
         <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
             .map_err(|err| Error::Write(err))?;
-        for _ in 0..Self::CS_SET_COUNT {
-            self.0.chip_select.set_low()
-                .map_err(|err| Error::ChipSelect(err))?;
-        }
-        self.0.chip_select.set_high()
-            .map_err(|err| Error::ChipSelect(err))?;
+        self.0.assert_cs_low()?;
+        self.0.assert_cs_high()?;
 
         Ok(())
     }
@@ -1165,6 +1150,9 @@ impl_register! {
     0x2E, 0x1806, 2, RW, LDE_CFG2(lde_cfg2) { /// LDE Configuration Register 2
         value, 0, 15, u16; /// The LDE_CFG2 configuration value
     }
+    0x2E, 0x2804, 2, RW, LDE_REPC(lde_repc) { /// LDE Replica Coefficient configuration
+        value, 0, 15, u16; /// The LDE_REPC configuration value
+    }
     0x2F, 0x00, 4, RW, EVC_CTRL(evc_ctrl) { /// Event Counter Control
         evc_en,  0, 0, u8; /// Event Counters Enable
         evc_clr, 1, 1, u8; /// Event Counters Clear
@@ -1188,6 +1176,7 @@ impl_register! {
         gpdrn,     19, 19, u8; /// GPIO De-bounce Reset (Not), active low
         khzclken,  23, 23, u8; /// Kilohertz Clock Enable
         softreset, 28, 31, u8; /// Soft Reset
+        raw_value,  0, 31,u32; /// The raw register value
     }
     0x36, 0x04, 4, RW, PMSC_CTRL1(pmsc_ctrl1) { /// PMSC Control Register 1
         arx2init,   1,  1, u8; /// Automatic transition from receive to init

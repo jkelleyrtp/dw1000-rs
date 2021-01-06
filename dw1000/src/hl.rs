@@ -70,6 +70,15 @@ impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
         }
     }
 
+    /// Set the chip select delay.
+    ///
+    /// This is the amount of times the cs pin will be set low before any data is transfered.
+    /// This way, the chip can be used on fast mcu's just fine.
+    pub fn with_cs_delay(mut self, delay: u8) -> Self {
+        self.ll.set_chip_select_delay(delay);
+        self
+    }
+
     /// Initialize the DW1000
     ///
     /// The DW1000's default configuration is somewhat inconsistent, and the
@@ -115,10 +124,10 @@ impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
         self.ll.fs_plltune().write(|w| w.value(0xBE))?;
 
         // Set LDELOAD. See user manual, section 2.5.5.10.
-        self.ll.pmsc_ctrl0().modify(|_, w| w.sysclks(0b01))?;
+        self.ll.pmsc_ctrl0().modify(|r, w| w.raw_value(r.raw_value() | 0x0301))?;
         self.ll.otp_ctrl().modify(|_, w| w.ldeload(0b1))?;
         while self.ll.otp_ctrl().read()?.ldeload() == 0b1 {}
-        self.ll.pmsc_ctrl0().modify(|_, w| w.sysclks(0b00))?;
+        self.ll.pmsc_ctrl0().modify(|r, w| w.raw_value(r.raw_value() & !0x0101))?;
 
         // Set LDOTUNE. See user manual, section 2.5.5.11.
         let (calibrated, ldotune_low) = self.is_ldo_tune_calibrated()?;
@@ -353,6 +362,10 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         self.ll.fs_pllcfg().write(|w| w.value(config.channel.get_recommended_fs_pllcfg()))?;
         self.ll.fs_plltune().write(|w| w.value(config.channel.get_recommended_fs_plltune()))?;
 
+        // Set the LDE registers
+        self.ll.lde_cfg2().modify(|_, w| w.value(config.pulse_repetition_frequency.get_recommended_lde_cfg2()))?;
+        self.ll.lde_repc().write(|w| w.value(config.channel.get_recommended_lde_repc_value(config.pulse_repetition_frequency, config.bitrate)))?;
+
         // Todo: Power control (register 0x1E)
 
         if !matches!(send_time, SendTime::OnSync) {
@@ -491,6 +504,10 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
 
         // Set the rx bitrate
         self.ll.sys_cfg().modify(|_, w| w.rxm110k((config.bitrate == BitRate::Kbps110) as u8))?;
+
+        // Set the LDE registers
+        self.ll.lde_cfg2().write(|w| w.value(config.pulse_repetition_frequency.get_recommended_lde_cfg2()))?;
+        self.ll.lde_repc().write(|w| w.value(config.channel.get_recommended_lde_repc_value(config.pulse_repetition_frequency, config.bitrate)))?;
 
         self.ll
             .sys_ctrl()
@@ -836,7 +853,7 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
                 return Err(nb::Error::Other(Error::SfdTimeout));
             }
             if sys_status.affrej() == 0b1 {
-                return Err(nb::Error::Other(Error::FrameFilteringRejection))
+                return Err(nb::Error::Other(Error::FrameFilteringRejection));
             }
             // Some error flags that sound like valid errors aren't checked here,
             // because experience has shown that they seem to occur spuriously
