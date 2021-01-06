@@ -1097,7 +1097,7 @@ impl_register! {
         onw_l64p,  7,  7, u8; /// On Wake-up load the Length64 receiver operating parameter set.
         pres_sleep,8,  8, u8; /// Preserve  Sleep. This bit determines what the DW1000 does with respect to the ARXSLP and ATXSLPsleep controls in Sub-Register 0x36:04 –PMSC_CTRL1after a wake-up event.
         onw_llde, 11, 11, u8; /// On Wake-up load the LDE microcode
-        onw_lld0, 12, 12, u8; /// On Wake-up load the LDOTUNE value from OTP
+        onw_lldo, 12, 12, u8; /// On Wake-up load the LDOTUNE value from OTP
     }
     0x2C, 0x02, 1, RW, AON_CTRL(aon_ctrl) { /// AON Control Register
         restore,  0, 0, u8; /// When this bit is set the DW1000 will copy the user configurations from the AON memory to the host interface register set.

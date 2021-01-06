@@ -125,7 +125,7 @@ impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
 
         // Set LDELOAD. See user manual, section 2.5.5.10.
         self.ll.pmsc_ctrl0().modify(|r, w| w.raw_value(r.raw_value() | 0x0301))?;
-        self.ll.otp_ctrl().modify(|_, w| w.ldeload(0b1))?;
+        self.ll.otp_ctrl().write(|w| w.ldeload(0b1))?;
         while self.ll.otp_ctrl().read()?.ldeload() == 0b1 {}
         self.ll.pmsc_ctrl0().modify(|r, w| w.raw_value(r.raw_value() & !0x0101))?;
 
@@ -628,15 +628,16 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         let sys_mask = self.ll.sys_mask().read()?;
         let pan_adr = self.ll.panadr().read()?;
 
-        let lld0 = self.is_ldo_tune_calibrated()?.0 as u8;
+        let lldo = self.is_ldo_tune_calibrated()?.0 as u8;
 
         // Setup everything that needs to be stored in AON
         self.ll.aon_wcfg().modify(|_, w| w
             .onw_leui(1)
             .onw_ldc(1)
+            .onw_l64p(1)
             .pres_sleep(1)
             .onw_llde(1)
-            .onw_lld0(lld0)
+            .onw_lldo(lldo)
         )?;
         // Now set the sleep_cen 0.
         self.ll.aon_cfg1().modify(|_, w| w.sleep_cen(0))?;
@@ -1197,11 +1198,11 @@ impl<SPI, CS> DW1000<SPI, CS, Sleeping>
     pub fn wake_up<DELAY: embedded_hal::blocking::delay::DelayUs<u16>>(mut self, delay: &mut DELAY) -> Result<DW1000<SPI, CS, Ready>, Error<SPI, CS>> {
         // Wake up using the spi
         self.ll.assert_cs_low().map_err(|e| Error::Spi(e))?;
-        delay.delay_us(500);
+        delay.delay_us(500*2);
         self.ll.assert_cs_high().map_err(|e| Error::Spi(e))?;
 
         // Now we must wait 4 ms so all the clocks start running.
-        delay.delay_us(4000);
+        delay.delay_us(4000*2);
 
         // Let's check that we're actually awake now
         if self.ll.dev_id().read()?.ridtag() != 0xDECA {
