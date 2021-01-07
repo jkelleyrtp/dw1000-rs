@@ -624,57 +624,63 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     pub fn enter_sleep(mut self, irq_on_wakeup: bool, sleep_duration: Option<u16>)
         -> Result<DW1000<SPI, CS, Sleeping>, Error<SPI, CS>>
     {
+        // Set the sleep timer
+        if let Some(sd) = sleep_duration {
+            self.ll.pmsc_ctrl0().modify(|_, w| w
+                // Force the 19.2Mhz clock
+                .sysclks(0b01)
+            )?;
+
+            // Disable the sleep counter
+            self.ll.aon_cfg1().write(|w| w.sleep_cen(0).smxx(0).lposc_cal(0))?;
+            // Set the counter
+            self.ll.aon_cfg0().write(|w| w.sleep_tim(sd))?;
+            // Enable the sleep counter
+            self.ll.aon_cfg1().write(|w| w.sleep_cen(1).lposc_cal(1))?;
+            // Upload array
+            self.ll.aon_ctrl().write(|w| w.upl_cfg(1))?;
+            self.ll.aon_ctrl().write(|w| w.upl_cfg(0))?;
+
+            self.ll.pmsc_ctrl0().modify(|_, w| w
+                // Auto clock
+                .sysclks(0b00)
+            )?;
+        }
+
+        // Save the settings that the 
         let tx_antenna_delay = self.get_tx_antenna_delay()?;
-        let sys_mask = self.ll.sys_mask().read()?;
-        let pan_adr = self.ll.panadr().read()?;
-
-        let lldo = self.is_ldo_tune_calibrated()?.0 as u8;
-
-        // Setup everything that needs to be stored in AON
-        self.ll.aon_wcfg().modify(|_, w| w
-            .onw_leui(1)
-            .onw_ldc(1)
-            .onw_l64p(1)
-            .pres_sleep(1)
-            .onw_llde(1)
-            .onw_lldo(lldo)
-        )?;
-        // Now set the sleep_cen 0.
-        self.ll.aon_cfg1().modify(|_, w| w.sleep_cen(0))?;
-        // Setup the wakeup sources.
-        self.ll.aon_cfg0().modify(|_, w| w
-            .wake_spi(1)
-            .wake_cnt(sleep_duration.is_some() as u8)
-        )?;
 
         // Setup the interrupt.
         if irq_on_wakeup {
             self.ll.sys_mask().modify(|_, w| w.mslp2init(1).mcplock(1))?;
         }
 
-        if let Some(sd) = sleep_duration {
-            self.ll.aon_ctrl().modify(|_, w| w.upl_cfg(1))?;
-            self.ll.aon_cfg0().modify(|_, w| w.sleep_tim(sd))?;
-            self.ll.aon_cfg1().modify(|_, w| w.sleep_cen(1))?;
-            self.ll.aon_ctrl().modify(|_, w| w.upl_cfg(1))?;
-        }
+        let lldo = self.is_ldo_tune_calibrated()?.0 as u8;
 
-        // Set SMXX 0
-        self.ll.aon_cfg1().modify(|_, w| w.smxx(0))?;
+        // Setup everything that needs to be stored in AON
+        self.ll.aon_wcfg().modify(|_, w| w
+            .onw_ldc(1)
+            .onw_llde(1)
+            .onw_lldo(lldo)
+            .onw_l64p(1)
+        )?;
 
-        // Set sleep_en 1
-        self.ll.aon_cfg0().modify(|_, w| w.sleep_en(1))?;
+        // Setup the wakeup sources.
+        self.ll.aon_cfg0().modify(|_, w| w
+            .wake_spi(1)
+            .wake_cnt(sleep_duration.is_some() as u8)
+            .sleep_en(1)
+        )?;
 
-        // Last, set UPL_CFG to 1 and DCA_ENAB to 0
-        self.ll.aon_ctrl().modify(|_, w| w.upl_cfg(1).dca_enab(0))?;
+        // Upload always on array configuration and enter sleep
+        self.ll.aon_ctrl().write(|w| w)?;
+        self.ll.aon_ctrl().write(|w| w.save(1))?;
 
         Ok(DW1000 {
             ll:    self.ll,
             seq:   self.seq,
             state: Sleeping {
                 tx_antenna_delay,
-                sys_mask,
-                pan_adr,
             },
         })
     }
@@ -1209,21 +1215,7 @@ impl<SPI, CS> DW1000<SPI, CS, Sleeping>
             // Oh dear... We have not woken up!
             return Err(Error::StillAsleep);
         }
-
-        // Restore the interrupts
-        let original_sys_mask = self.state.sys_mask.0;
-        self.ll.sys_mask().write(|w| {
-            w.0 = original_sys_mask;
-            w
-        })?;
-
-        // Restore the address
-        let original_pan_adr = self.state.pan_adr.0;
-        self.ll.panadr().write(|w| {
-            w.0 = original_pan_adr;
-            w
-        })?;
-
+        
         // Reset the wakeupstatus
         self.ll.sys_status().write(|w| w.slp2init(1).cplock(1))?;
 
@@ -1428,11 +1420,6 @@ pub struct Receiving {
 pub struct Sleeping {
     /// Tx antenna delay isn't stored in AON, so we'll do it ourselves.
     tx_antenna_delay: Duration,
-    /// Stores the system mask register. The docs say that this is restored during wakeup, but this doesn't seem to be the case.
-    /// So let's do it ourselves.
-    sys_mask: ll::sys_mask::R,
-    /// The pan address register
-    pan_adr: ll::panadr::R,
 }
 
 /// Any state struct that implements this trait signals that the radio is **not** sleeping.
