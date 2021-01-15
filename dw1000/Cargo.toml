@@ -36,3 +36,4 @@ default-features = false
 
 [features]
 default = []
+std = ["ssmarshal/std"]
