@@ -1036,8 +1036,15 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
 
         let data_rate = self.state.used_config.bitrate;
         let sfd_sequence = self.state.used_config.sfd_sequence;
-        let n = self.ll.rx_finfo().read()?.rxpacc() as f32
-            + sfd_sequence.get_rxpacc_adjustment(data_rate) as f32;
+
+        let rxpacc = self.ll.rx_finfo().read()?.rxpacc();
+        let rxpacc_nosat = self.ll.rxpacc_nosat().read()?.value();
+
+        let n = if rxpacc == rxpacc_nosat {
+            rxpacc as f32 + sfd_sequence.get_rxpacc_adjustment(data_rate) as f32
+        } else {
+            rxpacc as f32
+        };
 
         Ok(10.0 * ((c * (1 << 17) as f32) / (n*n)).log10() - a)
     }
