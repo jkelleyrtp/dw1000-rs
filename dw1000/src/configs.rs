@@ -5,7 +5,8 @@
 
 use crate::Error;
 use embedded_hal::{blocking::spi, digital::v2::OutputPin};
-use serde::{Serialize, Deserialize};
+use num_enum::TryFromPrimitive;
+use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 /// Transmit configuration
@@ -77,7 +78,8 @@ impl Default for RxConfig {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
+#[repr(u8)]
 /// The bitrate at which a message is transmitted
 pub enum BitRate {
     /// 110 kilobits per second.
@@ -110,7 +112,8 @@ impl BitRate {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
+#[repr(u8)]
 /// The PRF value
 pub enum PulseRepetitionFrequency {
     /// 16 megahertz
@@ -166,7 +169,8 @@ impl PulseRepetitionFrequency {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
+#[repr(u8)]
 /// An enum that specifies the length of the preamble.
 ///
 /// Longer preambles improve the reception quality and thus range.
@@ -264,7 +268,8 @@ impl PreambleLength {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
+#[repr(u8)]
 /// An enum that allows the selection between different SFD sequences
 ///
 /// The difference between the two Decawave sequences is that there are two ways to enable it in the chip.
@@ -332,30 +337,31 @@ impl SfdSequence {
         match self {
             SfdSequence::IEEE => {
                 match bit_rate {
-                    BitRate::Kbps110 => 64, // 64 Symbols
+                    BitRate::Kbps110 => 64,                     // 64 Symbols
                     BitRate::Kbps850 | BitRate::Kbps6800 => -5, // 8 Symbols
                 }
-            },
+            }
             SfdSequence::Decawave => {
                 match bit_rate {
-                    BitRate::Kbps110 => 82, // 64 Symbols
+                    BitRate::Kbps110 => 82,  // 64 Symbols
                     BitRate::Kbps850 => -10, // 8 Symbols
-                    BitRate::Kbps6800 => 0, // Undefined setting
+                    BitRate::Kbps6800 => 0,  // Undefined setting
                 }
-            },
+            }
             SfdSequence::DecawaveAlt => {
                 match bit_rate {
-                    BitRate::Kbps110 => 82, // 64 Symbols
+                    BitRate::Kbps110 => 82,  // 64 Symbols
                     BitRate::Kbps850 => -18, // 16 Symbols
-                    BitRate::Kbps6800 => 0, // Undefined setting
+                    BitRate::Kbps6800 => 0,  // Undefined setting
                 }
-            },
+            }
             SfdSequence::User => 0, // Undefined setting
         }
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
+#[repr(u8)]
 /// All the available UWB channels.
 ///
 /// Note that while a channel may have more bandwidth than ~900 Mhz, the DW1000 can only send up to ~900 Mhz
@@ -413,10 +419,18 @@ impl UwbChannel {
     }
 
     /// Get the recommended lde_repc register value
-    pub fn get_recommended_lde_repc_value(&self, pulse_repetition_frequency: PulseRepetitionFrequency, bitrate: BitRate) -> u16 {
+    pub fn get_recommended_lde_repc_value(
+        &self,
+        pulse_repetition_frequency: PulseRepetitionFrequency,
+        bitrate: BitRate,
+    ) -> u16 {
         // Values taken from user manual register description
-        const VALUES: [u16; 24] = [0x5998, 0x5998, 0x51EA, 0x428E, 0x451E, 0x2E14, 0x8000, 0x51EA, 0x28F4, 0x3332, 0x3AE0, 0x3D70, 0x3AE0, 0x35C2, 0x2B84, 0x35C2, 0x3332, 0x35C2, 0x35C2, 0x47AE, 0x3AE0, 0x3850, 0x30A2, 0x3850];
-        
+        const VALUES: [u16; 24] = [
+            0x5998, 0x5998, 0x51EA, 0x428E, 0x451E, 0x2E14, 0x8000, 0x51EA, 0x28F4, 0x3332, 0x3AE0,
+            0x3D70, 0x3AE0, 0x35C2, 0x2B84, 0x35C2, 0x3332, 0x35C2, 0x35C2, 0x47AE, 0x3AE0, 0x3850,
+            0x30A2, 0x3850,
+        ];
+
         let pcode = self.get_recommended_preamble_code(pulse_repetition_frequency);
         let value = VALUES[pcode as usize];
 
