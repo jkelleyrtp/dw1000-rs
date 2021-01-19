@@ -851,6 +851,14 @@ impl_register! {
         fp_ampl3, 32, 47, u16; /// First Path Amplitude point 3
         cir_pwr,  48, 63, u16; /// Channel Impulse Response Power
     }
+    0x13, 0x00, 4, RO, RX_TTCKI(rx_ttcki) { /// Receiver Time Tracking Interval
+        value, 0, 31, u32; /// Value of the register
+    }
+    0x14, 0x00, 5, RO, RX_TTCKO(rx_ttcko) { /// Receiver Time Tracking Offset
+        rxtofs,   0, 18, u32; /// RX time tracking offset (19-bit signed int)
+        rsmpdel, 24, 31, u8;  /// Internal re-sampler delay value
+        rcphase, 32, 39, u8;  /// Receive carrier phase adjustment
+    }
     0x15, 0x00, 14, RO, RX_TIME(rx_time) { /// Receive Time Stamp
         rx_stamp,  0,  39, u64; /// Fully adjusted time stamp
         fp_index, 40,  55, u16; /// First Path Index
