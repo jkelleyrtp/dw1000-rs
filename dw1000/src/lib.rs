@@ -32,6 +32,7 @@ pub mod hl;
 pub mod ranging;
 pub mod time;
 pub mod configs;
+pub mod range_bias;
 
 
 #[doc(no_inline)]
