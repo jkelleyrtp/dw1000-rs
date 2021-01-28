@@ -1,3 +1,11 @@
+### v0.5.0 (2021-01-27)
+
+- Update dependencies ([#123], [#125])
+
+[#123]: https://github.com/braun-embedded/rust-dw1000/pull/123
+[#125]: https://github.com/braun-embedded/rust-dw1000/pull/125
+
+
 <a name="v0.4.0"></a>
 ### v0.4.0 (2020-03-30)
 
