@@ -1211,7 +1211,7 @@ impl<SPI, CS> DW1000<SPI, CS, Sleeping>
     pub fn wake_up<DELAY: embedded_hal::blocking::delay::DelayUs<u16>>(mut self, delay: &mut DELAY) -> Result<DW1000<SPI, CS, Ready>, Error<SPI, CS>> {
         // Wake up using the spi
         self.ll.assert_cs_low().map_err(|e| Error::Spi(e))?;
-        delay.delay_us(500*2);
+        delay.delay_us(850*2);
         self.ll.assert_cs_high().map_err(|e| Error::Spi(e))?;
 
         // Now we must wait 4 ms so all the clocks start running.
