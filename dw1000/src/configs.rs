@@ -273,7 +273,7 @@ impl PreambleLength {
 /// An enum that allows the selection between different SFD sequences
 ///
 /// The difference between the two Decawave sequences is that there are two ways to enable it in the chip.
-/// Decawave will only set the DWSFD bit and DecawaveAlt set the DWSFD and the [T,R]NSSFD bits.
+/// Decawave will only set the DWSFD bit and DecawaveAlt set the DWSFD and the \[T,R\]NSSFD bits.
 ///
 pub enum SfdSequence {
     /// The standard sequence defined by the IEEE standard.
