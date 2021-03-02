@@ -51,6 +51,10 @@ pub fn get_range_bias_cm(rsl: f32, rx_config: &RxConfig) -> f32 {
     // Not used on x86, but used on mcu target due to f32 core lib sillyness.
     use micromath::F32Ext;
 
+    if !rsl.is_finite() {
+        return 0.0;
+    }
+
     // Determine the message characteristics
     let low_bandwidth = match rx_config.channel {
         UwbChannel::Channel7 | UwbChannel::Channel4 => false,
@@ -91,6 +95,10 @@ pub fn improve_rssi_estimation(original_rssi: f32, rx_config: &crate::configs::R
     #[allow(unused_imports)]
     // Not used on x86, but used on mcu target due to f32 core lib sillyness.
     use micromath::F32Ext;
+
+    if !original_rssi.is_finite() {
+        return original_rssi;
+    }
 
     // The rssi multipliers to get from the original rssi to the new estimated rssi.
     // The multiplier at index 0 is at -105 dBm and increases 5 dBm every step.
