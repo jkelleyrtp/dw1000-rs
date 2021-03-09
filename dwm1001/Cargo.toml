@@ -22,6 +22,7 @@ travis-ci = { repository = "braun-embedded/rust-dw1000" }
 
 
 [dependencies]
+cortex-m                = "0.7.2"
 cortex-m-semihosting    = "0.3.5"
 embedded-hal            = "0.2.4"
 embedded-timeout-macros = "0.3.0"
@@ -35,10 +36,6 @@ optional = true
 version = "0.5.0"
 path    = "../dw1000"
 
-[dependencies.cortex-m]
-version  = ">= 0.5.10, < 0.7"
-features = [ "const-fn" ]
-
 [dependencies.nrf52832-hal]
 version          = "0.12.0"
 default-features = false
@@ -46,7 +43,7 @@ features         = [ "xxAA-package" ]
 
 
 [dev-dependencies]
-heapless          = "0.5.5"
+heapless          = "0.6.1"
 nb                = "1.0.0"
 panic-semihosting = "0.5.3"
 
