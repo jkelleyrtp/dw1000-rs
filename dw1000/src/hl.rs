@@ -15,10 +15,12 @@ use core::{
     num::Wrapping,
 };
 
+use byte::BytesExt as _;
 use embedded_hal::{
     blocking::spi,
     digital::v2::OutputPin,
 };
+use ieee802154::mac::FooterMode;
 use nb;
 use ssmarshal;
 
@@ -201,7 +203,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// to finish and check its result.
     pub fn send(mut self,
         data:         &[u8],
-        destination:  mac::Address,
+        destination:  Option<mac::Address>,
         delayed_time: Option<Instant>,
         config: TxConfig,
     )
@@ -234,7 +236,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
                 ack_request:     false,
                 pan_id_compress: false,
                 destination:     destination,
-                source:          self.get_address()?,
+                source:          Some(self.get_address()?),
                 seq:             seq,
             },
             content: mac::FrameContent::Data,
@@ -255,7 +257,13 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         self.ll
             .tx_buffer()
             .write(|w| {
-                len += frame.encode(&mut w.data(), mac::WriteFooter::No);
+                let result =
+                    w.data().write_with(&mut len, frame, FooterMode::None);
+
+                if let Err(err) = result {
+                    panic!("Failed to write frame: {:?}", err);
+                }
+
                 w
             })?;
         self.ll
@@ -778,7 +786,7 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
 
         buffer[..len].copy_from_slice(&rx_buffer.data()[..len]);
 
-        let frame = mac::Frame::decode(&buffer[..len], true)
+        let frame = buffer[..len].read_with(&mut 0, FooterMode::None)
             .map_err(|error| nb::Error::Other(Error::Frame(error)))?;
 
         Ok(Message {
@@ -931,7 +939,7 @@ pub enum Error<SPI, CS>
     FrameFilteringRejection,
 
     /// Frame could not be decoded
-    Frame(mac::DecodeError),
+    Frame(byte::Error),
 
     /// A delayed frame could not be sent in time
     ///
