@@ -101,7 +101,7 @@ pub fn improve_rssi_estimation(original_rssi: f32, rx_config: &crate::configs::R
     }
 
     // The rssi multipliers to get from the original rssi to the new estimated rssi.
-    // The multiplier at index 0 is at -105 dBm and increases 5 dBm every step.
+    // The multiplier at index 0 is at -105 dBm and increases 2.5 dBm every step.
     const PRF16: [f32; 11] = [
         105.0 / 105.0,
         102.5 / 102.5,
