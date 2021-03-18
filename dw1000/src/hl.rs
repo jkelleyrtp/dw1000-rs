@@ -1069,7 +1069,7 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
 
         Ok(
             RxQuality {
-                los_confidence_level,
+                los_confidence_level: los_confidence_level.clamp(0.0, 1.0),
                 rssi,
             }
         )
