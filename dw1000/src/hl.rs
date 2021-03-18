@@ -1046,7 +1046,13 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
             rxpacc as f32
         };
 
-        Ok(10.0 * ((c * (1 << 17) as f32) / (n*n)).log10() - a)
+        let rssi = 10.0 * ((c * (1 << 17) as f32) / (n*n)).log10() - a;
+
+        if rssi.is_finite() {
+            Ok(rssi)
+        } else {
+            Err(Error::BadRssiCalculation)
+        }
     }
 
     /// Reads the quality of the received message.
@@ -1324,6 +1330,9 @@ pub enum Error<SPI, CS>
 
     /// It was expected that the radio would have woken up, but it hasn't.
     StillAsleep,
+
+    /// The RSSI was not calculable.
+    BadRssiCalculation,
 }
 
 impl<SPI, CS> From<ll::Error<SPI, CS>> for Error<SPI, CS>
@@ -1396,6 +1405,8 @@ impl<SPI, CS> fmt::Debug for Error<SPI, CS>
                 write!(f, "RxNotFinished"),
             Error::StillAsleep =>
                 write!(f, "StillAsleep"),
+            Error::BadRssiCalculation =>
+                write!(f, "BadRssiCalculation"),          
         }
     }
 }
