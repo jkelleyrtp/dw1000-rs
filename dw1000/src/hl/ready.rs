@@ -1,7 +1,7 @@
 use crate::{
     configs::{BitRate, SfdSequence},
     time::Instant,
-    Error, Ready, Receiving, RxConfig, Sending, Sleeping, TxConfig, DW1000,
+    Error, Ready, SingleBufferReceiving, RxConfig, Sending, Sleeping, TxConfig, DW1000,
 };
 use byte::BytesExt as _;
 use core::num::Wrapping;
@@ -300,7 +300,7 @@ where
     pub fn receive(
         mut self,
         config: RxConfig,
-    ) -> Result<DW1000<SPI, CS, Receiving>, Error<SPI, CS>> {
+    ) -> Result<DW1000<SPI, CS, SingleBufferReceiving>, Error<SPI, CS>> {
         // For unknown reasons, the DW1000 gets stuck in RX mode without ever
         // receiving anything, after receiving one good frame. Reset the
         // receiver to make sure its in a valid state before attempting to
@@ -457,9 +457,9 @@ where
         Ok(DW1000 {
             ll: self.ll,
             seq: self.seq,
-            state: Receiving {
+            state: SingleBufferReceiving {
                 finished: false,
-                used_config: config,
+                config,
             },
         })
     }

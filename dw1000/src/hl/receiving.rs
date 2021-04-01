@@ -1,9 +1,11 @@
-use crate::{mac, time::Instant, Error, Ready, Receiving, DW1000};
+use crate::{mac, time::Instant, Error, Ready, SingleBufferReceiving, DW1000};
 use byte::BytesExt as _;
 use core::convert::TryInto;
 use embedded_hal::{blocking::spi, digital::v2::OutputPin};
 use fixed::traits::LossyInto;
 use ieee802154::mac::FooterMode;
+
+use super::Receiving;
 
 /// An incoming message
 #[derive(Debug)]
@@ -36,10 +38,11 @@ pub struct RxQuality {
     pub rssi: f32,
 }
 
-impl<SPI, CS> DW1000<SPI, CS, Receiving>
+impl<SPI, CS, RECEIVING> DW1000<SPI, CS, RECEIVING>
 where
     SPI: spi::Transfer<u8> + spi::Write<u8>,
     CS: OutputPin,
+    RECEIVING: Receiving,
 {
     /// Wait for receive operation to finish
     ///
@@ -172,6 +175,8 @@ where
             .read_with(&mut 0, FooterMode::None)
             .map_err(|error| nb::Error::Other(Error::Frame(error)))?;
 
+        self.state.mark_finished();
+
         Ok(Message { rx_time, frame })
     }
 
@@ -259,18 +264,21 @@ where
         Ok(fp_ampl1.max(fp_ampl2).max(fp_ampl3) as f32 / peak_path_amplitude as f32)
     }
 
+    /// Calculate the rssi based on the info the chip provides.
+    ///
+    /// Algorithm was taken from `4.7.2 Estimating the receive signal power` of the user manual.
     fn calculate_rssi(&mut self) -> Result<f32, Error<SPI, CS>> {
         #[allow(unused_imports)]
         use micromath::F32Ext;
 
         let c = self.ll.rx_fqual().read()?.cir_pwr() as f32;
-        let a = match self.state.used_config.pulse_repetition_frequency {
+        let a = match self.state.get_rx_config().pulse_repetition_frequency {
             crate::configs::PulseRepetitionFrequency::Mhz16 => 113.77,
             crate::configs::PulseRepetitionFrequency::Mhz64 => 121.74,
         };
 
-        let data_rate = self.state.used_config.bitrate;
-        let sfd_sequence = self.state.used_config.sfd_sequence;
+        let data_rate = self.state.get_rx_config().bitrate;
+        let sfd_sequence = self.state.get_rx_config().sfd_sequence;
 
         let rxpacc = self.ll.rx_finfo().read()?.rxpacc();
         let rxpacc_nosat = self.ll.rxpacc_nosat().read()?.value();
@@ -294,6 +302,8 @@ where
     ///
     /// This must be called after the [`DW1000::wait`] function has successfully returned.
     pub fn read_rx_quality(&mut self) -> Result<RxQuality, Error<SPI, CS>> {
+        assert!(self.state.is_finished(), "The function 'wait' must have successfully returned before");
+
         let luep = self.calculate_luep()?;
         let prnlos = self.calculate_prnlos()?;
         let mc = self.calculate_mc()?;
@@ -321,6 +331,8 @@ where
     /// In the manual, the return values are named (N, T1, RX_RAWST)
     /// This is left to the user so the precision of the calculations are left to the user to decide.
     pub fn read_external_sync_time(&mut self) -> Result<(u32, u8, u64), Error<SPI, CS>> {
+        assert!(self.state.is_finished(), "The function 'wait' must have successfully returned before");
+
         let cycles_since_sync = self.ll().ec_rxtc().read()?.rx_ts_est();
         let nanos_until_tick = self.ll().ec_golp().read()?.offset_ext();
         let raw_timestamp = self.ll().rx_time().read()?.rx_rawst();
@@ -333,7 +345,7 @@ where
     /// If the receive operation has finished, as indicated by `wait`, this is a
     /// no-op. If the receive operation is still ongoing, it will be aborted.
     pub fn finish_receiving(mut self) -> Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)> {
-        if !self.state.finished {
+        if !self.state.is_finished() {
             // Can't use `map_err` and `?` here, as the compiler will complain
             // about `self` moving into the closure.
             match self.force_idle() {

@@ -14,11 +14,18 @@ pub struct Sending {
     pub(super) finished: bool,
 }
 
-/// Indicates that the `DW1000` instance is currently receiving
+/// Indicates that the `DW1000` instance is currently receiving in single buffer mode (default)
 #[derive(Debug)]
-pub struct Receiving {
-    pub(super) finished: bool,
-    pub(super) used_config: RxConfig,
+pub struct SingleBufferReceiving {
+    finished: bool,
+    config: RxConfig,
+}
+
+/// Indicates that the `DW1000` instance is currently receiving in double buffer mode
+#[derive(Debug)]
+pub struct DoubleBufferReceiving {
+    finished: bool,
+    config: RxConfig,
 }
 
 /// Indicates that the `DW1000` instance is currently sleeping
@@ -33,7 +40,41 @@ pub trait Awake {}
 impl Awake for Uninitialized {}
 impl Awake for Ready {}
 impl Awake for Sending {}
-impl Awake for Receiving {}
+impl Awake for SingleBufferReceiving {}
+impl Awake for DoubleBufferReceiving {}
 /// Any state struct that implements this trait signals that the radio is sleeping.
 pub trait Asleep {}
 impl Asleep for Sleeping {}
+
+/// Any state struct that implements this trait shares a number of rx operations
+pub trait Receiving: Awake {
+    fn mark_finished(&mut self);
+    fn is_finished(&self) -> bool;
+    fn get_rx_config(&self) -> &RxConfig;
+}
+impl Receiving for SingleBufferReceiving {
+    fn mark_finished(&mut self) {
+        self.finished = true;
+    }
+
+    fn is_finished(&self) -> bool {
+        self.finished
+    }
+
+    fn get_rx_config(&self) -> &RxConfig {
+        &self.config
+    }
+}
+impl Receiving for DoubleBufferReceiving {
+    fn mark_finished(&mut self) {
+        self.finished = true;
+    }
+
+    fn is_finished(&self) -> bool {
+        self.finished
+    }
+
+    fn get_rx_config(&self) -> &RxConfig {
+        &self.config
+    }
+}
