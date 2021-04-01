@@ -9,63 +9,41 @@
 //!
 //! [register-level interface]: ../ll/index.html
 
+use core::{convert::TryInto, fmt, num::Wrapping};
 
-use core::{
-    fmt,
-    num::Wrapping,
-    convert::TryInto,
-};
-
-use embedded_hal::{
-    blocking::spi,
-    digital::v2::OutputPin,
-};
-use nb;
-use ssmarshal;
+use embedded_hal::{blocking::spi, digital::v2::OutputPin};
+use fixed::traits::LossyInto;
 #[allow(unused_imports)]
 use micromath::F32Ext;
-use fixed::traits::LossyInto;
+use nb;
+use ssmarshal;
 
 use crate::{
-    ll,
-    mac,
-    time::{
-        Duration,
-        Instant,
-    },
-    configs::{
-        TxConfig,
-        RxConfig,
-        SfdSequence,
-        BitRate,
-    },
+    configs::{BitRate, RxConfig, SfdSequence, TxConfig},
+    ll, mac,
+    time::{Duration, Instant},
 };
 
 /// Entry point to the DW1000 driver API
 pub struct DW1000<SPI, CS, State> {
-    ll:    ll::DW1000<SPI, CS>,
-    seq:   Wrapping<u8>,
+    ll: ll::DW1000<SPI, CS>,
+    seq: Wrapping<u8>,
     state: State,
 }
 
 impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    CS: OutputPin,
 {
     /// Create a new instance of `DW1000`
     ///
     /// Requires the SPI peripheral and the chip select pin that are connected
     /// to the DW1000.
-    pub fn new(
-        spi        : SPI,
-        chip_select: CS,
-    )
-        -> Self
-    {
+    pub fn new(spi: SPI, chip_select: CS) -> Self {
         DW1000 {
-            ll:    ll::DW1000::new(spi, chip_select),
-            seq:   Wrapping(0),
+            ll: ll::DW1000::new(spi, chip_select),
+            seq: Wrapping(0),
             state: Uninitialized,
         }
     }
@@ -111,11 +89,9 @@ impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
         self.ll.tx_power().write(|w| w.value(0x0E082848))?;
 
         // Set RF_TXCTRL. See user manual, section 2.5.5.7.
-        self.ll.rf_txctrl().modify(|_, w|
-            w
-                .txmtune(0b1111)
-                .txmq(0b111)
-        )?;
+        self.ll
+            .rf_txctrl()
+            .modify(|_, w| w.txmtune(0b1111).txmq(0b111))?;
 
         // Set TC_PGDELAY. See user manual, section 2.5.5.8.
         self.ll.tc_pgdelay().write(|w| w.value(0xC0))?;
@@ -124,20 +100,22 @@ impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
         self.ll.fs_plltune().write(|w| w.value(0xBE))?;
 
         // Set LDELOAD. See user manual, section 2.5.5.10.
-        self.ll.pmsc_ctrl0().modify(|r, w| w.raw_value(r.raw_value() | 0x0301))?;
+        self.ll
+            .pmsc_ctrl0()
+            .modify(|r, w| w.raw_value(r.raw_value() | 0x0301))?;
         self.ll.otp_ctrl().write(|w| w.ldeload(0b1))?;
         while self.ll.otp_ctrl().read()?.ldeload() == 0b1 {}
-        self.ll.pmsc_ctrl0().modify(|r, w| w.raw_value(r.raw_value() & !0x0101))?;
+        self.ll
+            .pmsc_ctrl0()
+            .modify(|r, w| w.raw_value(r.raw_value() & !0x0101))?;
 
         // Set LDOTUNE. See user manual, section 2.5.5.11.
         let (calibrated, ldotune_low) = self.is_ldo_tune_calibrated()?;
         if calibrated {
             self.ll.otp_addr().write(|w| w.value(0x005))?;
-            self.ll.otp_ctrl().modify(|_, w|
-                w
-                    .otprden(0b1)
-                    .otpread(0b1)
-            )?;
+            self.ll
+                .otp_ctrl()
+                .modify(|_, w| w.otprden(0b1).otpread(0b1))?;
             while self.ll.otp_ctrl().read()?.otpread() == 0b1 {}
             let ldotune_high = self.ll.otp_rdat().read()?.value();
 
@@ -146,43 +124,39 @@ impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
         }
 
         Ok(DW1000 {
-            ll:    self.ll,
-            seq:   self.seq,
+            ll: self.ll,
+            seq: self.seq,
             state: Ready,
         })
     }
 }
 
 impl<SPI, CS> DW1000<SPI, CS, Ready>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    CS: OutputPin,
 {
     /// Sets the RX and TX antenna delays
-    pub fn set_antenna_delay(&mut self, rx_delay: u16, tx_delay: u16)
-        -> Result<(), Error<SPI, CS>>
-    {
-        self.ll
-            .lde_rxantd()
-            .write(|w| w.value(rx_delay))?;
-        self.ll
-            .tx_antd()
-            .write(|w| w.value(tx_delay))?;
+    pub fn set_antenna_delay(
+        &mut self,
+        rx_delay: u16,
+        tx_delay: u16,
+    ) -> Result<(), Error<SPI, CS>> {
+        self.ll.lde_rxantd().write(|w| w.value(rx_delay))?;
+        self.ll.tx_antd().write(|w| w.value(tx_delay))?;
 
         Ok(())
     }
 
     /// Sets the network id and address used for sending and receiving
-    pub fn set_address(&mut self, pan_id: mac::PanId, addr: mac::ShortAddress)
-        -> Result<(), Error<SPI, CS>>
-    {
+    pub fn set_address(
+        &mut self,
+        pan_id: mac::PanId,
+        addr: mac::ShortAddress,
+    ) -> Result<(), Error<SPI, CS>> {
         self.ll
             .panadr()
-            .write(|w|
-                w
-                    .pan_id(pan_id.0)
-                    .short_addr(addr.0)
-            )?;
+            .write(|w| w.pan_id(pan_id.0).short_addr(addr.0))?;
 
         Ok(())
     }
@@ -194,12 +168,10 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         match behaviour {
             SyncBehaviour::None => {
                 // Disable all
-                self.ll
-                    .ec_ctrl()
-                    .modify(|_, w| w.osrsm(0).ostrm(0))?;
+                self.ll.ec_ctrl().modify(|_, w| w.osrsm(0).ostrm(0))?;
                 // Disable the rx pll
                 self.ll.pmsc_ctrl1().modify(|_, w| w.pllsyn(0))?;
-            },
+            }
             SyncBehaviour::TimeBaseReset => {
                 // Enable the rx pll
                 self.ll.pmsc_ctrl1().modify(|_, w| w.pllsyn(1))?;
@@ -208,7 +180,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
                 self.ll
                     .ec_ctrl()
                     .modify(|_, w| w.pllldt(0b1).osrsm(0).ostrm(1).wait(33))?;
-            },
+            }
             SyncBehaviour::ExternalSync => {
                 // Enable the rx pll
                 self.ll.pmsc_ctrl1().modify(|_, w| w.pllsyn(1))?;
@@ -217,7 +189,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
                 self.ll
                     .ec_ctrl()
                     .modify(|_, w| w.pllldt(0b1).osrsm(1).ostrm(0).wait(33))?;
-            },
+            }
             SyncBehaviour::ExternalSyncWithReset => {
                 // Enable the rx pll
                 self.ll.pmsc_ctrl1().modify(|_, w| w.pllsyn(1))?;
@@ -250,14 +222,13 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// It consumes this instance of `DW1000` and returns another instance which
     /// is in the `Sending` state, and can be used to wait for the transmission
     /// to finish and check its result.
-    pub fn send(mut self,
-        data:         &[u8],
-        destination:  mac::Address,
+    pub fn send(
+        mut self,
+        data: &[u8],
+        destination: mac::Address,
         send_time: SendTime,
         config: TxConfig,
-    )
-        -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>>
-    {
+    ) -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>> {
         // Clear event counters
         self.ll.evc_ctrl().write(|w| w.evc_clr(0b1))?;
         while self.ll.evc_ctrl().read()?.evc_clr() == 0b1 {}
@@ -278,15 +249,15 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
 
         let frame = mac::Frame {
             header: mac::Header {
-                frame_type:      mac::FrameType::Data,
-                version:         mac::FrameVersion::Ieee802154_2006,
-                security:        mac::Security::None,
-                frame_pending:   false,
-                ack_request:     false,
+                frame_type: mac::FrameType::Data,
+                version: mac::FrameVersion::Ieee802154_2006,
+                security: mac::Security::None,
+                frame_pending: false,
+                ack_request: false,
                 pan_id_compress: false,
-                destination:     destination,
-                source:          self.get_address()?,
-                seq:             seq,
+                destination: destination,
+                source: self.get_address()?,
+                seq: seq,
             },
             content: mac::FrameContent::Data,
             payload: data,
@@ -297,90 +268,115 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
             SendTime::Delayed(time) => {
                 // Put the time into the delay register
                 // By setting this register, the chip knows to delay before transmitting
-                self.ll
-                    .dx_time()
-                    .write(|w|
-                        w.value(time.value())
-                    )?;
-            },
-            SendTime::OnSync => {
-                self.ll
-                    .ec_ctrl()
-                    .modify(|_, w| w.wait(33).ostsm(1))?;
+                self.ll.dx_time().write(|w| w.value(time.value()))?;
             }
-            _ => {},
+            SendTime::OnSync => {
+                self.ll.ec_ctrl().modify(|_, w| w.wait(33).ostsm(1))?;
+            }
+            _ => {}
         }
 
         // Prepare transmitter
         let mut len = 0;
-        self.ll
-            .tx_buffer()
-            .write(|w| {
-                len += frame.encode(&mut w.data(), mac::WriteFooter::No);
-                w
-            })?;
-        self.ll
-            .tx_fctrl()
-            .modify(|_, w| {
-                let tflen = len as u8 + 2;
-                w
-                    .tflen(tflen) // data length + two-octet CRC
-                    .tfle(0)      // no non-standard length extension
-                    .txboffs(0)   // no offset in TX_BUFFER
-                    .txbr(config.bitrate as u8) // configured bitrate
-                    .tr(config.ranging_enable as u8) // configured ranging bit
-                    .txprf(config.pulse_repetition_frequency as u8) // configured PRF
-                    .txpsr(((config.preamble_length as u8) & 0b1100) >> 2) // first two bits of configured preamble length
-                    .pe((config.preamble_length as u8) & 0b0011) // last two bits of configured preamble length
-            })?;
+        self.ll.tx_buffer().write(|w| {
+            len += frame.encode(&mut w.data(), mac::WriteFooter::No);
+            w
+        })?;
+        self.ll.tx_fctrl().modify(|_, w| {
+            let tflen = len as u8 + 2;
+            w.tflen(tflen) // data length + two-octet CRC
+                .tfle(0) // no non-standard length extension
+                .txboffs(0) // no offset in TX_BUFFER
+                .txbr(config.bitrate as u8) // configured bitrate
+                .tr(config.ranging_enable as u8) // configured ranging bit
+                .txprf(config.pulse_repetition_frequency as u8) // configured PRF
+                .txpsr(((config.preamble_length as u8) & 0b1100) >> 2) // first two bits of configured preamble length
+                .pe((config.preamble_length as u8) & 0b0011) // last two bits of configured preamble length
+        })?;
 
         // Set the channel and sfd settings
-        self.ll
-            .chan_ctrl()
-            .modify(|_, w| {
-                w
-                    .tx_chan(config.channel as u8)
-                    .rx_chan(config.channel as u8)
-                    .dwsfd((config.sfd_sequence == SfdSequence::Decawave || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
-                    .rxprf(config.pulse_repetition_frequency as u8)
-                    .tnssfd((config.sfd_sequence == SfdSequence::User || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
-                    .rnssfd((config.sfd_sequence == SfdSequence::User || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
-                    .tx_pcode(config.channel.get_recommended_preamble_code(config.pulse_repetition_frequency))
-                    .rx_pcode(config.channel.get_recommended_preamble_code(config.pulse_repetition_frequency))
-            })?;
+        self.ll.chan_ctrl().modify(|_, w| {
+            w.tx_chan(config.channel as u8)
+                .rx_chan(config.channel as u8)
+                .dwsfd(
+                    (config.sfd_sequence == SfdSequence::Decawave
+                        || config.sfd_sequence == SfdSequence::DecawaveAlt)
+                        as u8,
+                )
+                .rxprf(config.pulse_repetition_frequency as u8)
+                .tnssfd(
+                    (config.sfd_sequence == SfdSequence::User
+                        || config.sfd_sequence == SfdSequence::DecawaveAlt)
+                        as u8,
+                )
+                .rnssfd(
+                    (config.sfd_sequence == SfdSequence::User
+                        || config.sfd_sequence == SfdSequence::DecawaveAlt)
+                        as u8,
+                )
+                .tx_pcode(
+                    config
+                        .channel
+                        .get_recommended_preamble_code(config.pulse_repetition_frequency),
+                )
+                .rx_pcode(
+                    config
+                        .channel
+                        .get_recommended_preamble_code(config.pulse_repetition_frequency),
+                )
+        })?;
 
         match config.sfd_sequence {
-            SfdSequence::IEEE => {}, // IEEE has predefined sfd lengths and the register has no effect.
+            SfdSequence::IEEE => {} // IEEE has predefined sfd lengths and the register has no effect.
             SfdSequence::Decawave => self.ll.sfd_length().write(|w| w.value(8))?, // This isn't entirely necessary as the Decawave8 settings in chan_ctrl already force it to 8
             SfdSequence::DecawaveAlt => self.ll.sfd_length().write(|w| w.value(16))?, // Set to 16
-            SfdSequence::User => {}, // Users are responsible for setting the lengths themselves
+            SfdSequence::User => {} // Users are responsible for setting the lengths themselves
         }
 
         // Tune for the correct channel
-        self.ll.rf_txctrl().write(|w| w.value(config.channel.get_recommended_rf_txctrl()))?;
-        self.ll.tc_pgdelay().write(|w| w.value(config.channel.get_recommended_tc_pgdelay()))?;
-        self.ll.fs_pllcfg().write(|w| w.value(config.channel.get_recommended_fs_pllcfg()))?;
-        self.ll.fs_plltune().write(|w| w.value(config.channel.get_recommended_fs_plltune()))?;
+        self.ll
+            .rf_txctrl()
+            .write(|w| w.value(config.channel.get_recommended_rf_txctrl()))?;
+        self.ll
+            .tc_pgdelay()
+            .write(|w| w.value(config.channel.get_recommended_tc_pgdelay()))?;
+        self.ll
+            .fs_pllcfg()
+            .write(|w| w.value(config.channel.get_recommended_fs_pllcfg()))?;
+        self.ll
+            .fs_plltune()
+            .write(|w| w.value(config.channel.get_recommended_fs_plltune()))?;
 
         // Set the LDE registers
-        self.ll.lde_cfg2().modify(|_, w| w.value(config.pulse_repetition_frequency.get_recommended_lde_cfg2()))?;
-        self.ll.lde_repc().write(|w| w.value(config.channel.get_recommended_lde_repc_value(config.pulse_repetition_frequency, config.bitrate)))?;
+        self.ll
+            .lde_cfg2()
+            .modify(|_, w| w.value(config.pulse_repetition_frequency.get_recommended_lde_cfg2()))?;
+        self.ll.lde_repc().write(|w| {
+            w.value(
+                config.channel.get_recommended_lde_repc_value(
+                    config.pulse_repetition_frequency,
+                    config.bitrate,
+                ),
+            )
+        })?;
 
         // Todo: Power control (register 0x1E)
 
         if !matches!(send_time, SendTime::OnSync) {
             // Start transmission
-            self.ll
-                .sys_ctrl()
-                .modify(|_, w|
-                    if matches!(send_time, SendTime::Delayed(_)) { w.txdlys(0b1) } else { w }
-                        .txstrt(0b1)
-                )?;
+            self.ll.sys_ctrl().modify(|_, w| {
+                if matches!(send_time, SendTime::Delayed(_)) {
+                    w.txdlys(0b1)
+                } else {
+                    w
+                }
+                .txstrt(0b1)
+            })?;
         }
 
         Ok(DW1000 {
-            ll:    self.ll,
-            seq:   self.seq,
+            ll: self.ll,
+            seq: self.seq,
             state: Sending { finished: false },
         })
     }
@@ -395,23 +391,20 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// and more. Make sure that the values used are the same as of the frames
     /// that are transmitted. The default works with the TxConfig's default and
     /// is a sane starting point.
-    pub fn receive(mut self, config: RxConfig)
-        -> Result<DW1000<SPI, CS, Receiving>, Error<SPI, CS>>
-    {
+    pub fn receive(
+        mut self,
+        config: RxConfig,
+    ) -> Result<DW1000<SPI, CS, Receiving>, Error<SPI, CS>> {
         // For unknown reasons, the DW1000 gets stuck in RX mode without ever
         // receiving anything, after receiving one good frame. Reset the
         // receiver to make sure its in a valid state before attempting to
         // receive anything.
-        self.ll
-            .pmsc_ctrl0()
-            .modify(|_, w|
-                w.softreset(0b1110) // reset receiver
-            )?;
-        self.ll
-            .pmsc_ctrl0()
-            .modify(|_, w|
-                w.softreset(0b1111) // clear reset
-            )?;
+        self.ll.pmsc_ctrl0().modify(
+            |_, w| w.softreset(0b1110), // reset receiver
+        )?;
+        self.ll.pmsc_ctrl0().modify(
+            |_, w| w.softreset(0b1111), // clear reset
+        )?;
 
         // We're already resetting the receiver in the previous step, and that's
         // good enough to make my example program that's both sending and
@@ -430,97 +423,137 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         self.force_idle()?;
 
         if config.frame_filtering {
-            self.ll
-                .sys_cfg()
-                .modify(|_, w|
-                    w
-                        .ffen(0b1) // enable frame filtering
+            self.ll.sys_cfg().modify(
+                |_, w| {
+                    w.ffen(0b1) // enable frame filtering
                         .ffab(0b1) // receive beacon frames
                         .ffad(0b1) // receive data frames
                         .ffaa(0b1) // receive acknowledgement frames
-                        .ffam(0b1) // receive MAC command frames
-                )?;
-        }
-        else {
-            self.ll
-                .sys_cfg()
-                .modify(|_, w| w.ffen(0b0))?; // disable frame filtering
+                        .ffam(0b1)
+                }, // receive MAC command frames
+            )?;
+        } else {
+            self.ll.sys_cfg().modify(|_, w| w.ffen(0b0))?; // disable frame filtering
         }
 
         // Set PLLLDT bit in EC_CTRL. According to the documentation of the
         // CLKPLL_LL bit in SYS_STATUS, this bit needs to be set to ensure the
         // reliable operation of the CLKPLL_LL bit. Since I've seen that bit
         // being set, I want to make sure I'm not just seeing crap.
-        self.ll
-            .ec_ctrl()
-            .modify(|_, w|
-                w.pllldt(0b1)
-            )?;
+        self.ll.ec_ctrl().modify(|_, w| w.pllldt(0b1))?;
 
         // Now that PLLLDT is set, clear all bits in SYS_STATUS that depend on
         // it for reliable operation. After that is done, these bits should work
         // reliably.
         self.ll
             .sys_status()
-            .write(|w|
-                w
-                    .cplock(0b1)
-                    .clkpll_ll(0b1)
-            )?;
+            .write(|w| w.cplock(0b1).clkpll_ll(0b1))?;
 
         // Apply the config
         self.ll.chan_ctrl().modify(|_, w| {
-            w
-                .tx_chan(config.channel as u8)
+            w.tx_chan(config.channel as u8)
                 .rx_chan(config.channel as u8)
-                .dwsfd((config.sfd_sequence == SfdSequence::Decawave || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
+                .dwsfd(
+                    (config.sfd_sequence == SfdSequence::Decawave
+                        || config.sfd_sequence == SfdSequence::DecawaveAlt)
+                        as u8,
+                )
                 .rxprf(config.pulse_repetition_frequency as u8)
-                .tnssfd((config.sfd_sequence == SfdSequence::User || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
-                .rnssfd((config.sfd_sequence == SfdSequence::User || config.sfd_sequence == SfdSequence::DecawaveAlt) as u8)
-                .tx_pcode(config.channel.get_recommended_preamble_code(config.pulse_repetition_frequency))
-                .rx_pcode(config.channel.get_recommended_preamble_code(config.pulse_repetition_frequency))
+                .tnssfd(
+                    (config.sfd_sequence == SfdSequence::User
+                        || config.sfd_sequence == SfdSequence::DecawaveAlt)
+                        as u8,
+                )
+                .rnssfd(
+                    (config.sfd_sequence == SfdSequence::User
+                        || config.sfd_sequence == SfdSequence::DecawaveAlt)
+                        as u8,
+                )
+                .tx_pcode(
+                    config
+                        .channel
+                        .get_recommended_preamble_code(config.pulse_repetition_frequency),
+                )
+                .rx_pcode(
+                    config
+                        .channel
+                        .get_recommended_preamble_code(config.pulse_repetition_frequency),
+                )
         })?;
 
         match config.sfd_sequence {
-            SfdSequence::IEEE => {}, // IEEE has predefined sfd lengths and the register has no effect.
+            SfdSequence::IEEE => {} // IEEE has predefined sfd lengths and the register has no effect.
             SfdSequence::Decawave => self.ll.sfd_length().write(|w| w.value(8))?, // This isn't entirely necessary as the Decawave8 settings in chan_ctrl already force it to 8
             SfdSequence::DecawaveAlt => self.ll.sfd_length().write(|w| w.value(16))?, // Set to 16
-            SfdSequence::User => {}, // Users are responsible for setting the lengths themselves
+            SfdSequence::User => {} // Users are responsible for setting the lengths themselves
         }
 
         // Set general tuning
-        self.ll.drx_tune0b().write(|w| w.value(config.bitrate.get_recommended_drx_tune0b(config.sfd_sequence)))?;
-        self.ll.drx_tune1a().write(|w| w.value(config.pulse_repetition_frequency.get_recommended_drx_tune1a()))?;
-        let drx_tune1b = config.expected_preamble_length.get_recommended_drx_tune1b(config.bitrate)?;
+        self.ll.drx_tune0b().write(|w| {
+            w.value(
+                config
+                    .bitrate
+                    .get_recommended_drx_tune0b(config.sfd_sequence),
+            )
+        })?;
+        self.ll.drx_tune1a().write(|w| {
+            w.value(
+                config
+                    .pulse_repetition_frequency
+                    .get_recommended_drx_tune1a(),
+            )
+        })?;
+        let drx_tune1b = config
+            .expected_preamble_length
+            .get_recommended_drx_tune1b(config.bitrate)?;
         self.ll.drx_tune1b().write(|w| w.value(drx_tune1b))?;
-        let drx_tune2 = config.pulse_repetition_frequency.get_recommended_drx_tune2(config.expected_preamble_length.get_recommended_pac_size())?;
+        let drx_tune2 = config
+            .pulse_repetition_frequency
+            .get_recommended_drx_tune2(
+                config.expected_preamble_length.get_recommended_pac_size(),
+            )?;
         self.ll.drx_tune2().write(|w| w.value(drx_tune2))?;
-        self.ll.drx_tune4h().write(|w| w.value(config.expected_preamble_length.get_recommended_dxr_tune4h()))?;
+        self.ll
+            .drx_tune4h()
+            .write(|w| w.value(config.expected_preamble_length.get_recommended_dxr_tune4h()))?;
 
         // Set channel tuning
-        self.ll.rf_rxctrlh().write(|w| w.value(config.channel.get_recommended_rf_rxctrlh()))?;
-        self.ll.fs_pllcfg().write(|w| w.value(config.channel.get_recommended_fs_pllcfg()))?;
-        self.ll.fs_plltune().write(|w| w.value(config.channel.get_recommended_fs_plltune()))?;
+        self.ll
+            .rf_rxctrlh()
+            .write(|w| w.value(config.channel.get_recommended_rf_rxctrlh()))?;
+        self.ll
+            .fs_pllcfg()
+            .write(|w| w.value(config.channel.get_recommended_fs_pllcfg()))?;
+        self.ll
+            .fs_plltune()
+            .write(|w| w.value(config.channel.get_recommended_fs_plltune()))?;
 
         // Set the rx bitrate
-        self.ll.sys_cfg().modify(|_, w| w.rxm110k((config.bitrate == BitRate::Kbps110) as u8))?;
+        self.ll
+            .sys_cfg()
+            .modify(|_, w| w.rxm110k((config.bitrate == BitRate::Kbps110) as u8))?;
 
         // Set the LDE registers
-        self.ll.lde_cfg2().write(|w| w.value(config.pulse_repetition_frequency.get_recommended_lde_cfg2()))?;
-        self.ll.lde_repc().write(|w| w.value(config.channel.get_recommended_lde_repc_value(config.pulse_repetition_frequency, config.bitrate)))?;
-
         self.ll
-            .sys_ctrl()
-            .modify(|_, w|
-                w.rxenab(0b1)
-            )?;
+            .lde_cfg2()
+            .write(|w| w.value(config.pulse_repetition_frequency.get_recommended_lde_cfg2()))?;
+        self.ll.lde_repc().write(|w| {
+            w.value(
+                config.channel.get_recommended_lde_repc_value(
+                    config.pulse_repetition_frequency,
+                    config.bitrate,
+                ),
+            )
+        })?;
+
+        self.ll.sys_ctrl().modify(|_, w| w.rxenab(0b1))?;
 
         Ok(DW1000 {
-            ll:    self.ll,
-            seq:   self.seq,
+            ll: self.ll,
+            seq: self.seq,
             state: Receiving {
                 finished: false,
-                used_config: config
+                used_config: config,
             },
         })
     }
@@ -528,9 +561,7 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// Enables transmit interrupts for the events that `wait` checks
     ///
     /// Overwrites any interrupt flags that were previously set.
-    pub fn enable_tx_interrupts(&mut self)
-        -> Result<(), Error<SPI, CS>>
-    {
+    pub fn enable_tx_interrupts(&mut self) -> Result<(), Error<SPI, CS>> {
         self.ll.sys_mask().modify(|_, w| w.mtxfrs(0b1))?;
         Ok(())
     }
@@ -538,32 +569,25 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// Enables receive interrupts for the events that `wait` checks
     ///
     /// Overwrites any interrupt flags that were previously set.
-    pub fn enable_rx_interrupts(&mut self)
-        -> Result<(), Error<SPI, CS>>
-    {
-        self.ll()
-            .sys_mask()
-            .modify(|_, w|
-                w
-                    .mrxdfr(0b1)
-                    .mrxfce(0b1)
-                    .mrxphe(0b1)
-                    .mrxrfsl(0b1)
-                    .mrxrfto(0b1)
-                    .mrxovrr(0b1)
-                    .mrxpto(0b1)
-                    .mrxsfdto(0b1)
-                    .maffrej(0b1)
-                    .mldedone(0b1)
-            )?;
+    pub fn enable_rx_interrupts(&mut self) -> Result<(), Error<SPI, CS>> {
+        self.ll().sys_mask().modify(|_, w| {
+            w.mrxdfr(0b1)
+                .mrxfce(0b1)
+                .mrxphe(0b1)
+                .mrxrfsl(0b1)
+                .mrxrfto(0b1)
+                .mrxovrr(0b1)
+                .mrxpto(0b1)
+                .mrxsfdto(0b1)
+                .maffrej(0b1)
+                .mldedone(0b1)
+        })?;
 
         Ok(())
     }
 
     /// Disables all interrupts
-    pub fn disable_interrupts(&mut self)
-        -> Result<(), Error<SPI, CS>>
-    {
+    pub fn disable_interrupts(&mut self) -> Result<(), Error<SPI, CS>> {
         self.ll.sys_mask().write(|w| w)?;
         Ok(())
     }
@@ -585,26 +609,23 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
         enable_sfd: bool,
         enable_rx: bool,
         enable_tx: bool,
-        blink_time: u8)
-        -> Result<(), Error<SPI, CS>> {
+        blink_time: u8,
+    ) -> Result<(), Error<SPI, CS>> {
         // Turn on the timer that will control the blinking (The debounce clock)
         self.ll.pmsc_ctrl0().modify(|_, w| {
-            w
-                .gpdce((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
+            w.gpdce((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
                 .khzclken((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
         })?;
 
         // Turn on the led blinking
         self.ll.pmsc_ledc().modify(|_, w| {
-           w
-               .blnken((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
-               .blink_tim(blink_time)
+            w.blnken((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
+                .blink_tim(blink_time)
         })?;
 
         // Set the proper gpio mode
         self.ll.gpio_mode().modify(|_, w| {
-            w
-                .msgp0(enable_rx_ok as u8)
+            w.msgp0(enable_rx_ok as u8)
                 .msgp1(enable_sfd as u8)
                 .msgp2(enable_rx as u8)
                 .msgp3(enable_tx as u8)
@@ -621,18 +642,23 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
     /// be a significant deviation from this due to the chip's manufacturing process.
     ///
     /// *Note: The SPI speed may be at most 3 Mhz when calling this function.*
-    pub fn enter_sleep(mut self, irq_on_wakeup: bool, sleep_duration: Option<u16>)
-        -> Result<DW1000<SPI, CS, Sleeping>, Error<SPI, CS>>
-    {
+    pub fn enter_sleep(
+        mut self,
+        irq_on_wakeup: bool,
+        sleep_duration: Option<u16>,
+    ) -> Result<DW1000<SPI, CS, Sleeping>, Error<SPI, CS>> {
         // Set the sleep timer
         if let Some(sd) = sleep_duration {
-            self.ll.pmsc_ctrl0().modify(|_, w| w
-                // Force the 19.2Mhz clock
-                .sysclks(0b01)
-            )?;
+            self.ll.pmsc_ctrl0().modify(|_, w| {
+                w
+                    // Force the 19.2Mhz clock
+                    .sysclks(0b01)
+            })?;
 
             // Disable the sleep counter
-            self.ll.aon_cfg1().write(|w| w.sleep_cen(0).smxx(0).lposc_cal(0))?;
+            self.ll
+                .aon_cfg1()
+                .write(|w| w.sleep_cen(0).smxx(0).lposc_cal(0))?;
             // Set the counter
             self.ll.aon_cfg0().write(|w| w.sleep_tim(sd))?;
             // Enable the sleep counter
@@ -641,55 +667,53 @@ impl<SPI, CS> DW1000<SPI, CS, Ready>
             self.ll.aon_ctrl().write(|w| w.upl_cfg(1))?;
             self.ll.aon_ctrl().write(|w| w.upl_cfg(0))?;
 
-            self.ll.pmsc_ctrl0().modify(|_, w| w
-                // Auto clock
-                .sysclks(0b00)
-            )?;
+            self.ll.pmsc_ctrl0().modify(|_, w| {
+                w
+                    // Auto clock
+                    .sysclks(0b00)
+            })?;
         }
 
-        // Save the settings that the 
+        // Save the settings that the
         let tx_antenna_delay = self.get_tx_antenna_delay()?;
 
         // Setup the interrupt.
         if irq_on_wakeup {
-            self.ll.sys_mask().modify(|_, w| w.mslp2init(1).mcplock(1))?;
+            self.ll
+                .sys_mask()
+                .modify(|_, w| w.mslp2init(1).mcplock(1))?;
         }
 
         let lldo = self.is_ldo_tune_calibrated()?.0 as u8;
 
         // Setup everything that needs to be stored in AON
-        self.ll.aon_wcfg().modify(|_, w| w
-            .onw_ldc(1)
-            .onw_llde(1)
-            .onw_lldo(lldo)
-            .onw_l64p(1)
-        )?;
+        self.ll
+            .aon_wcfg()
+            .modify(|_, w| w.onw_ldc(1).onw_llde(1).onw_lldo(lldo).onw_l64p(1))?;
 
         // Setup the wakeup sources.
-        self.ll.aon_cfg0().modify(|_, w| w
-            .wake_spi(1)
-            .wake_cnt(sleep_duration.is_some() as u8)
-            .sleep_en(1)
-        )?;
+        self.ll.aon_cfg0().modify(|_, w| {
+            w.wake_spi(1)
+                .wake_cnt(sleep_duration.is_some() as u8)
+                .sleep_en(1)
+        })?;
 
         // Upload always on array configuration and enter sleep
         self.ll.aon_ctrl().write(|w| w)?;
         self.ll.aon_ctrl().write(|w| w.save(1))?;
 
         Ok(DW1000 {
-            ll:    self.ll,
-            seq:   self.seq,
-            state: Sleeping {
-                tx_antenna_delay,
-            },
+            ll: self.ll,
+            seq: self.seq,
+            state: Sleeping { tx_antenna_delay },
         })
     }
 }
 
 impl<SPI, CS> DW1000<SPI, CS, Sending>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    CS: OutputPin,
 {
     /// Wait for the transmission to finish
     ///
@@ -703,13 +727,12 @@ impl<SPI, CS> DW1000<SPI, CS, Sending>
     /// driver, but please note that if you're using the DWM1001 module or
     /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
     /// this.
-    pub fn wait(&mut self)
-        -> nb::Result<Instant, Error<SPI, CS>>
-    {
+    pub fn wait(&mut self) -> nb::Result<Instant, Error<SPI, CS>> {
         // Check Half Period Warning Counter. If this is a delayed transmission,
         // this will indicate that the delay was too short, and the frame was
         // sent too late.
-        let evc_hpw = self.ll
+        let evc_hpw = self
+            .ll
             .evc_hpw()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?
@@ -722,7 +745,8 @@ impl<SPI, CS> DW1000<SPI, CS, Sending>
         // transmission, this indicates that the transmitter was still powering
         // up while sending, and the frame preamble might not have transmit
         // correctly.
-        let evc_tpw = self.ll
+        let evc_tpw = self
+            .ll
             .evc_tpw()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?
@@ -734,7 +758,8 @@ impl<SPI, CS> DW1000<SPI, CS, Sending>
         // ATTENTION:
         // If you're changing anything about which SYS_STATUS flags are being
         // checked in this method, also make sure to update `enable_interrupts`.
-        let sys_status = self.ll
+        let sys_status = self
+            .ll
             .sys_status()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
@@ -750,7 +775,12 @@ impl<SPI, CS> DW1000<SPI, CS, Sending>
             .map_err(|error| nb::Error::Other(error))?;
         self.state.finished = true;
 
-        let tx_timestamp = self.ll.tx_time().read().map_err(|error| nb::Error::Other(Error::Spi(error)))?.tx_stamp();
+        let tx_timestamp = self
+            .ll
+            .tx_time()
+            .read()
+            .map_err(|error| nb::Error::Other(Error::Spi(error)))?
+            .tx_stamp();
         // This is safe because the value read from the device will never be higher than the allowed value.
         let tx_timestamp = unsafe { Instant::new_unchecked(tx_timestamp) };
 
@@ -761,56 +791,51 @@ impl<SPI, CS> DW1000<SPI, CS, Sending>
     ///
     /// If the send operation has finished, as indicated by `wait`, this is a
     /// no-op. If the send operation is still ongoing, it will be aborted.
-    pub fn finish_sending(mut self)
-        -> Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)>
-    {
+    pub fn finish_sending(mut self) -> Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)> {
         if !self.state.finished {
             // Can't use `map_err` and `?` here, as the compiler will complain
             // about `self` moving into the closure.
             match self.force_idle() {
-                Ok(())     => (),
+                Ok(()) => (),
                 Err(error) => return Err((self, error)),
             }
             match self.reset_flags() {
-                Ok(())     => (),
+                Ok(()) => (),
                 Err(error) => return Err((self, error)),
             }
         }
 
         // Turn off the external transmit synchronization
-        match self.ll
-            .ec_ctrl()
-            .modify(|_, w| w.ostsm(0)) {
+        match self.ll.ec_ctrl().modify(|_, w| w.ostsm(0)) {
             Ok(_) => {}
             Err(e) => return Err((self, Error::Spi(e))),
         }
 
         Ok(DW1000 {
-            ll:    self.ll,
-            seq:   self.seq,
+            ll: self.ll,
+            seq: self.seq,
             state: Ready,
         })
     }
 
     fn reset_flags(&mut self) -> Result<(), Error<SPI, CS>> {
-        self.ll
-            .sys_status()
-            .write(|w|
-                w
-                    .txfrb(0b1) // Transmit Frame Begins
+        self.ll.sys_status().write(
+            |w| {
+                w.txfrb(0b1) // Transmit Frame Begins
                     .txprs(0b1) // Transmit Preamble Sent
                     .txphs(0b1) // Transmit PHY Header Sent
-                    .txfrs(0b1) // Transmit Frame Sent
-            )?;
+                    .txfrs(0b1)
+            }, // Transmit Frame Sent
+        )?;
 
         Ok(())
     }
 }
 
 impl<SPI, CS> DW1000<SPI, CS, Receiving>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    CS: OutputPin,
 {
     /// Wait for receive operation to finish
     ///
@@ -824,13 +849,12 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
     /// driver, but please note that if you're using the DWM1001 module or
     /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
     /// this.
-    pub fn wait<'b>(&mut self, buffer: &'b mut [u8])
-        -> nb::Result<Message<'b>, Error<SPI, CS>>
-    {
+    pub fn wait<'b>(&mut self, buffer: &'b mut [u8]) -> nb::Result<Message<'b>, Error<SPI, CS>> {
         // ATTENTION:
         // If you're changing anything about which SYS_STATUS flags are being
         // checked in this method, also make sure to update `enable_interrupts`.
-        let sys_status = self.ll()
+        let sys_status = self
+            .ll()
             .sys_status()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
@@ -880,7 +904,8 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
         if sys_status.ldedone() == 0b0 {
             return Err(nb::Error::WouldBlock);
         }
-        let rx_time = self.ll()
+        let rx_time = self
+            .ll()
             .rx_time()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?
@@ -895,33 +920,36 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
         // you have to inspect SYS_STATUS manually during debugging.
         self.ll()
             .sys_status()
-            .write(|w|
-                w
-                    .rxprd(0b1)   // Receiver Preamble Detected
-                    .rxsfdd(0b1)  // Receiver SFD Detected
-                    .ldedone(0b1) // LDE Processing Done
-                    .rxphd(0b1)   // Receiver PHY Header Detected
-                    .rxphe(0b1)   // Receiver PHY Header Error
-                    .rxdfr(0b1)   // Receiver Data Frame Ready
-                    .rxfcg(0b1)   // Receiver FCS Good
-                    .rxfce(0b1)   // Receiver FCS Error
-                    .rxrfsl(0b1)  // Receiver Reed Solomon Frame Sync Loss
-                    .rxrfto(0b1)  // Receiver Frame Wait Timeout
-                    .ldeerr(0b1)  // Leading Edge Detection Processing Error
-                    .rxovrr(0b1)  // Receiver Overrun
-                    .rxpto(0b1)   // Preamble Detection Timeout
-                    .rxsfdto(0b1) // Receiver SFD Timeout
-                    .rxrscs(0b1)  // Receiver Reed-Solomon Correction Status
-                    .rxprej(0b1)  // Receiver Preamble Rejection
+            .write(
+                |w| {
+                    w.rxprd(0b1) // Receiver Preamble Detected
+                        .rxsfdd(0b1) // Receiver SFD Detected
+                        .ldedone(0b1) // LDE Processing Done
+                        .rxphd(0b1) // Receiver PHY Header Detected
+                        .rxphe(0b1) // Receiver PHY Header Error
+                        .rxdfr(0b1) // Receiver Data Frame Ready
+                        .rxfcg(0b1) // Receiver FCS Good
+                        .rxfce(0b1) // Receiver FCS Error
+                        .rxrfsl(0b1) // Receiver Reed Solomon Frame Sync Loss
+                        .rxrfto(0b1) // Receiver Frame Wait Timeout
+                        .ldeerr(0b1) // Leading Edge Detection Processing Error
+                        .rxovrr(0b1) // Receiver Overrun
+                        .rxpto(0b1) // Preamble Detection Timeout
+                        .rxsfdto(0b1) // Receiver SFD Timeout
+                        .rxrscs(0b1) // Receiver Reed-Solomon Correction Status
+                        .rxprej(0b1)
+                }, // Receiver Preamble Rejection
             )
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
 
         // Read received frame
-        let rx_finfo = self.ll()
+        let rx_finfo = self
+            .ll()
             .rx_finfo()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
-        let rx_buffer = self.ll()
+        let rx_buffer = self
+            .ll()
             .rx_buffer()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
@@ -929,9 +957,9 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
         let len = rx_finfo.rxflen() as usize;
 
         if buffer.len() < len {
-            return Err(nb::Error::Other(
-                Error::BufferTooSmall { required_len: len }
-            ))
+            return Err(nb::Error::Other(Error::BufferTooSmall {
+                required_len: len,
+            }));
         }
 
         buffer[..len].copy_from_slice(&rx_buffer.data()[..len]);
@@ -939,10 +967,7 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
         let frame = mac::Frame::decode(&buffer[..len], true)
             .map_err(|error| nb::Error::Other(Error::Frame(error)))?;
 
-        Ok(Message {
-            rx_time,
-            frame,
-        })
+        Ok(Message { rx_time, frame })
     }
 
     fn calculate_luep(&mut self) -> Result<f32, Error<SPI, CS>> {
@@ -951,9 +976,8 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
         let lde_cfg1_register = self.ll().lde_cfg1().read()?;
 
         let path_position: f32 =
-            fixed::types::U10F6::from_le_bytes(
-                rx_time_register.fp_index().to_le_bytes()
-            ).lossy_into();
+            fixed::types::U10F6::from_le_bytes(rx_time_register.fp_index().to_le_bytes())
+                .lossy_into();
 
         // Calculate a new low threshold by taking 0.6 times the reported noise threshold from the
         // diagnostics. This new threshold is shown in red in Figure 5. Get existing noise threshold as the
@@ -965,7 +989,7 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
         const WINDOW_SIZE: usize = 16;
         let window_start = path_position as u16 - WINDOW_SIZE as u16;
 
-        let mut cir_buffer = [0u8; WINDOW_SIZE*4 + 1];
+        let mut cir_buffer = [0u8; WINDOW_SIZE * 4 + 1];
         self.ll.cir(window_start * 4, &mut cir_buffer)?;
         let cir = &cir_buffer[1..];
 
@@ -976,19 +1000,17 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
         let mut amplitudes = [0.0; WINDOW_SIZE];
         let mut peak_count = 0;
         for index in 0..WINDOW_SIZE {
-            let real = u16::from_le_bytes(
-                cir[index * 4..index * 4 + 2].try_into().unwrap()
-            ) as f32;
-            let imag = u16::from_le_bytes(
-                cir[index * 4 + 2..index * 4 + 4].try_into().unwrap()
-            ) as f32;
+            let real = u16::from_le_bytes(cir[index * 4..index * 4 + 2].try_into().unwrap()) as f32;
+            let imag =
+                u16::from_le_bytes(cir[index * 4 + 2..index * 4 + 4].try_into().unwrap()) as f32;
 
             amplitudes[index] = (real * real + imag * imag).sqrt();
 
             if index >= 2 && amplitudes[index - 1] > new_low_threshold as f32 {
                 let previous_difference = amplitudes[index - 1] - amplitudes[index - 2];
                 let current_difference = amplitudes[index] - amplitudes[index - 1];
-                peak_count += (previous_difference.is_sign_positive() && current_difference.is_sign_negative()) as u8;
+                peak_count += (previous_difference.is_sign_positive()
+                    && current_difference.is_sign_negative()) as u8;
             }
         }
 
@@ -999,9 +1021,8 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
         let rx_time_register = self.ll().rx_time().read()?;
 
         let path_position: f32 =
-            fixed::types::U10F6::from_le_bytes(
-                rx_time_register.fp_index().to_le_bytes()
-            ).lossy_into();
+            fixed::types::U10F6::from_le_bytes(rx_time_register.fp_index().to_le_bytes())
+                .lossy_into();
 
         let peak_path_index: f32 = self.ll().lde_ppindx().read()?.value() as f32;
 
@@ -1046,7 +1067,7 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
             rxpacc as f32
         };
 
-        let rssi = 10.0 * ((c * (1 << 17) as f32) / (n*n)).log10() - a;
+        let rssi = 10.0 * ((c * (1 << 17) as f32) / (n * n)).log10() - a;
 
         if rssi.is_finite() {
             Ok(rssi)
@@ -1073,12 +1094,10 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
 
         let rssi = self.calculate_rssi()?;
 
-        Ok(
-            RxQuality {
-                los_confidence_level: los_confidence_level.clamp(0.0, 1.0),
-                rssi,
-            }
-        )
+        Ok(RxQuality {
+            los_confidence_level: los_confidence_level.clamp(0.0, 1.0),
+            rssi,
+        })
     }
 
     /// Gets the external sync values from the registers.
@@ -1099,36 +1118,32 @@ impl<SPI, CS> DW1000<SPI, CS, Receiving>
     ///
     /// If the receive operation has finished, as indicated by `wait`, this is a
     /// no-op. If the receive operation is still ongoing, it will be aborted.
-    pub fn finish_receiving(mut self)
-        -> Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)>
-    {
+    pub fn finish_receiving(mut self) -> Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)> {
         if !self.state.finished {
             // Can't use `map_err` and `?` here, as the compiler will complain
             // about `self` moving into the closure.
             match self.force_idle() {
-                Ok(())     => (),
+                Ok(()) => (),
                 Err(error) => return Err((self, error)),
             }
         }
 
         Ok(DW1000 {
-            ll:    self.ll,
-            seq:   self.seq,
+            ll: self.ll,
+            seq: self.seq,
             state: Ready,
         })
     }
 }
 
 impl<SPI, CS, State> DW1000<SPI, CS, State>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
-        State: Awake,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    CS: OutputPin,
+    State: Awake,
 {
     /// Returns the TX antenna delay
-    pub fn get_tx_antenna_delay(&mut self)
-        -> Result<Duration, Error<SPI, CS>>
-    {
+    pub fn get_tx_antenna_delay(&mut self) -> Result<Duration, Error<SPI, CS>> {
         let tx_antenna_delay = self.ll.tx_antd().read()?.value();
 
         // Since `tx_antenna_delay` is `u16`, the following will never panic.
@@ -1138,9 +1153,7 @@ impl<SPI, CS, State> DW1000<SPI, CS, State>
     }
 
     /// Returns the RX antenna delay
-    pub fn get_rx_antenna_delay(&mut self)
-        -> Result<Duration, Error<SPI, CS>>
-    {
+    pub fn get_rx_antenna_delay(&mut self) -> Result<Duration, Error<SPI, CS>> {
         let rx_antenna_delay = self.ll.lde_rxantd().read()?.value();
 
         // Since `rx_antenna_delay` is `u16`, the following will never panic.
@@ -1150,9 +1163,7 @@ impl<SPI, CS, State> DW1000<SPI, CS, State>
     }
 
     /// Returns the network id and address used for sending and receiving
-    pub fn get_address(&mut self)
-        -> Result<mac::Address, Error<SPI, CS>>
-    {
+    pub fn get_address(&mut self) -> Result<mac::Address, Error<SPI, CS>> {
         let panadr = self.ll.panadr().read()?;
 
         Ok(mac::Address::Short(
@@ -1183,9 +1194,7 @@ impl<SPI, CS, State> DW1000<SPI, CS, State>
     /// Force the DW1000 into IDLE mode
     ///
     /// Any ongoing RX/TX operations will be aborted.
-    fn force_idle(&mut self)
-        -> Result<(), Error<SPI, CS>>
-    {
+    fn force_idle(&mut self) -> Result<(), Error<SPI, CS>> {
         self.ll.sys_ctrl().write(|w| w.trxoff(0b1))?;
         while self.ll.sys_ctrl().read()?.trxoff() == 0b1 {}
 
@@ -1197,11 +1206,9 @@ impl<SPI, CS, State> DW1000<SPI, CS, State>
     /// The bool in the tuple is the answer and the int is the raw ldotune_low value.
     fn is_ldo_tune_calibrated(&mut self) -> Result<(bool, u32), Error<SPI, CS>> {
         self.ll.otp_addr().write(|w| w.value(0x004))?;
-        self.ll.otp_ctrl().modify(|_, w|
-            w
-                .otprden(0b1)
-                .otpread(0b1)
-        )?;
+        self.ll
+            .otp_ctrl()
+            .modify(|_, w| w.otprden(0b1).otpread(0b1))?;
         while self.ll.otp_ctrl().read()?.otpread() == 0b1 {}
         let ldotune_low = self.ll.otp_rdat().read()?.value();
         Ok((ldotune_low != 0, ldotune_low))
@@ -1209,26 +1216,29 @@ impl<SPI, CS, State> DW1000<SPI, CS, State>
 }
 
 impl<SPI, CS> DW1000<SPI, CS, Sleeping>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    CS: OutputPin,
 {
     /// Wakes the radio up.
-    pub fn wake_up<DELAY: embedded_hal::blocking::delay::DelayUs<u16>>(mut self, delay: &mut DELAY) -> Result<DW1000<SPI, CS, Ready>, Error<SPI, CS>> {
+    pub fn wake_up<DELAY: embedded_hal::blocking::delay::DelayUs<u16>>(
+        mut self,
+        delay: &mut DELAY,
+    ) -> Result<DW1000<SPI, CS, Ready>, Error<SPI, CS>> {
         // Wake up using the spi
         self.ll.assert_cs_low().map_err(|e| Error::Spi(e))?;
-        delay.delay_us(850*2);
+        delay.delay_us(850 * 2);
         self.ll.assert_cs_high().map_err(|e| Error::Spi(e))?;
 
         // Now we must wait 4 ms so all the clocks start running.
-        delay.delay_us(4000*2);
+        delay.delay_us(4000 * 2);
 
         // Let's check that we're actually awake now
         if self.ll.dev_id().read()?.ridtag() != 0xDECA {
             // Oh dear... We have not woken up!
             return Err(Error::StillAsleep);
         }
-        
+
         // Reset the wakeupstatus
         self.ll.sys_status().write(|w| w.slp2init(1).cplock(1))?;
 
@@ -1238,8 +1248,8 @@ impl<SPI, CS> DW1000<SPI, CS, Sleeping>
 
         // All other values should be restored, so return the ready radio.
         Ok(DW1000 {
-            ll:    self.ll,
-            seq:   self.seq,
+            ll: self.ll,
+            seq: self.seq,
             state: Ready,
         })
     }
@@ -1247,8 +1257,8 @@ impl<SPI, CS> DW1000<SPI, CS, Sleeping>
 
 // Can't be derived without putting requirements on `SPI` and `CS`.
 impl<SPI, CS, State> fmt::Debug for DW1000<SPI, CS, State>
-    where
-        State: fmt::Debug,
+where
+    State: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "DW1000 {{ state: ")?;
@@ -1261,9 +1271,9 @@ impl<SPI, CS, State> fmt::Debug for DW1000<SPI, CS, State>
 
 /// An error that can occur when sending or receiving data
 pub enum Error<SPI, CS>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    CS: OutputPin,
 {
     /// Error occured while using SPI bus
     Spi(ll::Error<SPI, CS>),
@@ -1336,9 +1346,9 @@ pub enum Error<SPI, CS>
 }
 
 impl<SPI, CS> From<ll::Error<SPI, CS>> for Error<SPI, CS>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    CS: OutputPin,
 {
     fn from(error: ll::Error<SPI, CS>) -> Self {
         Error::Spi(error)
@@ -1346,9 +1356,9 @@ impl<SPI, CS> From<ll::Error<SPI, CS>> for Error<SPI, CS>
 }
 
 impl<SPI, CS> From<ssmarshal::Error> for Error<SPI, CS>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    CS: OutputPin,
 {
     fn from(error: ssmarshal::Error) -> Self {
         Error::Ssmarshal(error)
@@ -1358,59 +1368,38 @@ impl<SPI, CS> From<ssmarshal::Error> for Error<SPI, CS>
 // We can't derive this implementation, as `Debug` is only implemented
 // conditionally for `ll::Debug`.
 impl<SPI, CS> fmt::Debug for Error<SPI, CS>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        <SPI as spi::Transfer<u8>>::Error: fmt::Debug,
-        <SPI as spi::Write<u8>>::Error: fmt::Debug,
-        CS: OutputPin,
-        <CS as OutputPin>::Error: fmt::Debug,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    <SPI as spi::Transfer<u8>>::Error: fmt::Debug,
+    <SPI as spi::Write<u8>>::Error: fmt::Debug,
+    CS: OutputPin,
+    <CS as OutputPin>::Error: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::Spi(error) =>
-                write!(f, "Spi({:?})", error),
-            Error::Fcs =>
-                write!(f, "Fcs"),
-            Error::Phy =>
-                write!(f, "Phy"),
-            Error::BufferTooSmall { required_len } =>
-                write!(
-                    f,
-                    "BufferTooSmall {{ required_len: {:?} }}",
-                    required_len,
-                ),
-            Error::ReedSolomon =>
-                write!(f, "ReedSolomon"),
-            Error::FrameWaitTimeout =>
-                write!(f, "FrameWaitTimeout"),
-            Error::Overrun =>
-                write!(f, "Overrun"),
-            Error::PreambleDetectionTimeout =>
-                write!(f, "PreambleDetectionTimeout"),
-            Error::SfdTimeout =>
-                write!(f, "SfdTimeout"),
-            Error::FrameFilteringRejection =>
-                write!(f, "FrameFilteringRejection"),
-            Error::Frame(error) =>
-                write!(f, "Frame({:?})", error),
-            Error::DelayedSendTooLate =>
-                write!(f, "DelayedSendTooLate"),
-            Error::DelayedSendPowerUpWarning =>
-                write!(f, "DelayedSendPowerUpWarning"),
-            Error::Ssmarshal(error) =>
-                write!(f, "Ssmarshal({:?})", error),
-            Error::InvalidConfiguration =>
-                write!(f, "InvalidConfiguration"),
-            Error::RxNotFinished =>
-                write!(f, "RxNotFinished"),
-            Error::StillAsleep =>
-                write!(f, "StillAsleep"),
-            Error::BadRssiCalculation =>
-                write!(f, "BadRssiCalculation"),          
+            Error::Spi(error) => write!(f, "Spi({:?})", error),
+            Error::Fcs => write!(f, "Fcs"),
+            Error::Phy => write!(f, "Phy"),
+            Error::BufferTooSmall { required_len } => {
+                write!(f, "BufferTooSmall {{ required_len: {:?} }}", required_len,)
+            }
+            Error::ReedSolomon => write!(f, "ReedSolomon"),
+            Error::FrameWaitTimeout => write!(f, "FrameWaitTimeout"),
+            Error::Overrun => write!(f, "Overrun"),
+            Error::PreambleDetectionTimeout => write!(f, "PreambleDetectionTimeout"),
+            Error::SfdTimeout => write!(f, "SfdTimeout"),
+            Error::FrameFilteringRejection => write!(f, "FrameFilteringRejection"),
+            Error::Frame(error) => write!(f, "Frame({:?})", error),
+            Error::DelayedSendTooLate => write!(f, "DelayedSendTooLate"),
+            Error::DelayedSendPowerUpWarning => write!(f, "DelayedSendPowerUpWarning"),
+            Error::Ssmarshal(error) => write!(f, "Ssmarshal({:?})", error),
+            Error::InvalidConfiguration => write!(f, "InvalidConfiguration"),
+            Error::RxNotFinished => write!(f, "RxNotFinished"),
+            Error::StillAsleep => write!(f, "StillAsleep"),
+            Error::BadRssiCalculation => write!(f, "BadRssiCalculation"),
         }
     }
 }
-
 
 /// Indicates that the `DW1000` instance is not initialized yet
 #[derive(Debug)]
@@ -1441,14 +1430,14 @@ pub struct Sleeping {
 }
 
 /// Any state struct that implements this trait signals that the radio is **not** sleeping.
-pub trait Awake { }
-impl Awake for Uninitialized { }
-impl Awake for Ready { }
-impl Awake for Sending { }
-impl Awake for Receiving { }
+pub trait Awake {}
+impl Awake for Uninitialized {}
+impl Awake for Ready {}
+impl Awake for Sending {}
+impl Awake for Receiving {}
 /// Any state struct that implements this trait signals that the radio is sleeping.
-pub trait Asleep { }
-impl Asleep for Sleeping { }
+pub trait Asleep {}
+impl Asleep for Sleeping {}
 
 /// An incoming message
 #[derive(Debug)]
@@ -1478,7 +1467,7 @@ pub struct RxQuality {
     ///
     /// The value is an estimation that is quite accurate up to -85 dBm.
     /// Above -85 dBm, the estimation underestimates the actual value.
-    pub rssi: f32
+    pub rssi: f32,
 }
 
 /// The time at which the transmission will start

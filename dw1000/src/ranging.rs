@@ -40,25 +40,18 @@
 //! [examples]: https://github.com/braun-robotics/rust-dwm1001/tree/master/examples
 //! [this DWM1001 issue]: https://github.com/braun-robotics/rust-dwm1001/issues/55
 
-
 use core::mem::size_of;
 
-use embedded_hal::{
-    blocking::spi,
-    digital::v2::OutputPin,
-};
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use embedded_hal::{blocking::spi, digital::v2::OutputPin};
+use serde::{Deserialize, Serialize};
 use ssmarshal;
 
-use crate::{hl, mac, time::{
-    Duration,
-    Instant,
-}, DW1000, Error, Ready, Sending, TxConfig};
 use crate::hl::SendTime;
-
+use crate::{
+    hl, mac,
+    time::{Duration, Instant},
+    Error, Ready, Sending, TxConfig, DW1000,
+};
 
 /// The transmission delay
 ///
@@ -66,7 +59,6 @@ use crate::hl::SendTime;
 /// finish the rest of the preparation and send the message, even if we're
 /// running with unoptimized code.
 const TX_DELAY: u32 = 10_000_000;
-
 
 /// Implemented by all ranging messages
 pub trait Message: Sized + for<'de> Deserialize<'de> + Serialize {
@@ -91,11 +83,10 @@ pub trait Message: Sized + for<'de> Deserialize<'de> + Serialize {
     /// Returns `Ok(None)`, if the message is not of the right type. Otherwise,
     /// returns `Ok(Some(RxMessage<Self>)), if the message is of the right type,
     /// and no error occured.
-    fn decode<SPI, CS>(message: &hl::Message)
-        -> Result<Option<RxMessage<Self>>, Error<SPI, CS>>
-        where
-            SPI: spi::Transfer<u8> + spi::Write<u8>,
-            CS:  OutputPin,
+    fn decode<SPI, CS>(message: &hl::Message) -> Result<Option<RxMessage<Self>>, Error<SPI, CS>>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
     {
         if !message.frame.payload.starts_with(Self::PRELUDE.0) {
             // Not a message of this type
@@ -110,18 +101,16 @@ pub trait Message: Sized + for<'de> Deserialize<'de> + Serialize {
         }
 
         // The message passes muster. Let's decode it.
-        let (payload, _) = ssmarshal::deserialize::<Self>(
-            &message.frame.payload[Self::PRELUDE.0.len()..
-        ])?;
+        let (payload, _) =
+            ssmarshal::deserialize::<Self>(&message.frame.payload[Self::PRELUDE.0.len()..])?;
 
         Ok(Some(RxMessage {
             rx_time: message.rx_time,
-            source:  message.frame.header.source,
+            source: message.frame.header.source,
             payload,
         }))
     }
 }
-
 
 /// An incoming ranging message
 ///
@@ -138,7 +127,6 @@ pub struct RxMessage<T: Message> {
     /// The message data
     pub payload: T,
 }
-
 
 /// An outgoing ranging message
 ///
@@ -162,16 +150,21 @@ pub struct TxMessage<T: Message> {
     pub payload: T,
 }
 
-impl<T> TxMessage<T> where T: Message {
+impl<T> TxMessage<T>
+where
+    T: Message,
+{
     /// Send this message via the DW1000
     ///
     /// Serializes the message payload and uses [`DW1000::send`] internally to
     /// send it.
-    pub fn send<'r, SPI, CS>(&self, dw1000: DW1000<SPI, CS, Ready>)
-        -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>>
-        where
-            SPI: spi::Transfer<u8> + spi::Write<u8>,
-            CS:  OutputPin,
+    pub fn send<'r, SPI, CS>(
+        &self,
+        dw1000: DW1000<SPI, CS, Ready>,
+    ) -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
     {
         // Create a buffer that fits the biggest message currently implemented.
         // This is a really ugly hack. The size of the buffer should just be
@@ -182,10 +175,7 @@ impl<T> TxMessage<T> where T: Message {
         let mut buf = [0; LEN];
 
         buf[..T::PRELUDE.0.len()].copy_from_slice(T::PRELUDE.0);
-        ssmarshal::serialize(
-            &mut buf[T::PRELUDE.0.len()..],
-            &self.payload,
-        )?;
+        ssmarshal::serialize(&mut buf[T::PRELUDE.0.len()..], &self.payload)?;
 
         let future = dw1000.send(
             &buf[..T::LEN],
@@ -198,12 +188,10 @@ impl<T> TxMessage<T> where T: Message {
     }
 }
 
-
 /// Sent before a message's data to identify the message
 #[derive(Debug, Deserialize, Serialize)]
 #[repr(C)]
 pub struct Prelude(pub &'static [u8]);
-
 
 /// Ranging ping message
 ///
@@ -225,18 +213,17 @@ impl Ping {
     /// time to 10 milliseconds in the future. Make sure to send the message
     /// within that time frame, or the distance measurement will be negatively
     /// affected.
-    pub fn new<SPI, CS>(dw1000: &mut DW1000<SPI, CS, Ready>)
-        -> Result<TxMessage<Self>, Error<SPI, CS>>
-        where
-            SPI: spi::Transfer<u8> + spi::Write<u8>,
-            CS:  OutputPin,
+    pub fn new<SPI, CS>(
+        dw1000: &mut DW1000<SPI, CS, Ready>,
+    ) -> Result<TxMessage<Self>, Error<SPI, CS>>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
     {
         let tx_time = dw1000.sys_time()? + Duration::from_nanos(TX_DELAY);
         let ping_tx_time = tx_time + dw1000.get_tx_antenna_delay()?;
 
-        let payload = Ping {
-            ping_tx_time,
-        };
+        let payload = Ping { ping_tx_time };
 
         Ok(TxMessage {
             recipient: mac::Address::broadcast(&mac::AddressMode::Short),
@@ -247,10 +234,9 @@ impl Ping {
 }
 
 impl Message for Ping {
-    const PRELUDE:     Prelude = Prelude(b"RANGING PING");
-    const PRELUDE_LEN: usize   = 12;
+    const PRELUDE: Prelude = Prelude(b"RANGING PING");
+    const PRELUDE_LEN: usize = 12;
 }
-
 
 /// Ranging request message
 ///
@@ -280,12 +266,11 @@ impl Request {
     /// affected.
     pub fn new<SPI, CS>(
         dw1000: &mut DW1000<SPI, CS, Ready>,
-        ping:   &RxMessage<Ping>,
-    )
-        -> Result<TxMessage<Self>, Error<SPI, CS>>
-        where
-            SPI: spi::Transfer<u8> + spi::Write<u8>,
-            CS:  OutputPin,
+        ping: &RxMessage<Ping>,
+    ) -> Result<TxMessage<Self>, Error<SPI, CS>>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
     {
         let tx_time = dw1000.sys_time()? + Duration::from_nanos(TX_DELAY);
         let request_tx_time = tx_time + dw1000.get_tx_antenna_delay()?;
@@ -307,10 +292,9 @@ impl Request {
 }
 
 impl Message for Request {
-    const PRELUDE:     Prelude = Prelude(b"RANGING REQUEST");
-    const PRELUDE_LEN: usize   = 15;
+    const PRELUDE: Prelude = Prelude(b"RANGING REQUEST");
+    const PRELUDE_LEN: usize = 15;
 }
-
 
 /// Ranging response message
 ///
@@ -343,21 +327,18 @@ impl Response {
     /// within that time frame, or the distance measurement will be negatively
     /// affected.
     pub fn new<SPI, CS>(
-        dw1000:  &mut DW1000<SPI, CS, Ready>,
+        dw1000: &mut DW1000<SPI, CS, Ready>,
         request: &RxMessage<Request>,
-    )
-        -> Result<TxMessage<Self>, Error<SPI, CS>>
-        where
-            SPI: spi::Transfer<u8> + spi::Write<u8>,
-            CS:  OutputPin,
+    ) -> Result<TxMessage<Self>, Error<SPI, CS>>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
     {
         let tx_time = dw1000.sys_time()? + Duration::from_nanos(TX_DELAY);
         let response_tx_time = tx_time + dw1000.get_tx_antenna_delay()?;
 
-        let ping_round_trip_time =
-            request.rx_time.duration_since(request.payload.ping_tx_time);
-        let request_reply_time =
-            response_tx_time.duration_since(request.rx_time);
+        let ping_round_trip_time = request.rx_time.duration_since(request.payload.ping_tx_time);
+        let request_reply_time = response_tx_time.duration_since(request.rx_time);
 
         let payload = Response {
             ping_reply_time: request.payload.ping_reply_time,
@@ -375,15 +356,12 @@ impl Response {
 }
 
 impl Message for Response {
-    const PRELUDE:     Prelude = Prelude(b"RANGING RESPONSE");
-    const PRELUDE_LEN: usize   = 16;
+    const PRELUDE: Prelude = Prelude(b"RANGING RESPONSE");
+    const PRELUDE_LEN: usize = 16;
 }
 
-
 /// Computes the distance to another node from a ranging response
-pub fn compute_distance_mm(response: &RxMessage<Response>)
-    -> Result<u64, ComputeDistanceError>
-{
+pub fn compute_distance_mm(response: &RxMessage<Response>) -> Result<u64, ComputeDistanceError> {
     // To keep variable names to a reasonable length, this function uses `rt` as
     // a short-hand for "reply time" and `rtt` and a short-hand for "round-trip
     // time".
@@ -391,21 +369,27 @@ pub fn compute_distance_mm(response: &RxMessage<Response>)
     let ping_rt = response.payload.ping_reply_time.value();
     let ping_rtt = response.payload.ping_round_trip_time.value();
     let request_rt = response.payload.request_reply_time.value();
-    let request_rtt = response.rx_time
+    let request_rtt = response
+        .rx_time
         .duration_since(response.payload.request_tx_time)
         .value();
 
     // Compute time of flight according to the formula given in the DW1000 user
     // manual, section 12.3.2.
-    let rtt_product = ping_rtt.checked_mul(request_rtt)
+    let rtt_product = ping_rtt
+        .checked_mul(request_rtt)
         .ok_or(ComputeDistanceError::RoundTripTimesTooLarge)?;
-    let rt_product = ping_rt.checked_mul(request_rt)
+    let rt_product = ping_rt
+        .checked_mul(request_rt)
         .ok_or(ComputeDistanceError::ReplyTimesTooLarge)?;
-    let rt_sum = ping_rt.checked_add(request_rt)
+    let rt_sum = ping_rt
+        .checked_add(request_rt)
         .ok_or(ComputeDistanceError::SumTooLarge)?;
-    let rtt_sum = ping_rtt.checked_add(request_rtt)
+    let rtt_sum = ping_rtt
+        .checked_add(request_rtt)
         .ok_or(ComputeDistanceError::SumTooLarge)?;
-    let sum = rt_sum.checked_add(rtt_sum)
+    let sum = rt_sum
+        .checked_add(rtt_sum)
         .ok_or(ComputeDistanceError::SumTooLarge)?;
     let time_of_flight = (rtt_product - rt_product) / sum;
 
@@ -414,13 +398,13 @@ pub fn compute_distance_mm(response: &RxMessage<Response>)
 
     const SPEED_OF_LIGHT: u64 = 299_792_458; // m/s or nm/ns
 
-    let distance_nm_times_64 = SPEED_OF_LIGHT.checked_mul(time_of_flight)
+    let distance_nm_times_64 = SPEED_OF_LIGHT
+        .checked_mul(time_of_flight)
         .ok_or(ComputeDistanceError::TimeOfFlightTooLarge)?;
-    let distance_mm          = distance_nm_times_64 / 64 / 1_000_000;
+    let distance_mm = distance_nm_times_64 / 64 / 1_000_000;
 
     Ok(distance_mm)
 }
-
 
 /// Returned from [`compute_distance_mm`] in case of an error
 #[derive(Debug)]

@@ -222,18 +222,12 @@ mod tests {
     #[test]
     fn improve_rssi_too_low_still_valid() {
         let rx_config = RxConfig::default();
-        assert_eq!(
-            improve_rssi_estimation(-1000.0, &rx_config),
-            -1000.0
-        );
+        assert_eq!(improve_rssi_estimation(-1000.0, &rx_config), -1000.0);
     }
 
     #[test]
     fn improve_rssi_too_high_still_valid() {
         let rx_config = RxConfig::default();
-        assert_eq!(
-            improve_rssi_estimation(1000.0, &rx_config),
-            800.0
-        );
+        assert_eq!(improve_rssi_estimation(1000.0, &rx_config), 800.0);
     }
 }

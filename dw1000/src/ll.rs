@@ -15,17 +15,9 @@
 //! [high-level interface]: ../hl/index.html
 //! [filing an issue]: https://github.com/braun-robotics/rust-dw1000/issues/new
 
+use core::{fmt, marker::PhantomData};
 
-use core::{
-    fmt,
-    marker::PhantomData,
-};
-
-use embedded_hal::{
-    blocking::spi,
-    digital::v2::OutputPin,
-};
-
+use embedded_hal::{blocking::spi, digital::v2::OutputPin};
 
 /// Entry point to the DW1000 driver's low-level API
 ///
@@ -33,7 +25,7 @@ use embedded_hal::{
 ///
 /// [hl::DW1000]: ../hl/struct.DW1000.html
 pub struct DW1000<SPI, CS> {
-    spi        : SPI,
+    spi: SPI,
     chip_select: CS,
     chip_select_delay: u8,
 }
@@ -59,24 +51,31 @@ impl<SPI, CS> DW1000<SPI, CS> {
         self.chip_select_delay = delay;
     }
 
-    fn block_read(&mut self, id: u8, start_sub_id: u16, buffer: &mut [u8]) -> Result<(), Error<SPI, CS>>
-        where
-            SPI: spi::Transfer<u8> + spi::Write<u8>,
-            CS:  OutputPin,
+    fn block_read(
+        &mut self,
+        id: u8,
+        start_sub_id: u16,
+        buffer: &mut [u8],
+    ) -> Result<(), Error<SPI, CS>>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
     {
         // Make it simple and use the 3 byte header
         let header_buffer = [
-            (((start_sub_id as u8) << 6) & 0x40) |  (id & 0x3f),
+            (((start_sub_id as u8) << 6) & 0x40) | (id & 0x3f),
             0x80 | (start_sub_id & 0x7F) as u8,
-            ((start_sub_id & 0x7f80) >> 7) as u8
+            ((start_sub_id & 0x7f80) >> 7) as u8,
         ];
 
         self.assert_cs_low()?;
         // Send the header
-        self.spi.write(&header_buffer)
+        self.spi
+            .write(&header_buffer)
             .map_err(|err| Error::Write(err))?;
         // Read the data
-        self.spi.transfer(buffer)
+        self.spi
+            .transfer(buffer)
             .map_err(|err| Error::Transfer(err))?;
         self.assert_cs_low()?;
         self.assert_cs_high()?;
@@ -90,9 +89,9 @@ impl<SPI, CS> DW1000<SPI, CS> {
     ///
     /// *NOTE: The first byte in the buffer will be a dummy byte that shouldn't be used.*
     pub fn cir(&mut self, start_index: u16, buffer: &mut [u8]) -> Result<(), Error<SPI, CS>>
-        where
-            SPI: spi::Transfer<u8> + spi::Write<u8>,
-            CS:  OutputPin,
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
     {
         self.block_read(0x25, start_index, buffer)
     }
@@ -103,7 +102,8 @@ impl<SPI, CS> DW1000<SPI, CS> {
     /// In closure you get ownership of the SPI
     /// so you can destruct it and build it up again if necessary.
     pub fn access_spi<F>(&mut self, f: F)
-        where F: FnOnce(SPI) -> SPI
+    where
+        F: FnOnce(SPI) -> SPI,
     {
         // This is unsafe because we create a zeroed spi.
         // Its safety is guaranteed, though, because the zeroed spi is never used.
@@ -119,12 +119,13 @@ impl<SPI, CS> DW1000<SPI, CS> {
 
     /// Internal function for pulling the cs low. Used for sleep wakeup.
     pub(crate) fn assert_cs_low(&mut self) -> Result<(), Error<SPI, CS>>
-        where
-            SPI: spi::Transfer<u8> + spi::Write<u8>,
-            CS:  OutputPin,
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
     {
         for _ in 0..=self.chip_select_delay {
-            self.chip_select.set_low()
+            self.chip_select
+                .set_low()
                 .map_err(|err| Error::ChipSelect(err))?;
         }
 
@@ -133,17 +134,17 @@ impl<SPI, CS> DW1000<SPI, CS> {
 
     /// Internal function for pulling the cs high. Used for sleep wakeup.
     pub(crate) fn assert_cs_high(&mut self) -> Result<(), Error<SPI, CS>>
-        where
-            SPI: spi::Transfer<u8> + spi::Write<u8>,
-            CS:  OutputPin,
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
     {
-        self.chip_select.set_high()
+        self.chip_select
+            .set_high()
             .map_err(|err| Error::ChipSelect(err))?;
 
         Ok(())
     }
 }
-
 
 /// Provides access to a register
 ///
@@ -152,23 +153,24 @@ impl<SPI, CS> DW1000<SPI, CS> {
 pub struct RegAccessor<'s, R, SPI, CS>(&'s mut DW1000<SPI, CS>, PhantomData<R>);
 
 impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    CS: OutputPin,
 {
     /// Read from the register
-    pub fn read(&mut self)
-        -> Result<R::Read, Error<SPI, CS>>
-        where
-            R: Register + Readable,
+    pub fn read(&mut self) -> Result<R::Read, Error<SPI, CS>>
+    where
+        R: Register + Readable,
     {
-        let mut r      = R::read();
+        let mut r = R::read();
         let mut buffer = R::buffer(&mut r);
 
         init_header::<R>(false, &mut buffer);
 
         self.0.assert_cs_low()?;
-        self.0.spi.transfer(buffer)
+        self.0
+            .spi
+            .transfer(buffer)
             .map_err(|err| Error::Transfer(err))?;
         self.0.assert_cs_low()?;
         self.0.assert_cs_high()?;
@@ -177,11 +179,10 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
     }
 
     /// Write to the register
-    pub fn write<F>(&mut self, f: F)
-        -> Result<(), Error<SPI, CS>>
-        where
-            R: Register + Writable,
-            F: FnOnce(&mut R::Write) -> &mut R::Write,
+    pub fn write<F>(&mut self, f: F) -> Result<(), Error<SPI, CS>>
+    where
+        R: Register + Writable,
+        F: FnOnce(&mut R::Write) -> &mut R::Write,
     {
         let mut w = R::write();
         f(&mut w);
@@ -190,8 +191,7 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         init_header::<R>(true, buffer);
 
         self.0.assert_cs_low()?;
-        <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
-            .map_err(|err| Error::Write(err))?;
+        <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer).map_err(|err| Error::Write(err))?;
         self.0.assert_cs_low()?;
         self.0.assert_cs_high()?;
 
@@ -199,18 +199,15 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
     }
 
     /// Modify the register
-    pub fn modify<F>(&mut self, f: F)
-        -> Result<(), Error<SPI, CS>>
-        where
-            R: Register + Readable + Writable,
-            F: for<'r>
-                FnOnce(&mut R::Read, &'r mut R::Write) -> &'r mut R::Write,
+    pub fn modify<F>(&mut self, f: F) -> Result<(), Error<SPI, CS>>
+    where
+        R: Register + Readable + Writable,
+        F: for<'r> FnOnce(&mut R::Read, &'r mut R::Write) -> &'r mut R::Write,
     {
         let mut r = self.read()?;
         let mut w = R::write();
 
-        <R as Writable>::buffer(&mut w)
-            .copy_from_slice(<R as Readable>::buffer(&mut r));
+        <R as Writable>::buffer(&mut w).copy_from_slice(<R as Readable>::buffer(&mut r));
 
         f(&mut r, &mut w);
 
@@ -218,22 +215,19 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         init_header::<R>(true, buffer);
 
         self.0.assert_cs_low()?;
-        <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
-            .map_err(|err| Error::Write(err))?;
+        <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer).map_err(|err| Error::Write(err))?;
         self.0.assert_cs_low()?;
         self.0.assert_cs_high()?;
 
         Ok(())
     }
-
 }
-
 
 /// An SPI error that can occur when communicating with the DW1000
 pub enum Error<SPI, CS>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    CS: OutputPin,
 {
     /// SPI error occured during a transfer transaction
     Transfer(<SPI as spi::Transfer<u8>>::Error),
@@ -248,22 +242,21 @@ pub enum Error<SPI, CS>
 // We can't derive this implementation, as the compiler will complain that the
 // associated error type doesn't implement `Debug`.
 impl<SPI, CS> fmt::Debug for Error<SPI, CS>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        <SPI as spi::Transfer<u8>>::Error: fmt::Debug,
-        <SPI as spi::Write<u8>>::Error: fmt::Debug,
-        CS: OutputPin,
-        <CS as OutputPin>::Error: fmt::Debug,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    <SPI as spi::Transfer<u8>>::Error: fmt::Debug,
+    <SPI as spi::Write<u8>>::Error: fmt::Debug,
+    CS: OutputPin,
+    <CS as OutputPin>::Error: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::Transfer(error)   => write!(f, "Transfer({:?})", error),
-            Error::Write(error)      => write!(f, "Write({:?})", error),
+            Error::Transfer(error) => write!(f, "Transfer({:?})", error),
+            Error::Write(error) => write!(f, "Write({:?})", error),
             Error::ChipSelect(error) => write!(f, "ChipSelect({:?})", error),
         }
     }
 }
-
 
 /// Initializes the SPI message header
 ///
@@ -273,10 +266,7 @@ impl<SPI, CS> fmt::Debug for Error<SPI, CS>
 fn init_header<R: Register>(write: bool, buffer: &mut [u8]) -> usize {
     let sub_id = R::SUB_ID > 0;
 
-    buffer[0] =
-        (((write as u8)  << 7) & 0x80) |
-        (((sub_id as u8) << 6) & 0x40) |
-        (R::ID                 & 0x3f);
+    buffer[0] = (((write as u8) << 7) & 0x80) | (((sub_id as u8) << 6) & 0x40) | (R::ID & 0x3f);
 
     if !sub_id {
         return 1;
@@ -284,9 +274,7 @@ fn init_header<R: Register>(write: bool, buffer: &mut [u8]) -> usize {
 
     let ext_addr = R::SUB_ID > 127;
 
-    buffer[1] =
-        (((ext_addr as u8) << 7) & 0x80) |
-        (R::SUB_ID as u8         & 0x7f); // lower 7 bits (of 15)
+    buffer[1] = (((ext_addr as u8) << 7) & 0x80) | (R::SUB_ID as u8 & 0x7f); // lower 7 bits (of 15)
 
     if !ext_addr {
         return 2;
@@ -296,7 +284,6 @@ fn init_header<R: Register>(write: bool, buffer: &mut [u8]) -> usize {
 
     3
 }
-
 
 /// Implemented for all registers
 ///
@@ -1110,7 +1097,7 @@ impl_register! {
     0x2C, 0x02, 1, RW, AON_CTRL(aon_ctrl) { /// AON Control Register
         restore,  0, 0, u8; /// When this bit is set the DW1000 will copy the user configurations from the AON memory to the host interface register set.
         save,     1, 1, u8; /// When this bit is set the DW1000 will copy the user configurations from the host interface register  set  into  the AON  memory.
-        upl_cfg,  2, 2, u8; /// Upload the AON block configurations to the AON. 
+        upl_cfg,  2, 2, u8; /// Upload the AON block configurations to the AON.
         dca_read, 3, 3, u8; /// Direct AON memory access read.
         dca_enab, 7, 7, u8; /// Direct AON memory access enable bit.
     }
@@ -1125,7 +1112,7 @@ impl_register! {
     }
     0x2C, 0x0A, 2, RW, AON_CFG1(aon_cfg1) { /// AON Configuration Register 1
         sleep_cen, 0, 0, u8; /// This bit enables the sleep counter.
-        smxx, 1, 1, u8; /// Thisbit needs to be set to 0 for correct operation in the SLEEP state within the DW1000. 
+        smxx, 1, 1, u8; /// Thisbit needs to be set to 0 for correct operation in the SLEEP state within the DW1000.
         lposc_cal, 2, 2, u8; /// This bit enables the calibration function that measures the period of the IC’s internal low powered oscillator.
     }
     0x2D, 0x04, 2, RW, OTP_ADDR(otp_addr) { /// OTP Address
@@ -1204,7 +1191,6 @@ impl_register! {
     }
 }
 
-
 /// Transmit Data Buffer
 ///
 /// Currently only the first 127 bytes of the buffer are supported, which is
@@ -1213,9 +1199,9 @@ impl_register! {
 pub struct TX_BUFFER;
 
 impl Register for TX_BUFFER {
-    const ID:     u8    = 0x09;
-    const SUB_ID: u16   = 0x00;
-    const LEN:    usize = 127;
+    const ID: u8 = 0x09;
+    const SUB_ID: u16 = 0x00;
+    const LEN: usize = 127;
 }
 
 impl Writable for TX_BUFFER {
@@ -1237,7 +1223,6 @@ impl<SPI, CS> DW1000<SPI, CS> {
     }
 }
 
-
 /// Transmit Data Buffer
 pub mod tx_buffer {
     /// Used to write to the register
@@ -1251,7 +1236,6 @@ pub mod tx_buffer {
     }
 }
 
-
 /// Receive Data Buffer
 ///
 /// Currently only the first 127 bytes of the buffer are supported, which is
@@ -1260,9 +1244,9 @@ pub mod tx_buffer {
 pub struct RX_BUFFER;
 
 impl Register for RX_BUFFER {
-    const ID:     u8    = 0x11;
-    const SUB_ID: u16   = 0x00;
-    const LEN:    usize = 127;
+    const ID: u8 = 0x11;
+    const SUB_ID: u16 = 0x00;
+    const LEN: usize = 127;
 }
 
 impl Readable for RX_BUFFER {
@@ -1284,15 +1268,12 @@ impl<SPI, CS> DW1000<SPI, CS> {
     }
 }
 
-
 /// Receive Data Buffer
 pub mod rx_buffer {
     use core::fmt;
 
-
     const HEADER_LEN: usize = 1;
-    const LEN:        usize = 127;
-
+    const LEN: usize = 127;
 
     /// Used to read from the register
     pub struct R(pub(crate) [u8; HEADER_LEN + LEN]);
@@ -1300,14 +1281,14 @@ pub mod rx_buffer {
     impl R {
         /// Provides read access to the buffer contents
         pub fn data(&self) -> &[u8] {
-            &self.0[HEADER_LEN .. HEADER_LEN + LEN]
+            &self.0[HEADER_LEN..HEADER_LEN + LEN]
         }
     }
 
     impl fmt::Debug for R {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             write!(f, "0x")?;
-            for i in (0 .. LEN).rev() {
+            for i in (0..LEN).rev() {
                 write!(f, "{:02x}", self.0[HEADER_LEN + i])?;
             }
 
@@ -1315,7 +1296,6 @@ pub mod rx_buffer {
         }
     }
 }
-
 
 /// Internal trait used by `impl_registers!`
 trait FromBytes {

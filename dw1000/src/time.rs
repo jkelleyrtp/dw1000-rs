@@ -1,13 +1,10 @@
 //! Time-related types based on the DW1000's system time
 
-
 use core::ops::Add;
-use serde::{Serialize, Deserialize};
-
+use serde::{Deserialize, Serialize};
 
 /// The maximum value of 40-bit system time stamps.
 pub const TIME_MAX: u64 = 0xffffffffff;
-
 
 /// Represents an instant in time
 ///
@@ -46,8 +43,7 @@ impl Instant {
     pub fn new(value: u64) -> Option<Self> {
         if value <= TIME_MAX {
             Some(Instant(value))
-        }
-        else {
+        } else {
             None
         }
     }
@@ -99,8 +95,7 @@ impl Instant {
     pub fn duration_since(&self, earlier: Instant) -> Duration {
         if self.value() >= earlier.value() {
             Duration(self.value() - earlier.value())
-        }
-        else {
+        } else {
             Duration(TIME_MAX - earlier.value() + self.value() + 1)
         }
     }
@@ -119,7 +114,6 @@ impl Add<Duration> for Instant {
         Instant::new(value).unwrap()
     }
 }
-
 
 /// A duration between two instants in DW1000 system time
 ///
@@ -154,8 +148,7 @@ impl Duration {
     pub fn new(value: u64) -> Option<Self> {
         if value <= TIME_MAX {
             Some(Duration(value))
-        }
-        else {
+        } else {
             None
         }
     }
