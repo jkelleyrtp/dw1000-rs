@@ -165,7 +165,7 @@ fn main() -> ! {
             // If this is not a PAN ID and short address, it doesn't
             // come from a compatible node. Ignore it.
             let (pan_id, addr) = match response.source {
-                mac::Address::Short(pan_id, addr) =>
+                Some(mac::Address::Short(pan_id, addr)) =>
                     (pan_id, addr),
                 _ =>
                     continue,

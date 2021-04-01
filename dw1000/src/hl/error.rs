@@ -1,4 +1,4 @@
-use crate::{ll, mac};
+use crate::ll;
 use core::fmt;
 use embedded_hal::{blocking::spi, digital::v2::OutputPin};
 use ssmarshal;
@@ -48,7 +48,7 @@ where
     FrameFilteringRejection,
 
     /// Frame could not be decoded
-    Frame(mac::DecodeError),
+    Frame(byte::Error),
 
     /// A delayed frame could not be sent in time
     ///

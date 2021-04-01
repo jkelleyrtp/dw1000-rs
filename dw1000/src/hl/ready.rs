@@ -3,9 +3,10 @@ use crate::{
     time::Instant,
     Error, Ready, Receiving, RxConfig, Sending, Sleeping, TxConfig, DW1000,
 };
+use byte::BytesExt as _;
 use core::num::Wrapping;
 use embedded_hal::{blocking::spi, digital::v2::OutputPin};
-use ieee802154::mac;
+use ieee802154::mac::{self, FooterMode};
 
 /// The behaviour of the sync pin
 pub enum SyncBehaviour {
@@ -125,7 +126,7 @@ where
     pub fn send(
         mut self,
         data: &[u8],
-        destination: mac::Address,
+        destination: Option<mac::Address>,
         send_time: SendTime,
         config: TxConfig,
     ) -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>> {
@@ -155,9 +156,9 @@ where
                 frame_pending: false,
                 ack_request: false,
                 pan_id_compress: false,
-                destination: destination,
-                source: self.get_address()?,
-                seq: seq,
+                destination,
+                source: Some(self.get_address()?),
+                seq,
             },
             content: mac::FrameContent::Data,
             payload: data,
@@ -179,7 +180,12 @@ where
         // Prepare transmitter
         let mut len = 0;
         self.ll.tx_buffer().write(|w| {
-            len += frame.encode(&mut w.data(), mac::WriteFooter::No);
+            let result = w.data().write_with(&mut len, frame, FooterMode::None);
+
+            if let Err(err) = result {
+                panic!("Failed to write frame: {:?}", err);
+            }
+
             w
         })?;
         self.ll.tx_fctrl().modify(|_, w| {

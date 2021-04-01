@@ -1,7 +1,9 @@
 use crate::{mac, time::Instant, Error, Ready, Receiving, DW1000};
+use byte::BytesExt as _;
 use core::convert::TryInto;
 use embedded_hal::{blocking::spi, digital::v2::OutputPin};
 use fixed::traits::LossyInto;
+use ieee802154::mac::FooterMode;
 
 /// An incoming message
 #[derive(Debug)]
@@ -166,7 +168,8 @@ where
 
         buffer[..len].copy_from_slice(&rx_buffer.data()[..len]);
 
-        let frame = mac::Frame::decode(&buffer[..len], true)
+        let frame = buffer[..len]
+            .read_with(&mut 0, FooterMode::None)
             .map_err(|error| nb::Error::Other(Error::Frame(error)))?;
 
         Ok(Message { rx_time, frame })

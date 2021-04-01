@@ -122,7 +122,7 @@ pub struct RxMessage<T: Message> {
     pub rx_time: Instant,
 
     /// The source of the message
-    pub source: mac::Address,
+    pub source: Option<mac::Address>,
 
     /// The message data
     pub payload: T,
@@ -137,7 +137,7 @@ pub struct TxMessage<T: Message> {
     ///
     /// This is an IEEE 802.15.4 MAC address. This could be a broadcast address,
     /// for messages that are sent to all other nodes in range.
-    pub recipient: mac::Address,
+    pub recipient: Option<mac::Address>,
 
     /// The time this message is going to be sent
     ///

@@ -108,7 +108,7 @@ fn main() -> ! {
                 // messages from other kinds of nodes, so let's just assume this
                 // is going to be a PAN ID and short address.
                 let source = match message.frame.header.source {
-                    mac::Address::Short(pan_id, address) =>
+                    Some(mac::Address::Short(pan_id, address)) =>
                         [pan_id.0, address.0],
                     _ =>
                         continue,
