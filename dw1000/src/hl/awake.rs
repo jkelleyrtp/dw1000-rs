@@ -65,9 +65,49 @@ where
     /// Force the DW1000 into IDLE mode
     ///
     /// Any ongoing RX/TX operations will be aborted.
-    pub(super) fn force_idle(&mut self) -> Result<(), Error<SPI, CS>> {
+    pub(super) fn force_idle(&mut self, double_buffered: bool) -> Result<(), Error<SPI, CS>> {
+        let mut saved_sys_mask = [0; 5];
+
+        if double_buffered {
+            // Mask the double buffered status bits
+            self.ll.sys_mask().modify(|r, w| {
+                saved_sys_mask = r.0.clone();
+                w.mrxfce(0).mrxfcg(0).mrxdfr(0).mldedone(0)
+            })?;
+        }
+
         self.ll.sys_ctrl().write(|w| w.trxoff(0b1))?;
         while self.ll.sys_ctrl().read()?.trxoff() == 0b1 {}
+
+        if double_buffered {
+            // Clear the bits
+            self.ll().sys_status().write(
+                |w| {
+                    w.rxprd(0b1) // Receiver Preamble Detected
+                        .rxsfdd(0b1) // Receiver SFD Detected
+                        .ldedone(0b1) // LDE Processing Done
+                        .rxphd(0b1) // Receiver PHY Header Detected
+                        .rxphe(0b1) // Receiver PHY Header Error
+                        .rxdfr(0b1) // Receiver Data Frame Ready
+                        .rxfcg(0b1) // Receiver FCS Good
+                        .rxfce(0b1) // Receiver FCS Error
+                        .rxrfsl(0b1) // Receiver Reed Solomon Frame Sync Loss
+                        .rxrfto(0b1) // Receiver Frame Wait Timeout
+                        .ldeerr(0b1) // Leading Edge Detection Processing Error
+                        .rxovrr(0b1) // Receiver Overrun
+                        .rxpto(0b1) // Preamble Detection Timeout
+                        .rxsfdto(0b1) // Receiver SFD Timeout
+                        .rxrscs(0b1) // Receiver Reed-Solomon Correction Status
+                        .rxprej(0b1)
+                }, // Receiver Preamble Rejection
+            )?;
+
+            // Restore the mask
+            self.ll.sys_mask().write(|w| {
+                w.0.copy_from_slice(&saved_sys_mask);
+                w
+            })?;
+        }
 
         Ok(())
     }

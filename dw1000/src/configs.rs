@@ -24,6 +24,8 @@ pub struct TxConfig {
     pub channel: UwbChannel,
     /// The SFD sequence that is used to transmit a frame.
     pub sfd_sequence: SfdSequence,
+    /// When true, a CRC will be appended to the message
+    pub append_crc: bool,
 }
 
 impl Default for TxConfig {
@@ -35,6 +37,7 @@ impl Default for TxConfig {
             preamble_length: Default::default(),
             channel: Default::default(),
             sfd_sequence: Default::default(),
+            append_crc: true,
         }
     }
 }
@@ -63,6 +66,8 @@ pub struct RxConfig {
     pub channel: UwbChannel,
     /// The type of SFD sequence that will be scanned for.
     pub sfd_sequence: SfdSequence,
+    /// When true, a CRC will be expected to be appended to the message
+    pub append_crc: bool,
 }
 
 impl Default for RxConfig {
@@ -74,6 +79,7 @@ impl Default for RxConfig {
             expected_preamble_length: Default::default(),
             channel: Default::default(),
             sfd_sequence: Default::default(),
+            append_crc: true,
         }
     }
 }

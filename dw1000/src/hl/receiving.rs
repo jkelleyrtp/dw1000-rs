@@ -1,11 +1,16 @@
-use crate::{mac, time::Instant, Error, Ready, SingleBufferReceiving, DW1000};
+use crate::{
+    configs::{BitRate, SfdSequence},
+    mac,
+    time::Instant,
+    Error, Ready, RxConfig, DW1000,
+};
 use byte::BytesExt as _;
 use core::convert::TryInto;
 use embedded_hal::{blocking::spi, digital::v2::OutputPin};
 use fixed::traits::LossyInto;
 use ieee802154::mac::FooterMode;
 
-use super::Receiving;
+use super::{AutoDoubleBufferReceiving, Receiving};
 
 /// An incoming message
 #[derive(Debug)]
@@ -44,6 +49,176 @@ where
     CS: OutputPin,
     RECEIVING: Receiving,
 {
+    pub(super) fn start_receiving(&mut self, config: RxConfig) -> Result<(), Error<SPI, CS>> {
+        // For unknown reasons, the DW1000 gets stuck in RX mode without ever
+        // receiving anything, after receiving one good frame. Reset the
+        // receiver to make sure its in a valid state before attempting to
+        // receive anything.
+        self.ll.pmsc_ctrl0().modify(
+            |_, w| w.softreset(0b1110), // reset receiver
+        )?;
+        self.ll.pmsc_ctrl0().modify(
+            |_, w| w.softreset(0b1111), // clear reset
+        )?;
+
+        // We're already resetting the receiver in the previous step, and that's
+        // good enough to make my example program that's both sending and
+        // receiving work very reliably over many hours (that's not to say it
+        // becomes unreliable after those hours, that's just when my test
+        // stopped). However, I've seen problems with an example program that
+        // only received, never sent, data. That got itself into some weird
+        // state where it couldn't receive anymore.
+        // I suspect that's because that example didn't have the following line
+        // of code, while the send/receive example had that line of code, being
+        // called from `send`.
+        // While I haven't, as of this writing, run any hours-long tests to
+        // confirm this does indeed fix the receive-only example, it seems
+        // (based on my eyeball-only measurements) that the RX/TX example is
+        // dropping fewer frames now.
+        self.force_idle(false)?;
+
+        if config.frame_filtering {
+            self.ll.sys_cfg().modify(|_, w| {
+                w.ffen(0b1) // enable frame filtering
+                    .ffab(0b1) // receive beacon frames
+                    .ffad(0b1) // receive data frames
+                    .ffaa(0b1) // receive acknowledgement frames
+                    .ffam(0b1) // receive MAC command frames
+            })?;
+        } else {
+            self.ll.sys_cfg().modify(|_, w| w.ffen(0b0))?; // disable frame filtering
+        }
+
+        // Set PLLLDT bit in EC_CTRL. According to the documentation of the
+        // CLKPLL_LL bit in SYS_STATUS, this bit needs to be set to ensure the
+        // reliable operation of the CLKPLL_LL bit. Since I've seen that bit
+        // being set, I want to make sure I'm not just seeing crap.
+        self.ll.ec_ctrl().modify(|_, w| w.pllldt(0b1))?;
+
+        // Now that PLLLDT is set, clear all bits in SYS_STATUS that depend on
+        // it for reliable operation. After that is done, these bits should work
+        // reliably.
+        self.ll
+            .sys_status()
+            .write(|w| w.cplock(0b1).clkpll_ll(0b1))?;
+
+        // Apply the config
+        self.ll.chan_ctrl().modify(|_, w| {
+            w.tx_chan(config.channel as u8)
+                .rx_chan(config.channel as u8)
+                .dwsfd(
+                    (config.sfd_sequence == SfdSequence::Decawave
+                        || config.sfd_sequence == SfdSequence::DecawaveAlt)
+                        as u8,
+                )
+                .rxprf(config.pulse_repetition_frequency as u8)
+                .tnssfd(
+                    (config.sfd_sequence == SfdSequence::User
+                        || config.sfd_sequence == SfdSequence::DecawaveAlt)
+                        as u8,
+                )
+                .rnssfd(
+                    (config.sfd_sequence == SfdSequence::User
+                        || config.sfd_sequence == SfdSequence::DecawaveAlt)
+                        as u8,
+                )
+                .tx_pcode(
+                    config
+                        .channel
+                        .get_recommended_preamble_code(config.pulse_repetition_frequency),
+                )
+                .rx_pcode(
+                    config
+                        .channel
+                        .get_recommended_preamble_code(config.pulse_repetition_frequency),
+                )
+        })?;
+
+        match config.sfd_sequence {
+            SfdSequence::IEEE => {} // IEEE has predefined sfd lengths and the register has no effect.
+            SfdSequence::Decawave => self.ll.sfd_length().write(|w| w.value(8))?, // This isn't entirely necessary as the Decawave8 settings in chan_ctrl already force it to 8
+            SfdSequence::DecawaveAlt => self.ll.sfd_length().write(|w| w.value(16))?, // Set to 16
+            SfdSequence::User => {} // Users are responsible for setting the lengths themselves
+        }
+
+        // Set general tuning
+        self.ll.drx_tune0b().write(|w| {
+            w.value(
+                config
+                    .bitrate
+                    .get_recommended_drx_tune0b(config.sfd_sequence),
+            )
+        })?;
+        self.ll.drx_tune1a().write(|w| {
+            w.value(
+                config
+                    .pulse_repetition_frequency
+                    .get_recommended_drx_tune1a(),
+            )
+        })?;
+        let drx_tune1b = config
+            .expected_preamble_length
+            .get_recommended_drx_tune1b(config.bitrate)?;
+        self.ll.drx_tune1b().write(|w| w.value(drx_tune1b))?;
+        let drx_tune2 = config
+            .pulse_repetition_frequency
+            .get_recommended_drx_tune2(
+                config.expected_preamble_length.get_recommended_pac_size(),
+            )?;
+        self.ll.drx_tune2().write(|w| w.value(drx_tune2))?;
+        self.ll
+            .drx_tune4h()
+            .write(|w| w.value(config.expected_preamble_length.get_recommended_dxr_tune4h()))?;
+
+        // Set channel tuning
+        self.ll
+            .rf_rxctrlh()
+            .write(|w| w.value(config.channel.get_recommended_rf_rxctrlh()))?;
+        self.ll
+            .fs_pllcfg()
+            .write(|w| w.value(config.channel.get_recommended_fs_pllcfg()))?;
+        self.ll
+            .fs_plltune()
+            .write(|w| w.value(config.channel.get_recommended_fs_plltune()))?;
+
+        // Set the rx bitrate
+        self.ll
+            .sys_cfg()
+            .modify(|_, w| w.rxm110k((config.bitrate == BitRate::Kbps110) as u8))?;
+
+        // Set the LDE registers
+        self.ll
+            .lde_cfg2()
+            .write(|w| w.value(config.pulse_repetition_frequency.get_recommended_lde_cfg2()))?;
+        self.ll.lde_repc().write(|w| {
+            w.value(
+                config.channel.get_recommended_lde_repc_value(
+                    config.pulse_repetition_frequency,
+                    config.bitrate,
+                ),
+            )
+        })?;
+
+        // Set the double buffering and auto re-enable
+        self.ll.sys_cfg().modify(|_, w| {
+            w.dis_drxb(!RECEIVING::DOUBLE_BUFFERED as u8)
+                .rxautr(RECEIVING::AUTO_RX_REENABLE as u8)
+        })?;
+
+        // Check if the rx buffer pointer is correct
+        let status = self.ll.sys_status().read()?;
+        if status.hsrbp() != status.icrbp() {
+            // The RX Buffer Pointer of the host and the ic side don't point to the same one.
+            // We need to switch over
+            self.ll.sys_ctrl().modify(|_, w| w.hrbpt(1))?;
+        }
+
+        // Start receiving
+        self.ll.sys_ctrl().modify(|_, w| w.rxenab(0b1))?;
+
+        Ok(())
+    }
+
     /// Wait for receive operation to finish
     ///
     /// This method returns an `nb::Result` to indicate whether the transmission
@@ -123,32 +298,6 @@ where
         // are buggy, the following should never panic.
         let rx_time = unsafe { Instant::new_unchecked(rx_time) };
 
-        // Reset status bits. This is not strictly necessary, but it helps, if
-        // you have to inspect SYS_STATUS manually during debugging.
-        self.ll()
-            .sys_status()
-            .write(
-                |w| {
-                    w.rxprd(0b1) // Receiver Preamble Detected
-                        .rxsfdd(0b1) // Receiver SFD Detected
-                        .ldedone(0b1) // LDE Processing Done
-                        .rxphd(0b1) // Receiver PHY Header Detected
-                        .rxphe(0b1) // Receiver PHY Header Error
-                        .rxdfr(0b1) // Receiver Data Frame Ready
-                        .rxfcg(0b1) // Receiver FCS Good
-                        .rxfce(0b1) // Receiver FCS Error
-                        .rxrfsl(0b1) // Receiver Reed Solomon Frame Sync Loss
-                        .rxrfto(0b1) // Receiver Frame Wait Timeout
-                        .ldeerr(0b1) // Leading Edge Detection Processing Error
-                        .rxovrr(0b1) // Receiver Overrun
-                        .rxpto(0b1) // Preamble Detection Timeout
-                        .rxsfdto(0b1) // Receiver SFD Timeout
-                        .rxrscs(0b1) // Receiver Reed-Solomon Correction Status
-                        .rxprej(0b1)
-                }, // Receiver Preamble Rejection
-            )
-            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
-
         // Read received frame
         let rx_finfo = self
             .ll()
@@ -172,12 +321,71 @@ where
         buffer[..len].copy_from_slice(&rx_buffer.data()[..len]);
 
         let frame = buffer[..len]
-            .read_with(&mut 0, FooterMode::None)
+            .read_with(
+                &mut 0,
+                if self.state.get_rx_config().append_crc {
+                    FooterMode::Explicit
+                } else {
+                    FooterMode::None
+                },
+            )
             .map_err(|error| nb::Error::Other(Error::Frame(error)))?;
+
+        // Reset status bits. This is not strictly necessary in single buffered mode, but it helps, if
+        // you have to inspect SYS_STATUS manually during debugging.
+        self.clear_status()?;
+
+        if RECEIVING::DOUBLE_BUFFERED {
+            // Toggle to the other buffer. This will also signal the IC that the current buffer is free for use
+            self.ll
+                .sys_ctrl()
+                .modify(|_, w| w.hrbpt(1))
+                .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
+        }
 
         self.state.mark_finished();
 
         Ok(Message { rx_time, frame })
+    }
+
+    fn clear_status(&mut self) -> Result<(), Error<SPI, CS>> {
+        let mut saved_sys_mask = [0; 5];
+
+        if RECEIVING::DOUBLE_BUFFERED {
+            saved_sys_mask = self.ll.sys_mask().read()?.0;
+            // Mask all status bits to prevent spurious interrupts
+            self.ll.sys_mask().write(|w| w)?;
+        }
+
+        // Clear the bits
+        self.ll().sys_status().write(|w| {
+            w.rxprd(0b1) // Receiver Preamble Detected
+                .rxsfdd(0b1) // Receiver SFD Detected
+                .ldedone(0b1) // LDE Processing Done
+                .rxphd(0b1) // Receiver PHY Header Detected
+                .rxphe(0b1) // Receiver PHY Header Error
+                .rxdfr(0b1) // Receiver Data Frame Ready
+                .rxfcg(0b1) // Receiver FCS Good
+                .rxfce(0b1) // Receiver FCS Error
+                .rxrfsl(0b1) // Receiver Reed Solomon Frame Sync Loss
+                .rxrfto(0b1) // Receiver Frame Wait Timeout
+                .ldeerr(0b1) // Leading Edge Detection Processing Error
+                .rxovrr(0b1) // Receiver Overrun
+                .rxpto(0b1) // Preamble Detection Timeout
+                .rxsfdto(0b1) // Receiver SFD Timeout
+                .rxrscs(0b1) // Receiver Reed-Solomon Correction Status
+                .rxprej(0b1) // Receiver Preamble Rejection
+        })?;
+
+        if RECEIVING::DOUBLE_BUFFERED {
+            // Restore the mask
+            self.ll.sys_mask().write(|w| {
+                w.0.copy_from_slice(&saved_sys_mask);
+                w
+            })?;
+        }
+
+        Ok(())
     }
 
     fn calculate_luep(&mut self) -> Result<f32, Error<SPI, CS>> {
@@ -302,7 +510,7 @@ where
     ///
     /// This must be called after the [`DW1000::wait`] function has successfully returned.
     pub fn read_rx_quality(&mut self) -> Result<RxQuality, Error<SPI, CS>> {
-        assert!(self.state.is_finished(), "The function 'wait' must have successfully returned before");
+        assert!(self.state.is_finished(), "The function 'wait' must have successfully returned before this function can be called");
 
         let luep = self.calculate_luep()?;
         let prnlos = self.calculate_prnlos()?;
@@ -331,7 +539,7 @@ where
     /// In the manual, the return values are named (N, T1, RX_RAWST)
     /// This is left to the user so the precision of the calculations are left to the user to decide.
     pub fn read_external_sync_time(&mut self) -> Result<(u32, u8, u64), Error<SPI, CS>> {
-        assert!(self.state.is_finished(), "The function 'wait' must have successfully returned before");
+        assert!(self.state.is_finished(), "The function 'wait' must have successfully returned before this function can be called");
 
         let cycles_since_sync = self.ll().ec_rxtc().read()?.rx_ts_est();
         let nanos_until_tick = self.ll().ec_golp().read()?.offset_ext();
@@ -348,7 +556,7 @@ where
         if !self.state.is_finished() {
             // Can't use `map_err` and `?` here, as the compiler will complain
             // about `self` moving into the closure.
-            match self.force_idle() {
+            match self.force_idle(RECEIVING::DOUBLE_BUFFERED) {
                 Ok(()) => (),
                 Err(error) => return Err((self, error)),
             }
@@ -359,5 +567,25 @@ where
             seq: self.seq,
             state: Ready,
         })
+    }
+}
+
+impl<SPI, CS> DW1000<SPI, CS, AutoDoubleBufferReceiving>
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    CS: OutputPin,
+{
+    /// Try to continue receiving
+    pub fn continue_receiving(
+        self,
+    ) -> Result<
+        DW1000<SPI, CS, AutoDoubleBufferReceiving>,
+        Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)>,
+    > {
+        if !self.state.is_finished() {
+            Err(self.finish_receiving())
+        } else {
+            Ok(self)
+        }
     }
 }

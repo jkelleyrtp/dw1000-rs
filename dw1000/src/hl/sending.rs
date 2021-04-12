@@ -87,7 +87,7 @@ where
         if !self.state.finished {
             // Can't use `map_err` and `?` here, as the compiler will complain
             // about `self` moving into the closure.
-            match self.force_idle() {
+            match self.force_idle(false) {
                 Ok(()) => (),
                 Err(error) => return Err((self, error)),
             }
