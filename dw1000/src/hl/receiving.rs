@@ -50,6 +50,14 @@ where
     RECEIVING: Receiving,
 {
     pub(super) fn start_receiving(&mut self, config: RxConfig) -> Result<(), Error<SPI, CS>> {
+        // Really weird thing about double buffering I can't find anything about.
+        // When a message is received in double buffer mode that should be filtered out,
+        // the radio gives a really short fake interrupt.
+        // This messes up all the logic, so unless a solution can be found we simply don't support it.
+        if RECEIVING::DOUBLE_BUFFERED && config.frame_filtering {
+            return Err(Error::RxConfigFrameFilteringUnsupported);
+        }
+
         // For unknown reasons, the DW1000 gets stuck in RX mode without ever
         // receiving anything, after receiving one good frame. Reset the
         // receiver to make sure its in a valid state before attempting to
@@ -77,17 +85,18 @@ where
         // dropping fewer frames now.
         self.force_idle(false)?;
 
-        if config.frame_filtering {
-            self.ll.sys_cfg().modify(|_, w| {
-                w.ffen(0b1) // enable frame filtering
-                    .ffab(0b1) // receive beacon frames
-                    .ffad(0b1) // receive data frames
-                    .ffaa(0b1) // receive acknowledgement frames
-                    .ffam(0b1) // receive MAC command frames
-            })?;
-        } else {
-            self.ll.sys_cfg().modify(|_, w| w.ffen(0b0))?; // disable frame filtering
-        }
+        self.ll.sys_cfg().modify(|_, w| {
+            w.ffen(config.frame_filtering as u8) // enable or disable frame filtering
+                .ffab(0b1) // receive beacon frames
+                .ffad(0b1) // receive data frames
+                .ffaa(0b1) // receive acknowledgement frames
+                .ffam(0b1) // receive MAC command frames
+                // Set the double buffering and auto re-enable
+                .dis_drxb(!RECEIVING::DOUBLE_BUFFERED as u8)
+                .rxautr(RECEIVING::AUTO_RX_REENABLE as u8)
+                // Set whether the receiver should look for 110kbps or 850/6800kbps messages
+                .rxm110k((config.bitrate == BitRate::Kbps110) as u8)
+        })?;
 
         // Set PLLLDT bit in EC_CTRL. According to the documentation of the
         // CLKPLL_LL bit in SYS_STATUS, this bit needs to be set to ensure the
@@ -181,11 +190,6 @@ where
             .fs_plltune()
             .write(|w| w.value(config.channel.get_recommended_fs_plltune()))?;
 
-        // Set the rx bitrate
-        self.ll
-            .sys_cfg()
-            .modify(|_, w| w.rxm110k((config.bitrate == BitRate::Kbps110) as u8))?;
-
         // Set the LDE registers
         self.ll
             .lde_cfg2()
@@ -197,12 +201,6 @@ where
                     config.bitrate,
                 ),
             )
-        })?;
-
-        // Set the double buffering and auto re-enable
-        self.ll.sys_cfg().modify(|_, w| {
-            w.dis_drxb(!RECEIVING::DOUBLE_BUFFERED as u8)
-                .rxautr(RECEIVING::AUTO_RX_REENABLE as u8)
         })?;
 
         // Check if the rx buffer pointer is correct
@@ -349,40 +347,45 @@ where
     }
 
     fn clear_status(&mut self) -> Result<(), Error<SPI, CS>> {
-        let mut saved_sys_mask = [0; 5];
+        let do_clear = |ll: &mut crate::ll::DW1000<SPI, CS>| {
+            ll.sys_status().write(|w| {
+                w.rxprd(0b1) // Receiver Preamble Detected
+                    .rxsfdd(0b1) // Receiver SFD Detected
+                    .ldedone(0b1) // LDE Processing Done
+                    .rxphd(0b1) // Receiver PHY Header Detected
+                    .rxphe(0b1) // Receiver PHY Header Error
+                    .rxdfr(0b1) // Receiver Data Frame Ready
+                    .rxfcg(0b1) // Receiver FCS Good
+                    .rxfce(0b1) // Receiver FCS Error
+                    .rxrfsl(0b1) // Receiver Reed Solomon Frame Sync Loss
+                    .rxrfto(0b1) // Receiver Frame Wait Timeout
+                    .ldeerr(0b1) // Leading Edge Detection Processing Error
+                    .rxovrr(0b1) // Receiver Overrun
+                    .rxpto(0b1) // Preamble Detection Timeout
+                    .rxsfdto(0b1) // Receiver SFD Timeout
+                    .rxrscs(0b1) // Receiver Reed-Solomon Correction Status
+                    .rxprej(0b1) // Receiver Preamble Rejection
+            })
+        };
 
         if RECEIVING::DOUBLE_BUFFERED {
-            saved_sys_mask = self.ll.sys_mask().read()?.0;
-            // Mask all status bits to prevent spurious interrupts
-            self.ll.sys_mask().write(|w| w)?;
-        }
+            let status = self.ll.sys_status().read()?;
 
-        // Clear the bits
-        self.ll().sys_status().write(|w| {
-            w.rxprd(0b1) // Receiver Preamble Detected
-                .rxsfdd(0b1) // Receiver SFD Detected
-                .ldedone(0b1) // LDE Processing Done
-                .rxphd(0b1) // Receiver PHY Header Detected
-                .rxphe(0b1) // Receiver PHY Header Error
-                .rxdfr(0b1) // Receiver Data Frame Ready
-                .rxfcg(0b1) // Receiver FCS Good
-                .rxfce(0b1) // Receiver FCS Error
-                .rxrfsl(0b1) // Receiver Reed Solomon Frame Sync Loss
-                .rxrfto(0b1) // Receiver Frame Wait Timeout
-                .ldeerr(0b1) // Leading Edge Detection Processing Error
-                .rxovrr(0b1) // Receiver Overrun
-                .rxpto(0b1) // Preamble Detection Timeout
-                .rxsfdto(0b1) // Receiver SFD Timeout
-                .rxrscs(0b1) // Receiver Reed-Solomon Correction Status
-                .rxprej(0b1) // Receiver Preamble Rejection
-        })?;
+            if status.hsrbp() == status.icrbp() {
+                let saved_sys_mask = self.ll.sys_mask().read()?.0;
+                // Mask all status bits to prevent spurious interrupts
+                self.ll.sys_mask().write(|w| w)?;
 
-        if RECEIVING::DOUBLE_BUFFERED {
-            // Restore the mask
-            self.ll.sys_mask().write(|w| {
-                w.0.copy_from_slice(&saved_sys_mask);
-                w
-            })?;
+                do_clear(self.ll())?;
+
+                // Restore the mask
+                self.ll.sys_mask().write(|w| {
+                    w.0.copy_from_slice(&saved_sys_mask);
+                    w
+                })?;
+            }
+        } else {
+            do_clear(self.ll())?;
         }
 
         Ok(())

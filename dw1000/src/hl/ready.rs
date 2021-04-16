@@ -32,6 +32,14 @@ pub enum SendTime {
     OnSync,
 }
 
+/// The polarity of the irq signal
+pub enum IrqPolarity {
+    /// The signal will be high when the interrupt is active
+    ActiveHigh = 1,
+    /// The signal will be low when the interrupt is active
+    ActiveLow = 0,
+}
+
 impl<SPI, CS> DW1000<SPI, CS, Ready>
 where
     SPI: spi::Transfer<u8> + spi::Write<u8>,
@@ -102,6 +110,16 @@ where
             }
         }
 
+        Ok(())
+    }
+
+    /// Set the polarity of the interrupt pin.
+    ///
+    /// The default is ActiveHigh, which is also recommended for power savings.
+    pub fn set_irq_polarity(&mut self, polarity: IrqPolarity) -> Result<(), Error<SPI, CS>> {
+        self.ll
+            .sys_cfg()
+            .modify(|_, w| w.hirq_pol(polarity as u8))?;
         Ok(())
     }
 
@@ -369,16 +387,15 @@ where
     /// Overwrites any interrupt flags that were previously set.
     pub fn enable_rx_interrupts(&mut self) -> Result<(), Error<SPI, CS>> {
         self.ll().sys_mask().modify(|_, w| {
-            w.mrxdfr(0b1)
-                .mrxfce(0b1)
-                .mrxphe(0b1)
-                .mrxrfsl(0b1)
-                .mrxrfto(0b1)
-                .mrxovrr(0b1)
-                .mrxpto(0b1)
-                .mrxsfdto(0b1)
-                .maffrej(0b1)
-                .mldedone(0b1)
+            w.mrxdfr(0b1) // Data Frame Ready
+                .mrxfce(0b1) // FCS Error
+                .mrxphe(0b1) // PHY Header Error
+                .mrxrfsl(0b1) // Reed Solomon Frame Sync Loss
+                .mrxrfto(0b1) // Receive Frame Wait Timeout
+                .mrxovrr(0b1) // Overrun
+                .mrxpto(0b1) // Preamble detection timeout
+                .mrxsfdto(0b1) // SFD Timeout
+                .maffrej(0b1) // Automatic Frame Filter Rejection
         })?;
 
         Ok(())

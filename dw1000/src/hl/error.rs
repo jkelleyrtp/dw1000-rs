@@ -77,6 +77,10 @@ where
 
     /// The RSSI was not calculable.
     BadRssiCalculation,
+
+    /// There are issues with frame filtering in double buffer mode.
+    /// So it's not supported now.
+    RxConfigFrameFilteringUnsupported,
 }
 
 impl<SPI, CS> From<ll::Error<SPI, CS>> for Error<SPI, CS>
@@ -131,6 +135,9 @@ where
             Error::RxNotFinished => write!(f, "RxNotFinished"),
             Error::StillAsleep => write!(f, "StillAsleep"),
             Error::BadRssiCalculation => write!(f, "BadRssiCalculation"),
+            Error::RxConfigFrameFilteringUnsupported => {
+                write!(f, "RxConfigFrameFilteringUnsupported")
+            }
         }
     }
 }
