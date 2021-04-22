@@ -19,15 +19,6 @@ where
         }
     }
 
-    /// Set the chip select delay.
-    ///
-    /// This is the amount of times the cs pin will be set low before any data is transfered.
-    /// This way, the chip can be used on fast mcu's just fine.
-    pub fn with_cs_delay(mut self, delay: u8) -> Self {
-        self.ll.set_chip_select_delay(delay);
-        self
-    }
-
     /// Initialize the DW1000
     ///
     /// The DW1000's default configuration is somewhat inconsistent, and the

@@ -27,7 +27,6 @@ use embedded_hal::{blocking::spi, digital::v2::OutputPin};
 pub struct DW1000<SPI, CS> {
     spi: SPI,
     chip_select: CS,
-    chip_select_delay: u8,
 }
 
 impl<SPI, CS> DW1000<SPI, CS> {
@@ -39,16 +38,7 @@ impl<SPI, CS> DW1000<SPI, CS> {
         DW1000 {
             spi,
             chip_select,
-            chip_select_delay: 0,
         }
-    }
-
-    /// Set the chip select delay.
-    ///
-    /// This is the amount of times the cs pin will be set low before any data is transfered.
-    /// This way, the chip can be used on fast mcu's just fine.
-    pub fn set_chip_select_delay(&mut self, delay: u8) {
-        self.chip_select_delay = delay;
     }
 
     fn block_read(
@@ -123,12 +113,9 @@ impl<SPI, CS> DW1000<SPI, CS> {
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         CS: OutputPin,
     {
-        for _ in 0..=self.chip_select_delay {
-            self.chip_select
-                .set_low()
-                .map_err(|err| Error::ChipSelect(err))?;
-        }
-
+        self.chip_select
+            .set_low()
+            .map_err(|err| Error::ChipSelect(err))?;
         Ok(())
     }
 
