@@ -499,12 +499,13 @@ where
                 .modify(|_, w| w.mslp2init(1).mcplock(1))?;
         }
 
-        let lldo = self.is_ldo_tune_calibrated()?.0 as u8;
+        // Does the chip have the ldo tune calibrated?
+        let lldo = self.read_otp(0x004)? != 0;
 
         // Setup everything that needs to be stored in AON
         self.ll
             .aon_wcfg()
-            .modify(|_, w| w.onw_ldc(1).onw_llde(1).onw_lldo(lldo).onw_l64p(1))?;
+            .modify(|_, w| w.onw_ldc(1).onw_llde(1).onw_lldo(lldo as u8).onw_l64p(1))?;
 
         // Setup the wakeup sources.
         self.ll.aon_cfg0().modify(|_, w| {

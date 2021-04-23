@@ -1,6 +1,9 @@
 use crate::{ll, Error, Ready, Uninitialized, DW1000};
 use core::num::Wrapping;
-use embedded_hal::{blocking::spi, digital::v2::OutputPin};
+use embedded_hal::{
+    blocking::{delay::DelayMs, spi},
+    digital::v2::OutputPin,
+};
 
 impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
 where
@@ -29,7 +32,10 @@ where
     /// Please note that this method assumes that you kept the default
     /// configuration. It is generally recommended not to change configuration
     /// before calling this method.
-    pub fn init(mut self) -> Result<DW1000<SPI, CS, Ready>, Error<SPI, CS>> {
+    pub fn init<D: DelayMs<u8>>(
+        mut self,
+        delay: &mut D,
+    ) -> Result<DW1000<SPI, CS, Ready>, Error<SPI, CS>> {
         // Set AGC_TUNE1. See user manual, section 2.5.5.1.
         self.ll.agc_tune1().write(|w| w.value(0x8870))?;
 
@@ -61,29 +67,23 @@ where
         // Set FS_PLLTUNE. See user manual, section 2.5.5.9.
         self.ll.fs_plltune().write(|w| w.value(0xBE))?;
 
+        // Set LDOTUNE. See user manual, section 2.5.5.11.
+        let ldotune_low = self.read_otp(0x004)?;
+        if ldotune_low != 0 {
+            let ldotune_high = self.read_otp(0x005)?;
+            let ldotune = ldotune_low as u64 | (ldotune_high as u64) << 32;
+            self.ll.ldotune().write(|w| w.value(ldotune))?;
+        }
+
         // Set LDELOAD. See user manual, section 2.5.5.10.
         self.ll
             .pmsc_ctrl0()
             .modify(|r, w| w.raw_value(r.raw_value() | 0x0301))?;
         self.ll.otp_ctrl().write(|w| w.ldeload(0b1))?;
-        while self.ll.otp_ctrl().read()?.ldeload() == 0b1 {}
+        delay.delay_ms(5);
         self.ll
             .pmsc_ctrl0()
             .modify(|r, w| w.raw_value(r.raw_value() & !0x0101))?;
-
-        // Set LDOTUNE. See user manual, section 2.5.5.11.
-        let (calibrated, ldotune_low) = self.is_ldo_tune_calibrated()?;
-        if calibrated {
-            self.ll.otp_addr().write(|w| w.value(0x005))?;
-            self.ll
-                .otp_ctrl()
-                .modify(|_, w| w.otprden(0b1).otpread(0b1))?;
-            while self.ll.otp_ctrl().read()?.otpread() == 0b1 {}
-            let ldotune_high = self.ll.otp_rdat().read()?.value();
-
-            let ldotune = ldotune_low as u64 | (ldotune_high as u64) << 32;
-            self.ll.ldotune().write(|w| w.value(ldotune))?;
-        }
 
         Ok(DW1000 {
             ll: self.ll,

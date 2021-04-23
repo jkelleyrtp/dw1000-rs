@@ -411,11 +411,10 @@ where
         // From the integer part of the first path position, pathPosition,
         // form an analysis window of 16 samples back tracked from that index.
         const WINDOW_SIZE: usize = 16;
-        let window_start = path_position as u16 - WINDOW_SIZE as u16;
+        let window_start = (path_position as u16).saturating_sub(WINDOW_SIZE as u16);
 
-        let mut cir_buffer = [0u8; WINDOW_SIZE * 4 + 1];
-        self.ll.cir(window_start * 4, &mut cir_buffer)?;
-        let cir = &cir_buffer[1..];
+        let mut cir_buffer = [0u8; WINDOW_SIZE * 4 + 4];
+        let cir = self.ll.cir(window_start * 4, &mut cir_buffer)?;
 
         // To determine the number of peaks in the newly formed analysis window we take the difference of consecutive values.
         // We identify a peak when these differences change from positive to negative.

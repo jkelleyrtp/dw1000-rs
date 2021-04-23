@@ -35,55 +35,57 @@ impl<SPI, CS> DW1000<SPI, CS> {
     /// Requires the SPI peripheral and the chip select pin that are connected
     /// to the DW1000.
     pub fn new(spi: SPI, chip_select: CS) -> Self {
-        DW1000 {
-            spi,
-            chip_select,
-        }
+        DW1000 { spi, chip_select }
     }
 
-    fn block_read(
+    /// Read a whole block of data
+    ///
+    /// The buffer must have the first 3 bytes free so the protocol header can be put there.
+    /// The rest of the buffer will contain the actual data.
+    ///
+    /// The result contains the slice of the buffer that contains the actual data.
+    fn block_read<'a>(
         &mut self,
         id: u8,
         start_sub_id: u16,
-        buffer: &mut [u8],
-    ) -> Result<(), Error<SPI, CS>>
+        buffer: &'a mut [u8],
+    ) -> Result<&'a mut [u8], Error<SPI, CS>>
     where
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         CS: OutputPin,
     {
         // Make it simple and use the 3 byte header
-        let header_buffer = [
-            (((start_sub_id as u8) << 6) & 0x40) | (id & 0x3f),
-            0x80 | (start_sub_id & 0x7F) as u8,
-            ((start_sub_id & 0x7f80) >> 7) as u8,
-        ];
+        buffer[0] = (((start_sub_id as u8) << 6) & 0x40) | (id & 0x3f);
+        buffer[1] = 0x80 | (start_sub_id & 0x7F) as u8;
+        buffer[2] = ((start_sub_id & 0x7f80) >> 7) as u8;
 
         self.assert_cs_low()?;
-        // Send the header
-        self.spi
-            .write(&header_buffer)
-            .map_err(|err| Error::Write(err))?;
         // Read the data
         self.spi
             .transfer(buffer)
             .map_err(|err| Error::Transfer(err))?;
-        self.assert_cs_low()?;
         self.assert_cs_high()?;
 
-        Ok(())
+        Ok(&mut buffer[3..])
     }
 
     /// Reads the CIR accumulator.
     ///
     /// Starts reading from the start_index and puts all results in the buffer.
+    /// A slice with the CIR data is returned
     ///
-    /// *NOTE: The first byte in the buffer will be a dummy byte that shouldn't be used.*
-    pub fn cir(&mut self, start_index: u16, buffer: &mut [u8]) -> Result<(), Error<SPI, CS>>
+    /// *NOTE: The buffer passed in must be 4 bytes bigger than the cir buffer slice you want to get back due to protocol*
+    pub fn cir<'a>(
+        &mut self,
+        start_index: u16,
+        buffer: &'a mut [u8],
+    ) -> Result<&'a mut [u8], Error<SPI, CS>>
     where
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         CS: OutputPin,
     {
-        self.block_read(0x25, start_index, buffer)
+        let block = self.block_read(0x25, start_index, buffer)?;
+        Ok(&mut block[1..])
     }
 
     /// Allows for an access to the spi type.
@@ -159,7 +161,6 @@ where
             .spi
             .transfer(buffer)
             .map_err(|err| Error::Transfer(err))?;
-        self.0.assert_cs_low()?;
         self.0.assert_cs_high()?;
 
         Ok(r)
@@ -179,7 +180,6 @@ where
 
         self.0.assert_cs_low()?;
         <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer).map_err(|err| Error::Write(err))?;
-        self.0.assert_cs_low()?;
         self.0.assert_cs_high()?;
 
         Ok(())
@@ -203,7 +203,6 @@ where
 
         self.0.assert_cs_low()?;
         <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer).map_err(|err| Error::Write(err))?;
-        self.0.assert_cs_low()?;
         self.0.assert_cs_high()?;
 
         Ok(())

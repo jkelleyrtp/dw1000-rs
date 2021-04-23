@@ -112,16 +112,16 @@ where
         Ok(())
     }
 
-    /// Checks whether the ldo tune is calibrated.
-    ///
-    /// The bool in the tuple is the answer and the int is the raw ldotune_low value.
-    pub(super) fn is_ldo_tune_calibrated(&mut self) -> Result<(bool, u32), Error<SPI, CS>> {
-        self.ll.otp_addr().write(|w| w.value(0x004))?;
-        self.ll
-            .otp_ctrl()
-            .modify(|_, w| w.otprden(0b1).otpread(0b1))?;
-        while self.ll.otp_ctrl().read()?.otpread() == 0b1 {}
-        let ldotune_low = self.ll.otp_rdat().read()?.value();
-        Ok((ldotune_low != 0, ldotune_low))
+    pub(crate) fn read_otp(&mut self, address: u16) -> Result<u32, Error<SPI, CS>> {
+        // Set address
+        self.ll.otp_addr().write(|w| w.value(address))?;
+        // Switch into read mode
+        self.ll.otp_ctrl().write(|w| w.otprden(0b1).otpread(0b1))?;
+        self.ll.otp_ctrl().write(|w| w.otprden(0b1))?;
+        // Read back value
+        let value = self.ll.otp_rdat().read()?.value();
+        // End read mode
+        self.ll.otp_ctrl().write(|w| w)?;
+        Ok(value)
     }
 }
