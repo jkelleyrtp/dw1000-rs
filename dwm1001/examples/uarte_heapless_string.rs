@@ -23,7 +23,7 @@ fn main() -> ! {
 
     let mut timer = Timer::new(dwm1001.TIMER0);
 
-    let mut s: HString<heapless::consts::U64> = HString::new();
+    let mut s: HString<64> = HString::new();
     s.push_str("halp plz ")
         .expect("Failed to push to string");
     let original_len = s.len();
