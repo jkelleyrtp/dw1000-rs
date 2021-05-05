@@ -42,7 +42,7 @@ use dwm1001::{
 fn main() -> ! {
     debug::init();
 
-    let mut known_nodes = FnvIndexSet::<_, heapless::consts::U64>::new();
+    let mut known_nodes = FnvIndexSet::<_, 64>::new();
 
     let mut dwm1001 = DWM1001::take().unwrap();
 
