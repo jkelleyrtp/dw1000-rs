@@ -55,7 +55,7 @@ fn main() -> ! {
     let mut rng    = Rng::new(dwm1001.RNG);
 
     dwm1001.DW_RST.reset_dw1000(&mut delay);
-    let mut dw1000 = dwm1001.DW1000.init()
+    let mut dw1000 = dwm1001.DW1000.init(&mut delay)
         .expect("Failed to initialize DW1000");
 
     dw1000.enable_tx_interrupts()
