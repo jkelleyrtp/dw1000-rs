@@ -21,33 +21,22 @@
 //! [usage examples]: https://github.com/braun-robotics/rust-dwm1001/tree/master/examples
 //! [`embedded-hal`]: https://crates.io/crates/embedded-hal
 
-
 #![no_std]
-
 #![deny(missing_docs)]
 
-
-pub mod ll;
+pub mod configs;
 pub mod hl;
+pub mod ll;
+pub mod range_bias;
 pub mod ranging;
 pub mod time;
-pub mod configs;
-
 
 #[doc(no_inline)]
 pub use ieee802154::mac;
 
 pub use crate::hl::{
-    DW1000,
-    Error,
-    Message,
-    Ready,
-    Receiving,
-    Sending,
-    Uninitialized,
+    AutoDoubleBufferReceiving, Error, Message, Ready, Sending, SingleBufferReceiving, Sleeping,
+    Uninitialized, DW1000,
 };
 
-pub use crate::configs::{
-    TxConfig,
-    RxConfig
-};
+pub use crate::configs::{RxConfig, TxConfig};

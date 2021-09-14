@@ -37,7 +37,7 @@ fn main() -> ! {
     let mut delay  = Delay::new(dwm1001.SYST);
 
     dwm1001.DW_RST.reset_dw1000(&mut delay);
-    let mut dw1000 = dwm1001.DW1000.init()
+    let mut dw1000 = dwm1001.DW1000.init(&mut delay)
         .expect("Failed to initialize DW1000");
 
     // Configure timer

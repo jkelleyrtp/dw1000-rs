@@ -15,17 +15,9 @@
 //! [high-level interface]: ../hl/index.html
 //! [filing an issue]: https://github.com/braun-robotics/rust-dw1000/issues/new
 
+use core::{fmt, marker::PhantomData};
 
-use core::{
-    fmt,
-    marker::PhantomData,
-};
-
-use embedded_hal::{
-    blocking::spi,
-    digital::v2::OutputPin,
-};
-
+use embedded_hal::{blocking::spi, digital::v2::OutputPin};
 
 /// Entry point to the DW1000 driver's low-level API
 ///
@@ -33,7 +25,7 @@ use embedded_hal::{
 ///
 /// [hl::DW1000]: ../hl/struct.DW1000.html
 pub struct DW1000<SPI, CS> {
-    spi        : SPI,
+    spi: SPI,
     chip_select: CS,
 }
 
@@ -43,13 +35,105 @@ impl<SPI, CS> DW1000<SPI, CS> {
     /// Requires the SPI peripheral and the chip select pin that are connected
     /// to the DW1000.
     pub fn new(spi: SPI, chip_select: CS) -> Self {
-        DW1000 {
-            spi,
-            chip_select,
+        DW1000 { spi, chip_select }
+    }
+
+    /// Read a whole block of data
+    ///
+    /// The buffer must have the first 3 bytes free so the protocol header can be put there.
+    /// The rest of the buffer will contain the actual data.
+    ///
+    /// The result contains the slice of the buffer that contains the actual data.
+    fn block_read<'a>(
+        &mut self,
+        id: u8,
+        start_sub_id: u16,
+        buffer: &'a mut [u8],
+    ) -> Result<&'a mut [u8], Error<SPI, CS>>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
+    {
+        // Make it simple and use the 3 byte header
+        buffer[0] = (((start_sub_id as u8) << 6) & 0x40) | (id & 0x3f);
+        buffer[1] = 0x80 | (start_sub_id & 0x7F) as u8;
+        buffer[2] = ((start_sub_id & 0x7f80) >> 7) as u8;
+
+        self.assert_cs_low()?;
+        // Read the data
+        self.spi
+            .transfer(buffer)
+            .map_err(|err| Error::Transfer(err))?;
+        self.assert_cs_high()?;
+
+        Ok(&mut buffer[3..])
+    }
+
+    /// Reads the CIR accumulator.
+    ///
+    /// Starts reading from the start_index and puts all results in the buffer.
+    /// A slice with the CIR data is returned
+    ///
+    /// *NOTE: The buffer passed in must be 4 bytes bigger than the cir buffer slice you want to get back due to protocol*
+    pub fn cir<'a>(
+        &mut self,
+        start_index: u16,
+        buffer: &'a mut [u8],
+    ) -> Result<&'a mut [u8], Error<SPI, CS>>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
+    {
+        let block = self.block_read(0x25, start_index, buffer)?;
+        Ok(&mut block[1..])
+    }
+
+    /// Allows for an access to the spi type.
+    /// This can be used to change the speed.
+    ///
+    /// In closure you get ownership of the SPI
+    /// so you can destruct it and build it up again if necessary.
+    pub fn access_spi<F>(&mut self, f: F)
+    where
+        F: FnOnce(SPI) -> SPI,
+    {
+        // This is unsafe because we create a zeroed spi.
+        // Its safety is guaranteed, though, because the zeroed spi is never used.
+        unsafe {
+            // Create a zeroed spi.
+            let spi = core::mem::zeroed();
+            // Get the spi in the struct.
+            let spi = core::mem::replace(&mut self.spi, spi);
+            // Give the spi to the closure and put the result back into the struct.
+            self.spi = f(spi);
         }
     }
-}
 
+    /// Internal function for pulling the cs low. Used for sleep wakeup.
+    pub(crate) fn assert_cs_low(&mut self) -> Result<(), Error<SPI, CS>>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
+    {
+        self.chip_select
+            .set_low()
+            .map_err(|err| Error::ChipSelect(err))?;
+        Ok(())
+    }
+
+    /// Internal function for pulling the cs high. Used for sleep wakeup.
+    pub(crate) fn assert_cs_high(&mut self) -> Result<(), Error<SPI, CS>>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
+    {
+        self.chip_select
+            .set_high()
+            .map_err(|err| Error::ChipSelect(err))?;
+
+        Ok(())
+    }
+}
 
 /// Provides access to a register
 ///
@@ -58,37 +142,35 @@ impl<SPI, CS> DW1000<SPI, CS> {
 pub struct RegAccessor<'s, R, SPI, CS>(&'s mut DW1000<SPI, CS>, PhantomData<R>);
 
 impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    CS: OutputPin,
 {
     /// Read from the register
-    pub fn read(&mut self)
-        -> Result<R::Read, Error<SPI, CS>>
-        where
-            R: Register + Readable,
+    pub fn read(&mut self) -> Result<R::Read, Error<SPI, CS>>
+    where
+        R: Register + Readable,
     {
-        let mut r      = R::read();
+        let mut r = R::read();
         let mut buffer = R::buffer(&mut r);
 
         init_header::<R>(false, &mut buffer);
 
-        self.0.chip_select.set_low()
-            .map_err(|err| Error::ChipSelect(err))?;
-        self.0.spi.transfer(buffer)
+        self.0.assert_cs_low()?;
+        self.0
+            .spi
+            .transfer(buffer)
             .map_err(|err| Error::Transfer(err))?;
-        self.0.chip_select.set_high()
-            .map_err(|err| Error::ChipSelect(err))?;
+        self.0.assert_cs_high()?;
 
         Ok(r)
     }
 
     /// Write to the register
-    pub fn write<F>(&mut self, f: F)
-        -> Result<(), Error<SPI, CS>>
-        where
-            R: Register + Writable,
-            F: FnOnce(&mut R::Write) -> &mut R::Write,
+    pub fn write<F>(&mut self, f: F) -> Result<(), Error<SPI, CS>>
+    where
+        R: Register + Writable,
+        F: FnOnce(&mut R::Write) -> &mut R::Write,
     {
         let mut w = R::write();
         f(&mut w);
@@ -96,52 +178,42 @@ impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
         let buffer = R::buffer(&mut w);
         init_header::<R>(true, buffer);
 
-        self.0.chip_select.set_low()
-            .map_err(|err| Error::ChipSelect(err))?;
-        <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
-            .map_err(|err| Error::Write(err))?;
-        self.0.chip_select.set_high()
-            .map_err(|err| Error::ChipSelect(err))?;
+        self.0.assert_cs_low()?;
+        <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer).map_err(|err| Error::Write(err))?;
+        self.0.assert_cs_high()?;
 
         Ok(())
     }
 
     /// Modify the register
-    pub fn modify<F>(&mut self, f: F)
-        -> Result<(), Error<SPI, CS>>
-        where
-            R: Register + Readable + Writable,
-            F: for<'r>
-                FnOnce(&mut R::Read, &'r mut R::Write) -> &'r mut R::Write,
+    pub fn modify<F>(&mut self, f: F) -> Result<(), Error<SPI, CS>>
+    where
+        R: Register + Readable + Writable,
+        F: for<'r> FnOnce(&mut R::Read, &'r mut R::Write) -> &'r mut R::Write,
     {
         let mut r = self.read()?;
         let mut w = R::write();
 
-        <R as Writable>::buffer(&mut w)
-            .copy_from_slice(<R as Readable>::buffer(&mut r));
+        <R as Writable>::buffer(&mut w).copy_from_slice(<R as Readable>::buffer(&mut r));
 
         f(&mut r, &mut w);
 
         let buffer = <R as Writable>::buffer(&mut w);
         init_header::<R>(true, buffer);
 
-        self.0.chip_select.set_low()
-            .map_err(|err| Error::ChipSelect(err))?;
-        <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer)
-            .map_err(|err| Error::Write(err))?;
-        self.0.chip_select.set_high()
-            .map_err(|err| Error::ChipSelect(err))?;
+        self.0.assert_cs_low()?;
+        <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer).map_err(|err| Error::Write(err))?;
+        self.0.assert_cs_high()?;
 
         Ok(())
     }
 }
 
-
 /// An SPI error that can occur when communicating with the DW1000
 pub enum Error<SPI, CS>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS:  OutputPin,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    CS: OutputPin,
 {
     /// SPI error occured during a transfer transaction
     Transfer(<SPI as spi::Transfer<u8>>::Error),
@@ -156,22 +228,21 @@ pub enum Error<SPI, CS>
 // We can't derive this implementation, as the compiler will complain that the
 // associated error type doesn't implement `Debug`.
 impl<SPI, CS> fmt::Debug for Error<SPI, CS>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        <SPI as spi::Transfer<u8>>::Error: fmt::Debug,
-        <SPI as spi::Write<u8>>::Error: fmt::Debug,
-        CS: OutputPin,
-        <CS as OutputPin>::Error: fmt::Debug,
+where
+    SPI: spi::Transfer<u8> + spi::Write<u8>,
+    <SPI as spi::Transfer<u8>>::Error: fmt::Debug,
+    <SPI as spi::Write<u8>>::Error: fmt::Debug,
+    CS: OutputPin,
+    <CS as OutputPin>::Error: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::Transfer(error)   => write!(f, "Transfer({:?})", error),
-            Error::Write(error)      => write!(f, "Write({:?})", error),
+            Error::Transfer(error) => write!(f, "Transfer({:?})", error),
+            Error::Write(error) => write!(f, "Write({:?})", error),
             Error::ChipSelect(error) => write!(f, "ChipSelect({:?})", error),
         }
     }
 }
-
 
 /// Initializes the SPI message header
 ///
@@ -181,10 +252,7 @@ impl<SPI, CS> fmt::Debug for Error<SPI, CS>
 fn init_header<R: Register>(write: bool, buffer: &mut [u8]) -> usize {
     let sub_id = R::SUB_ID > 0;
 
-    buffer[0] =
-        (((write as u8)  << 7) & 0x80) |
-        (((sub_id as u8) << 6) & 0x40) |
-        (R::ID                 & 0x3f);
+    buffer[0] = (((write as u8) << 7) & 0x80) | (((sub_id as u8) << 6) & 0x40) | (R::ID & 0x3f);
 
     if !sub_id {
         return 1;
@@ -192,9 +260,7 @@ fn init_header<R: Register>(write: bool, buffer: &mut [u8]) -> usize {
 
     let ext_addr = R::SUB_ID > 127;
 
-    buffer[1] =
-        (((ext_addr as u8) << 7) & 0x80) |
-        (R::SUB_ID as u8         & 0x7f); // lower 7 bits (of 15)
+    buffer[1] = (((ext_addr as u8) << 7) & 0x80) | (R::SUB_ID as u8 & 0x7f); // lower 7 bits (of 15)
 
     if !ext_addr {
         return 2;
@@ -204,7 +270,6 @@ fn init_header<R: Register>(write: bool, buffer: &mut [u8]) -> usize {
 
     3
 }
-
 
 /// Implemented for all registers
 ///
@@ -678,7 +743,7 @@ impl_register! {
         hrbpt,     24, 24, u8; /// Host Side RX Buffer Pointer Toggle
     }
     0x0E, 0x00, 4, RW, SYS_MASK(sys_mask) { /// System Event Mask Register
-        mpclock,    1,  1, u8; /// Mask clock PLL lock
+        mcplock,    1,  1, u8; /// Mask clock PLL lock
         mesyncr,    2,  2, u8; /// Mask external sync clock reset
         maat,       3,  3, u8; /// Mask automatic acknowledge trigger
         mtxfrbm,    4,  4, u8; /// Mask transmit frame begins
@@ -751,6 +816,21 @@ impl_register! {
         rng,    15, 15, u8; /// Receiver Ranging
         rxprfr, 16, 17, u8; /// RX Pulse Repetition Rate Report
         rxpsr,  18, 19, u8; /// RX Preamble Repetition
+        rxpacc, 20, 31, u16; /// Preamble Accumulation Count
+    }
+    0x12, 0x00, 8, RO, RX_FQUAL(rx_fqual) { /// Rx Frame Quality Information
+        std_noise, 0, 15, u16; /// Standard Deviation of Noise
+        fp_ampl2, 16, 31, u16; /// First Path Amplitude point 2
+        fp_ampl3, 32, 47, u16; /// First Path Amplitude point 3
+        cir_pwr,  48, 63, u16; /// Channel Impulse Response Power
+    }
+    0x13, 0x00, 4, RO, RX_TTCKI(rx_ttcki) { /// Receiver Time Tracking Interval
+        value, 0, 31, u32; /// Value of the register
+    }
+    0x14, 0x00, 5, RO, RX_TTCKO(rx_ttcko) { /// Receiver Time Tracking Offset
+        rxtofs,   0, 18, u32; /// RX time tracking offset (19-bit signed int)
+        rsmpdel, 24, 31, u8;  /// Internal re-sampler delay value
+        rcphase, 32, 39, u8;  /// Receive carrier phase adjustment
     }
     0x15, 0x00, 14, RO, RX_TIME(rx_time) { /// Receive Time Stamp
         rx_stamp,  0,  39, u64; /// Fully adjusted time stamp
@@ -802,6 +882,12 @@ impl_register! {
         pllldt,  2,  2, u8; /// Clock PLL Lock Detect Tune
         wait,    3, 10, u8; /// Wait Counter
         ostrm,  11, 11, u8; /// External Timebase Reset Mode Enable
+    }
+    0x24, 0x04, 4, RO, EC_RXTC(ec_rxtc) { /// External clock synchronisation counter captured on RMARKER
+        rx_ts_est, 0, 31, u32; /// External clock synchronisation counter captured on RMARKER
+    }
+    0x24, 0x08, 4, RO, EC_GOLP(ec_golp) { /// External clock offset to first path 1 GHz counter
+        offset_ext, 0, 5, u8; /// This register contains the 1 GHz count from the arrival of the RMARKER and the next edge of the external clock.
     }
     0x26, 0x00, 4, RW, GPIO_MODE(gpio_mode) { /// GPIO Mode Control Register
         msgp0,  6,  7, u8; /// Mode Selection for GPIO0/RXOKLED
@@ -966,6 +1052,12 @@ impl_register! {
         txmq,    9, 11, u8; /// Transmit mixer Q-factor tuning register
         value, 0, 23, u32; /// The entire register
     }
+    0x28, 0x2C, 4, RO, RF_STATUS(rf_status) { /// RF Status Register
+        cplllock,  0, 0, u8; /// Clock PLL lock status
+        cplllow,   1, 1, u8; /// Clock PLL low flag
+        cpllhigh,  2, 2, u8; /// Clock PLL high flag
+        rfplllock, 3, 3, u8; /// RF PLL lock status
+    }
     0x28, 0x30, 5, RW, LDOTUNE(ldotune) { /// LDO voltage tuning parameter
         value, 0, 39, u64; /// Internal LDO voltage tuning parameter
     }
@@ -977,6 +1069,37 @@ impl_register! {
     }
     0x2B, 0x0B, 1, RW, FS_PLLTUNE(fs_plltune) { /// Frequency synth - PLL Tuning
         value, 0, 7, u8; /// Frequency synthesiser - PLL Tuning
+    }
+    0x2C, 0x00, 2, RW, AON_WCFG(aon_wcfg) { /// AON Wakeup Configuration Register
+        onw_radc,  0,  0, u8; /// On Wake-up Run the (temperature and voltage) Analog-to-Digital Convertors.
+        onw_rx,    1,  1, u8; /// On Wake-up turn on the Receiver.
+        onw_leui,  3,  3, u8; /// On Wake-up load the EUI from OTP memory into Register file: 0x01 – Extended Unique Identifier.
+        onw_ldc,   6,  6, u8; /// On Wake-upload configurations from the AON memory into the host interface register set.
+        onw_l64p,  7,  7, u8; /// On Wake-up load the Length64 receiver operating parameter set.
+        pres_sleep,8,  8, u8; /// Preserve  Sleep. This bit determines what the DW1000 does with respect to the ARXSLP and ATXSLPsleep controls in Sub-Register 0x36:04 –PMSC_CTRL1after a wake-up event.
+        onw_llde, 11, 11, u8; /// On Wake-up load the LDE microcode
+        onw_lldo, 12, 12, u8; /// On Wake-up load the LDOTUNE value from OTP
+    }
+    0x2C, 0x02, 1, RW, AON_CTRL(aon_ctrl) { /// AON Control Register
+        restore,  0, 0, u8; /// When this bit is set the DW1000 will copy the user configurations from the AON memory to the host interface register set.
+        save,     1, 1, u8; /// When this bit is set the DW1000 will copy the user configurations from the host interface register  set  into  the AON  memory.
+        upl_cfg,  2, 2, u8; /// Upload the AON block configurations to the AON.
+        dca_read, 3, 3, u8; /// Direct AON memory access read.
+        dca_enab, 7, 7, u8; /// Direct AON memory access enable bit.
+    }
+    0x2C, 0x06, 4, RW, AON_CFG0(aon_cfg0) { /// AON Configuration Register 0
+        sleep_en, 0, 0, u8; /// Sleep enable configuration bit
+        wake_pin, 1, 1, u8; /// Wake using WAKEUP pin
+        wake_spi, 2, 2, u8; /// Wake using SPI access
+        wake_cnt, 3, 3, u8; /// Wake when sleep counter elapses
+        lpdiv_en, 4, 4, u8; /// Low power divider enable configuration.
+        lpclkdiva, 5, 15, u16; /// This field specifies a divider count for dividing the raw DW1000 XTAL oscillator frequency to set an LP clock frequency.
+        sleep_tim, 16, 31, u16; /// Sleep time.  This field configures the sleep time count elapse value.
+    }
+    0x2C, 0x0A, 2, RW, AON_CFG1(aon_cfg1) { /// AON Configuration Register 1
+        sleep_cen, 0, 0, u8; /// This bit enables the sleep counter.
+        smxx, 1, 1, u8; /// Thisbit needs to be set to 0 for correct operation in the SLEEP state within the DW1000.
+        lposc_cal, 2, 2, u8; /// This bit enables the calibration function that measures the period of the IC’s internal low powered oscillator.
     }
     0x2D, 0x04, 2, RW, OTP_ADDR(otp_addr) { /// OTP Address
         value, 0, 10, u16; /// OTP Address
@@ -996,11 +1119,20 @@ impl_register! {
         ntm,   0, 4, u8; /// Noise Threshold Multiplier
         pmult, 5, 7, u8; /// Peak Multiplier
     }
+    0x2E, 0x1000, 2, RO, LDE_PPINDX(lde_ppindx) { /// LDE Peak Path Index
+        value, 0, 15, u16; /// LDE Peak Path Index
+    }
+    0x2E, 0x1002, 2, RO, LDE_PPAMPL(lde_ppampl) { /// LDE Peak Path Amplitude
+        value, 0, 15, u16; /// LDE Peak Path Amplitude
+    }
     0x2E, 0x1804, 2, RW, LDE_RXANTD(lde_rxantd) { /// RX Antenna Delay
         value, 0, 15, u16; /// RX Antenna Delay
     }
     0x2E, 0x1806, 2, RW, LDE_CFG2(lde_cfg2) { /// LDE Configuration Register 2
         value, 0, 15, u16; /// The LDE_CFG2 configuration value
+    }
+    0x2E, 0x2804, 2, RW, LDE_REPC(lde_repc) { /// LDE Replica Coefficient configuration
+        value, 0, 15, u16; /// The LDE_REPC configuration value
     }
     0x2F, 0x00, 4, RW, EVC_CTRL(evc_ctrl) { /// Event Counter Control
         evc_en,  0, 0, u8; /// Event Counters Enable
@@ -1025,6 +1157,7 @@ impl_register! {
         gpdrn,     19, 19, u8; /// GPIO De-bounce Reset (Not), active low
         khzclken,  23, 23, u8; /// Kilohertz Clock Enable
         softreset, 28, 31, u8; /// Soft Reset
+        raw_value,  0, 31,u32; /// The raw register value
     }
     0x36, 0x04, 4, RW, PMSC_CTRL1(pmsc_ctrl1) { /// PMSC Control Register 1
         arx2init,   1,  1, u8; /// Automatic transition from receive to init
@@ -1044,7 +1177,6 @@ impl_register! {
     }
 }
 
-
 /// Transmit Data Buffer
 ///
 /// Currently only the first 127 bytes of the buffer are supported, which is
@@ -1053,9 +1185,9 @@ impl_register! {
 pub struct TX_BUFFER;
 
 impl Register for TX_BUFFER {
-    const ID:     u8    = 0x09;
-    const SUB_ID: u16   = 0x00;
-    const LEN:    usize = 127;
+    const ID: u8 = 0x09;
+    const SUB_ID: u16 = 0x00;
+    const LEN: usize = 127;
 }
 
 impl Writable for TX_BUFFER {
@@ -1077,7 +1209,6 @@ impl<SPI, CS> DW1000<SPI, CS> {
     }
 }
 
-
 /// Transmit Data Buffer
 pub mod tx_buffer {
     /// Used to write to the register
@@ -1091,7 +1222,6 @@ pub mod tx_buffer {
     }
 }
 
-
 /// Receive Data Buffer
 ///
 /// Currently only the first 127 bytes of the buffer are supported, which is
@@ -1100,9 +1230,9 @@ pub mod tx_buffer {
 pub struct RX_BUFFER;
 
 impl Register for RX_BUFFER {
-    const ID:     u8    = 0x11;
-    const SUB_ID: u16   = 0x00;
-    const LEN:    usize = 127;
+    const ID: u8 = 0x11;
+    const SUB_ID: u16 = 0x00;
+    const LEN: usize = 127;
 }
 
 impl Readable for RX_BUFFER {
@@ -1124,15 +1254,12 @@ impl<SPI, CS> DW1000<SPI, CS> {
     }
 }
 
-
 /// Receive Data Buffer
 pub mod rx_buffer {
     use core::fmt;
 
-
     const HEADER_LEN: usize = 1;
-    const LEN:        usize = 127;
-
+    const LEN: usize = 127;
 
     /// Used to read from the register
     pub struct R(pub(crate) [u8; HEADER_LEN + LEN]);
@@ -1140,14 +1267,14 @@ pub mod rx_buffer {
     impl R {
         /// Provides read access to the buffer contents
         pub fn data(&self) -> &[u8] {
-            &self.0[HEADER_LEN .. HEADER_LEN + LEN]
+            &self.0[HEADER_LEN..HEADER_LEN + LEN]
         }
     }
 
     impl fmt::Debug for R {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             write!(f, "0x")?;
-            for i in (0 .. LEN).rev() {
+            for i in (0..LEN).rev() {
                 write!(f, "{:02x}", self.0[HEADER_LEN + i])?;
             }
 
@@ -1155,7 +1282,6 @@ pub mod rx_buffer {
         }
     }
 }
-
 
 /// Internal trait used by `impl_registers!`
 trait FromBytes {

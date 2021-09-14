@@ -921,4 +921,9 @@ impl DW_IRQ {
         gpiote.events_in[0].write(|w| unsafe { w.bits(0) });
         gpiote.intenclr.modify(|_, w| w.in0().clear());
     }
+
+    /// Frees the irq pin
+    pub fn free(self) -> p0::P0_19<Input<Floating>> {
+        self.0
+    }
 }

@@ -5,7 +5,10 @@
 
 use crate::Error;
 use embedded_hal::{blocking::spi, digital::v2::OutputPin};
+use num_enum::TryFromPrimitive;
+use serde::{Deserialize, Serialize};
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 /// Transmit configuration
 pub struct TxConfig {
     /// Sets the bitrate of the transmission.
@@ -21,6 +24,8 @@ pub struct TxConfig {
     pub channel: UwbChannel,
     /// The SFD sequence that is used to transmit a frame.
     pub sfd_sequence: SfdSequence,
+    /// When true, a CRC will be appended to the message
+    pub append_crc: bool,
 }
 
 impl Default for TxConfig {
@@ -32,11 +37,12 @@ impl Default for TxConfig {
             preamble_length: Default::default(),
             channel: Default::default(),
             sfd_sequence: Default::default(),
+            append_crc: true,
         }
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 /// Receive configuration
 pub struct RxConfig {
     /// The bitrate that will be used for reception.
@@ -60,6 +66,8 @@ pub struct RxConfig {
     pub channel: UwbChannel,
     /// The type of SFD sequence that will be scanned for.
     pub sfd_sequence: SfdSequence,
+    /// When true, a CRC will be expected to be appended to the message
+    pub append_crc: bool,
 }
 
 impl Default for RxConfig {
@@ -71,11 +79,13 @@ impl Default for RxConfig {
             expected_preamble_length: Default::default(),
             channel: Default::default(),
             sfd_sequence: Default::default(),
+            append_crc: true,
         }
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
+#[repr(u8)]
 /// The bitrate at which a message is transmitted
 pub enum BitRate {
     /// 110 kilobits per second.
@@ -108,7 +118,8 @@ impl BitRate {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
+#[repr(u8)]
 /// The PRF value
 pub enum PulseRepetitionFrequency {
     /// 16 megahertz
@@ -153,9 +164,19 @@ impl PulseRepetitionFrequency {
             _ => Err(Error::InvalidConfiguration),
         }
     }
+
+    /// Get the recommended value for the lde_cfg2 register
+    pub fn get_recommended_lde_cfg2(&self) -> u16 {
+        // Values taken from from the user manual (found at the register description)
+        match self {
+            PulseRepetitionFrequency::Mhz16 => 0x1607,
+            PulseRepetitionFrequency::Mhz64 => 0x0607,
+        }
+    }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
+#[repr(u8)]
 /// An enum that specifies the length of the preamble.
 ///
 /// Longer preambles improve the reception quality and thus range.
@@ -253,7 +274,8 @@ impl PreambleLength {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
+#[repr(u8)]
 /// An enum that allows the selection between different SFD sequences
 ///
 /// The difference between the two Decawave sequences is that there are two ways
@@ -262,17 +284,49 @@ impl PreambleLength {
 pub enum SfdSequence {
     /// The standard sequence defined by the IEEE standard.
     /// Most likely the best choice for 6.8 Mbps connections.
+    ///
+    /// Using a given data rate, this is what the register get set to:
+    ///
+    /// | Data rate | DWSFD | TNSSFD | RNSSFD | Symbol Length| Raw SFD |
+    /// |:----------|:-----:|:------:|:------:|:------------:|:--------|
+    /// | 110 kbps  | 0     | 0      | 0      | Not set      | IEEE 64 symbols, not recommended |
+    /// | 850 kbps  | 0     | 0      | 0      | Not set      | IEEE 8 symbols, not recommended |
+    /// | 6.8 mbps  | 0     | 0      | 0      | Not set      | IEEE 8 symbol |
     IEEE,
     /// A sequence defined by Decawave that is supposed to be more robust.
     /// This is an unofficial addition.
     /// Most likely the best choice for 110 Kbps connections.
+    ///
+    /// Using a given data rate, this is what the register get set to:
+    ///
+    /// | Data rate | DWSFD | TNSSFD | RNSSFD | Symbol Length| Raw SFD |
+    /// |:----------|:-----:|:------:|:------:|:------------:|:--------|
+    /// | 110 kbps  | 1     | 0      | 0      | 8            | Deca 64 symbols |
+    /// | 850 kbps  | 1     | 0      | 0      | 8            | Deca 8 symbols, not recommended |
+    /// | 6.8 mbps  | 1     | 0      | 0      | 8            | Undefined by manual, not recommended |
     Decawave,
     /// A sequence defined by Decawave that is supposed to be more robust.
     /// This is an unofficial addition.
     /// Most likely the best choice for 850 Kbps connections.
+    ///
+    /// Using a given data rate, this is what the register get set to:
+    ///
+    /// | Data rate | DWSFD | TNSSFD | RNSSFD | Symbol Length| Raw SFD |
+    /// |:----------|:-----:|:------:|:------:|:------------:|:--------|
+    /// | 110 kbps  | 1     | 0      | 0      | 16           | Deca 64 symbols, not recommended |
+    /// | 850 kbps  | 1     | 0      | 0      | 16           | Deca 16 symbols |
+    /// | 6.8 mbps  | 1     | 0      | 0      | 16           | Undefined by manual, not recommended |
     DecawaveAlt,
     /// Uses the sequence that is programmed in by the user.
     /// This is an unofficial addition.
+    ///
+    /// Using a given data rate, this is what the register get set to:
+    ///
+    /// | Data rate | DWSFD | TNSSFD | RNSSFD | Symbol Length| Raw SFD |
+    /// |:----------|:-----:|:------:|:------:|:------------:|:--------|
+    /// | 110 kbps  | 0     | 1      | 1      | Set by user  | Custom, not recommended |
+    /// | 850 kbps  | 0     | 1      | 1      | Set by user  | Custom, not recommended |
+    /// | 6.8 mbps  | 0     | 1      | 1      | Set by user  | Custom, not recommended |
     User,
 }
 
@@ -282,7 +336,38 @@ impl Default for SfdSequence {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+impl SfdSequence {
+    /// Gets the adjustment that needs to be made to the rxpacc field of the RX Frame Information Register.
+    /// Follows table 18 of the user manual.
+    pub fn get_rxpacc_adjustment(&self, bit_rate: BitRate) -> i8 {
+        match self {
+            SfdSequence::IEEE => {
+                match bit_rate {
+                    BitRate::Kbps110 => 64,                     // 64 Symbols
+                    BitRate::Kbps850 | BitRate::Kbps6800 => -5, // 8 Symbols
+                }
+            }
+            SfdSequence::Decawave => {
+                match bit_rate {
+                    BitRate::Kbps110 => 82,  // 64 Symbols
+                    BitRate::Kbps850 => -10, // 8 Symbols
+                    BitRate::Kbps6800 => 0,  // Undefined setting
+                }
+            }
+            SfdSequence::DecawaveAlt => {
+                match bit_rate {
+                    BitRate::Kbps110 => 82,  // 64 Symbols
+                    BitRate::Kbps850 => -18, // 16 Symbols
+                    BitRate::Kbps6800 => 0,  // Undefined setting
+                }
+            }
+            SfdSequence::User => 0, // Undefined setting
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
+#[repr(u8)]
 /// All the available UWB channels.
 ///
 /// Note that while a channel may have more bandwidth than ~900 Mhz, the DW1000 can only send up to ~900 Mhz
@@ -336,6 +421,29 @@ impl UwbChannel {
             (UwbChannel::Channel4, PulseRepetitionFrequency::Mhz64) => 17,
             (UwbChannel::Channel5, PulseRepetitionFrequency::Mhz64) => 12,
             (UwbChannel::Channel7, PulseRepetitionFrequency::Mhz64) => 18,
+        }
+    }
+
+    /// Get the recommended lde_repc register value
+    pub fn get_recommended_lde_repc_value(
+        &self,
+        pulse_repetition_frequency: PulseRepetitionFrequency,
+        bitrate: BitRate,
+    ) -> u16 {
+        // Values taken from user manual register description
+        const VALUES: [u16; 24] = [
+            0x5998, 0x5998, 0x51EA, 0x428E, 0x451E, 0x2E14, 0x8000, 0x51EA, 0x28F4, 0x3332, 0x3AE0,
+            0x3D70, 0x3AE0, 0x35C2, 0x2B84, 0x35C2, 0x3332, 0x35C2, 0x35C2, 0x47AE, 0x3AE0, 0x3850,
+            0x30A2, 0x3850,
+        ];
+
+        let pcode = self.get_recommended_preamble_code(pulse_repetition_frequency);
+        let value = VALUES[pcode as usize];
+
+        if bitrate != BitRate::Kbps110 {
+            value
+        } else {
+            value / 8
         }
     }
 

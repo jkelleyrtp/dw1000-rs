@@ -22,12 +22,23 @@ byte         = "0.2.4"
 embedded-hal = "0.2.4"
 ieee802154   = "0.5.0"
 nb           = "1.0.0"
+fixed        = "1.7.0"
+micromath    = "1.1.1"
+
 
 [dependencies.serde]
-version = "1.0.124"
+version = "1.0.125"
 default-features = false
 features = ["derive"]
 
 [dependencies.ssmarshal]
 version = "1.0.0"
 default-features = false
+
+[dependencies.num_enum]
+version = "0.5.1"
+default-features = false
+
+[features]
+default = []
+std = ["ssmarshal/std", "serde/std", "num_enum/std"]
