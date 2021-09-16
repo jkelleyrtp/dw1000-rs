@@ -21,7 +21,7 @@ This project is still in development. No guarantee of API stability is made, so 
 Include this crate in your Cargo project by adding the following to `Cargo.toml`:
 ```toml
 [dependencies.dwm1001]
-version = "0.4"
+version = "0.5"
 ```
 
 This crate exposes various Cargo features that are useful in various situations, none of which is enabled by default:
