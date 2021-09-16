@@ -25,7 +25,7 @@ This project is still in development. No guarantee of API stability is made, so 
 Include this crate in your Cargo project by adding the following to `Cargo.toml`:
 ```toml
 [dependencies]
-dw1000 = "0.4"
+dw1000 = "0.5"
 ```
 
 
