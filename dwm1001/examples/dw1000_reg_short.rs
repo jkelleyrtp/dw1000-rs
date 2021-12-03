@@ -8,19 +8,14 @@
 #![no_main]
 #![no_std]
 
-extern crate panic_semihosting;
+use defmt_rtt as _;
+use panic_probe as _;
 
-use cortex_m_rt::entry;
-
-use dwm1001::{debug, print, DWM1001};
-
-#[entry]
+#[cortex_m_rt::entry]
 fn main() -> ! {
-    debug::init();
+    let mut dwm1001 = dwm1001::DWM1001::take().unwrap();
 
-    let mut dwm1001 = DWM1001::take().unwrap();
-
-    print!("Writing...\n");
+    defmt::info!("Writing...\n");
 
     dwm1001
         .DW1000
@@ -29,7 +24,7 @@ fn main() -> ! {
         .write(|w| w.value(0x1122334455))
         .expect("Failed to write to register");
 
-    print!("Reading...\n");
+    defmt::info!("Reading...\n");
 
     let dx_time = dwm1001
         .DW1000
@@ -40,7 +35,7 @@ fn main() -> ! {
 
     assert_eq!(dx_time.value(), 0x1122334455);
 
-    print!("Success!\n");
+    defmt::info!("Success!\n");
 
     loop {}
 }

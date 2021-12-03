@@ -7,21 +7,21 @@ use defmt_rtt as _;
 use panic_probe as _;
 
 use dwm1001::{
-    block_timeout, debug,
+    block_timeout,
     dw1000::{
         ranging::{self, Message as _},
         RxConfig,
     },
     nrf52832_hal::{Delay, Timer},
     prelude::*,
-    print, DWM1001,
+    DWM1001,
 };
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
     defmt::info!("hello rx!");
 
-    let mut dwm1001 = DWM1001::take().unwrap();
+    let mut dwm1001 = dwm1001::DWM1001::take().unwrap();
     let mut delay = Delay::new(dwm1001.SYST);
 
     dwm1001.DW_RST.reset_dw1000(&mut delay);

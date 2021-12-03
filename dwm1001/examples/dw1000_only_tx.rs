@@ -17,7 +17,7 @@ use dwm1001::{
 fn main() -> ! {
     defmt::info!("hello tx!");
 
-    let dwm1001 = DWM1001::take().unwrap();
+    let dwm1001 = dwm1001::DWM1001::take().unwrap();
     let mut delay = Delay::new(dwm1001.SYST);
     let mut dw1000 = dwm1001.DW1000.init(&mut delay).unwrap();
 

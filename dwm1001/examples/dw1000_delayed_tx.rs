@@ -3,23 +3,21 @@
 #![no_main]
 #![no_std]
 
-extern crate panic_semihosting;
+use defmt_rtt as _;
+use panic_probe as _;
 
-use cortex_m_rt::entry;
 use nb::block;
 
 use dwm1001::{
-    debug,
+    dw1000::DW1000,
     dw1000::{hl::SendTime, mac, time::Duration, TxConfig},
     nrf52832_hal::Delay,
-    print, DWM1001,
+    DWM1001,
 };
 
-#[entry]
+#[cortex_m_rt::entry]
 fn main() -> ! {
-    debug::init();
-
-    let dwm1001 = DWM1001::take().unwrap();
+    let dwm1001 = dwm1001::DWM1001::take().unwrap();
     let mut delay = Delay::new(dwm1001.SYST);
     let mut dw1000 = dwm1001.DW1000.init(&mut delay).unwrap();
 
@@ -27,7 +25,7 @@ fn main() -> ! {
         let sys_time = dw1000.sys_time().expect("Failed to read system time");
         let tx_time = sys_time + Duration::from_nanos(10_000_000);
 
-        let mut sending = dw1000
+        let mut sending: DW1000<_, _, dw1000::Sending> = dw1000
             .send(
                 b"ping",
                 mac::Address::broadcast(&mac::AddressMode::Short),
@@ -36,12 +34,12 @@ fn main() -> ! {
             )
             .expect("Failed to start receiver");
 
-        print!("Sending... ");
+        defmt::info!("Sending... ");
 
         block!(sending.wait()).expect("Failed to send data");
 
         dw1000 = sending.finish_sending().expect("Failed to finish sending");
 
-        print!("done\n");
+        defmt::info!("done\n");
     }
 }

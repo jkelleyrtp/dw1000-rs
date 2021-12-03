@@ -33,9 +33,9 @@ use dwm1001::{
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
-    debug::init();
+    defmt::info!("Launching anchor");
 
-    let mut dwm1001 = DWM1001::take().unwrap();
+    let mut dwm1001 = dwm1001::DWM1001::take().unwrap();
 
     let mut delay = Delay::new(dwm1001.SYST);
     let mut rng = Rng::new(dwm1001.RNG);
@@ -77,13 +77,21 @@ fn main() -> ! {
     let mut task_timer = Timer::new(dwm1001.TIMER0);
     let mut timeout_timer = Timer::new(dwm1001.TIMER1);
 
-    task_timer.start(1_000_000u32);
+    defmt::info!("Timer started");
+    task_timer.start(250_000u32);
+    // task_timer.start(1_000_000u32);
 
     let mut buf = [0; 128];
+
+    let mut frame_id = 0;
+    let mut ping_id = 0;
 
     loop {
         // After receiving for a while, it's time to send out a ping
         if let Ok(()) = task_timer.wait() {
+            defmt::info!("Sending ping {}", ping_id);
+            ping_id += 1;
+            // task_timer.start(2_500_000u32);
             task_timer.start(5_000_000u32);
 
             dwm1001.leds.D10.enable();
@@ -105,11 +113,15 @@ fn main() -> ! {
             dw1000 = sending.finish_sending().expect("Failed to finish sending");
         }
 
+        defmt::info!("Starting receive. Frame ID: {}", frame_id);
+        frame_id += 1;
+
         let mut receiving = dw1000
             .receive(RxConfig::default())
             .expect("Failed to receive message");
 
-        timeout_timer.start(500_000u32);
+        timeout_timer.start(5_000u32);
+        // timeout_timer.start(500_000u32);
         let result = block_timeout!(&mut timeout_timer, {
             dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
             receiving.wait(&mut buf)
@@ -121,8 +133,12 @@ fn main() -> ! {
 
         let message = match result {
             Ok(message) => message,
-            _ => continue,
+            _ => {
+                defmt::info!("Msg not found");
+                continue;
+            }
         };
+        defmt::info!("Response found");
 
         dwm1001.leds.D11.enable();
         delay.delay_ms(10u32);
@@ -133,7 +149,7 @@ fn main() -> ! {
         let request = match request {
             Ok(Some(request)) => request,
             Ok(None) | Err(_) => {
-                print!("Ignoring message that is not a request\n");
+                defmt::info!("Ignoring message that is not a request\n");
                 continue;
             }
         };

@@ -10,9 +10,8 @@
 #![no_main]
 #![no_std]
 
-extern crate panic_semihosting;
-
-use cortex_m_rt::entry;
+use defmt_rtt as _;
+use panic_probe as _;
 
 use dwm1001::{
     block_timeout, debug,
@@ -28,14 +27,14 @@ use dwm1001::{
         Delay, Spim, Timer,
     },
     prelude::*,
-    print, DWM1001,
+    DWM1001,
 };
 
-#[entry]
+#[cortex_m_rt::entry]
 fn main() -> ! {
-    debug::init();
+    defmt::info!("Launching tag");
 
-    let mut dwm1001 = DWM1001::take().unwrap();
+    let mut dwm1001 = dwm1001::DWM1001::take().unwrap();
 
     let mut delay = Delay::new(dwm1001.SYST);
     let mut rng = Rng::new(dwm1001.RNG);
@@ -79,6 +78,7 @@ fn main() -> ! {
     let mut buf = [0; 128];
 
     loop {
+        defmt::info!("waiting for base station ping");
         let mut receiving = dw1000
             .receive(RxConfig::default())
             .expect("Failed to receive message");
@@ -95,8 +95,14 @@ fn main() -> ! {
 
         let message = match message {
             Ok(message) => message,
-            Err(_) => continue, //ignore error
+            Err(e) => {
+                //
+                defmt::info!("Timeout error occured");
+                continue;
+            }
         };
+
+        defmt::info!("msg from base station: received");
 
         let ping = ranging::Ping::decode::<Spim<SPIM2>, P0_17<Output<PushPull>>>(&message)
             .expect("Failed to decode ping");
@@ -153,11 +159,11 @@ fn main() -> ! {
             delay.delay_ms(10u32);
             dwm1001.leds.D9.disable();
 
-            print!("{:04x}:{:04x} - {} mm\n", pan_id.0, addr.0, distance_mm,);
+            defmt::info!("{:04x}:{:04x} - {} mm\n", pan_id.0, addr.0, distance_mm,);
 
             continue;
         }
 
-        print!("Ignored message that was neither ping nor response\n");
+        defmt::info!("Ignored message that was neither ping nor response\n");
     }
 }
