@@ -46,7 +46,7 @@ fn main() -> ! {
         // Set timer for timeout
         timer.start(5_000_000u32);
 
-        let result = block_timeout!(&mut timer, receiving.wait(&mut buffer));
+        let result = block_timeout!(&mut timer, receiving.wait_receive(&mut buffer));
 
         dw1000 = receiving
             .finish_receiving()

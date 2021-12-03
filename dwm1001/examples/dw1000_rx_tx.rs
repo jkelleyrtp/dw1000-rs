@@ -72,7 +72,7 @@ fn main() -> ! {
                 timeout_timer.start(100_000u32);
                 let result = block_timeout!(
                     &mut timeout_timer,
-                    receiving.wait(&mut buffer)
+                    receiving.wait_receive(&mut buffer)
                 );
 
                 dw1000 = receiving.finish_receiving()
@@ -122,7 +122,7 @@ fn main() -> ! {
                     .expect("Failed to broadcast ping");
 
                 timeout_timer.start(10_000u32);
-                let result = block_timeout!(&mut timeout_timer, sending.wait());
+                let result = block_timeout!(&mut timeout_timer, sending.wait_transmit());
 
                 dw1000 = sending.finish_sending()
                     .expect("Failed to finish sending");

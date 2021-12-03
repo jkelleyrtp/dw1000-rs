@@ -15,7 +15,7 @@ use defmt_rtt as _;
 use panic_probe as _;
 
 use dwm1001::{
-    block_timeout, debug,
+    block_timeout,
     dw1000::{
         mac,
         ranging::{self, Message as _RangingMessage},
@@ -28,7 +28,6 @@ use dwm1001::{
         Delay, Spim, Timer,
     },
     prelude::*,
-    print, DWM1001,
 };
 
 #[cortex_m_rt::entry]
@@ -78,8 +77,7 @@ fn main() -> ! {
     let mut timeout_timer = Timer::new(dwm1001.TIMER1);
 
     defmt::info!("Timer started");
-    task_timer.start(250_000u32);
-    // task_timer.start(1_000_000u32);
+    task_timer.start(1_000_000u32);
 
     let mut buf = [0; 128];
 
@@ -87,11 +85,22 @@ fn main() -> ! {
     let mut ping_id = 0;
 
     loop {
+        /*
+        Strategy:
+        - Sending a ranging ping
+        - Waiting for a ranging request
+        - Responding with a ranging response
+
+
+
+
+
+        */
+
         // After receiving for a while, it's time to send out a ping
         if let Ok(()) = task_timer.wait() {
             defmt::info!("Sending ping {}", ping_id);
             ping_id += 1;
-            // task_timer.start(2_500_000u32);
             task_timer.start(5_000_000u32);
 
             dwm1001.leds.D10.enable();
@@ -106,7 +115,7 @@ fn main() -> ! {
             timeout_timer.start(100_000u32);
             nb::block!({
                 dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
-                sending.wait()
+                sending.wait_transmit()
             })
             .expect("Failed to send ping");
 
@@ -116,68 +125,69 @@ fn main() -> ! {
         defmt::info!("Starting receive. Frame ID: {}", frame_id);
         frame_id += 1;
 
-        let mut receiving = dw1000
-            .receive(RxConfig::default())
-            .expect("Failed to receive message");
+        // let mut receiving = dw1000
+        //     .receive(RxConfig::default())
+        //     .expect("Failed to receive message");
 
-        timeout_timer.start(5_000u32);
         // timeout_timer.start(500_000u32);
-        let result = block_timeout!(&mut timeout_timer, {
-            dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
-            receiving.wait(&mut buf)
-        });
 
-        dw1000 = receiving
-            .finish_receiving()
-            .expect("Failed to finish receiving");
+        // let result = block_timeout!(&mut timeout_timer, {
+        //     dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
+        //     receiving.wait(&mut buf)
+        // });
 
-        let message = match result {
-            Ok(message) => message,
-            _ => {
-                defmt::info!("Msg not found");
-                continue;
-            }
-        };
-        defmt::info!("Response found");
+        // dw1000 = receiving
+        //     .finish_receiving()
+        //     .expect("Failed to finish receiving");
 
-        dwm1001.leds.D11.enable();
-        delay.delay_ms(10u32);
-        dwm1001.leds.D11.disable();
+        // let message = match result {
+        //     Ok(message) => message,
+        //     _ => {
+        //         defmt::info!("Msg not found");
+        //         continue;
+        //     }
+        // };
 
-        let request = ranging::Request::decode::<Spim<SPIM2>, P0_17<Output<PushPull>>>(&message);
+        // defmt::info!("Response found");
 
-        let request = match request {
-            Ok(Some(request)) => request,
-            Ok(None) | Err(_) => {
-                defmt::info!("Ignoring message that is not a request\n");
-                continue;
-            }
-        };
+        // dwm1001.leds.D11.enable();
+        // delay.delay_ms(10u32);
+        // dwm1001.leds.D11.disable();
 
-        dwm1001.leds.D12.enable();
-        delay.delay_ms(10u32);
-        dwm1001.leds.D12.disable();
+        // let request = ranging::Request::decode::<Spim<SPIM2>, P0_17<Output<PushPull>>>(&message);
 
-        // Wait for a moment, to give the tag a chance to start listening for
-        // the reply.
-        delay.delay_ms(10u32);
+        // let request = match request {
+        //     Ok(Some(request)) => request,
+        //     Ok(None) | Err(_) => {
+        //         defmt::info!("Ignoring message that is not a request\n");
+        //         continue;
+        //     }
+        // };
 
-        // Send ranging response
-        let mut sending = ranging::Response::new(&mut dw1000, &request)
-            .expect("Failed to initiate response")
-            .send(dw1000)
-            .expect("Failed to initiate response transmission");
-        timeout_timer.start(100_000u32);
-        nb::block!({
-            dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
-            sending.wait()
-        })
-        .expect("Failed to send ranging response");
+        // dwm1001.leds.D12.enable();
+        // delay.delay_ms(10u32);
+        // dwm1001.leds.D12.disable();
 
-        dw1000 = sending.finish_sending().expect("Failed to finish sending");
+        // // Wait for a moment, to give the tag a chance to start listening for
+        // // the reply.
+        // delay.delay_ms(10u32);
 
-        dwm1001.leds.D9.enable();
-        delay.delay_ms(10u32);
-        dwm1001.leds.D9.disable();
+        // // Send ranging response
+        // let mut sending = ranging::Response::new(&mut dw1000, &request)
+        //     .expect("Failed to initiate response")
+        //     .send(dw1000)
+        //     .expect("Failed to initiate response transmission");
+        // timeout_timer.start(100_000u32);
+        // nb::block!({
+        //     dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
+        //     sending.wait()
+        // })
+        // .expect("Failed to send ranging response");
+
+        // dw1000 = sending.finish_sending().expect("Failed to finish sending");
+
+        // dwm1001.leds.D9.enable();
+        // delay.delay_ms(10u32);
+        // dwm1001.leds.D9.disable();
     }
 }

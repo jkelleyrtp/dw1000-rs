@@ -19,7 +19,7 @@ where
     /// driver, but please note that if you're using the DWM1001 module or
     /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
     /// this.
-    pub fn wait(&mut self) -> nb::Result<Instant, Error<SPI, CS>> {
+    pub fn wait_transmit(&mut self) -> nb::Result<Instant, Error<SPI, CS>> {
         // Check Half Period Warning Counter. If this is a delayed transmission,
         // this will indicate that the delay was too short, and the frame was
         // sent too late.

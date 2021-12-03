@@ -14,7 +14,7 @@ use defmt_rtt as _;
 use panic_probe as _;
 
 use dwm1001::{
-    block_timeout, debug,
+    block_timeout,
     dw1000::{
         mac,
         ranging::{self, Message as _RangingMessage},
@@ -27,7 +27,6 @@ use dwm1001::{
         Delay, Spim, Timer,
     },
     prelude::*,
-    DWM1001,
 };
 
 #[cortex_m_rt::entry]
@@ -86,7 +85,7 @@ fn main() -> ! {
         timeout_timer.start(500_000u32);
         let message = block_timeout!(&mut timeout_timer, {
             dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
-            receiving.wait(&mut buf)
+            receiving.wait_receive(&mut buf)
         });
 
         dw1000 = receiving
@@ -126,7 +125,7 @@ fn main() -> ! {
             timeout_timer.start(500_000u32);
             block_timeout!(&mut timeout_timer, {
                 dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
-                sending.wait()
+                sending.wait_transmit()
             })
             .expect("Failed to send ranging request");
 
