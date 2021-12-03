@@ -11,47 +11,33 @@
 #![no_main]
 #![no_std]
 
+use defmt_rtt as _;
+use panic_probe as _;
 
-extern crate panic_semihosting;
-
-
-use cortex_m_rt::entry;
 use dw1000::hl::SendTime;
 use heapless::FnvIndexSet;
 
 use dwm1001::{
-    prelude::*,
-    debug,
-    dw1000::{
-        RxConfig,
-        TxConfig,
-        mac,
-    },
-    nrf52832_hal::{
-        Delay,
-        Timer,
-        rng::Rng,
-    },
-    DWM1001,
     block_timeout,
-    repeat_timeout,
-    print,
+    dw1000::{mac, RxConfig, TxConfig},
+    nrf52832_hal::{rng::Rng, Delay, Timer},
+    prelude::*,
+    repeat_timeout, DWM1001,
 };
 
-
-#[entry]
+#[cortex_m_rt::entry]
 fn main() -> ! {
-    debug::init();
-
     let mut known_nodes = FnvIndexSet::<_, 64>::new();
 
-    let mut dwm1001 = DWM1001::take().unwrap();
+    let mut dwm1001 = dwm1001::DWM1001::take().unwrap();
 
-    let mut delay  = Delay::new(dwm1001.SYST);
-    let mut rng    = Rng::new(dwm1001.RNG);
+    let mut delay = Delay::new(dwm1001.SYST);
+    let mut rng = Rng::new(dwm1001.RNG);
 
     dwm1001.DW_RST.reset_dw1000(&mut delay);
-    let mut dw1000 = dwm1001.DW1000.init(&mut delay)
+    let mut dw1000 = dwm1001
+        .DW1000
+        .init(&mut delay)
         .expect("Failed to initialize DW1000");
 
     // Set network address
@@ -63,9 +49,9 @@ fn main() -> ! {
         .expect("Failed to set address");
 
     // Configure timer
-    let mut task_timer    = Timer::new(dwm1001.TIMER0);
+    let mut task_timer = Timer::new(dwm1001.TIMER0);
     let mut timeout_timer = Timer::new(dwm1001.TIMER1);
-    let mut output_timer  = Timer::new(dwm1001.TIMER2);
+    let mut output_timer = Timer::new(dwm1001.TIMER2);
 
     let receive_time = 500_000 + (rng.random_u32() % 500_000);
 
@@ -86,7 +72,7 @@ fn main() -> ! {
                 timeout_timer.start(100_000u32);
                 let result = block_timeout!(
                     &mut timeout_timer,
-                    receiving.wait(&mut buffer)
+                    receiving.wait_receive(&mut buffer)
                 );
 
                 dw1000 = receiving.finish_receiving()
@@ -116,7 +102,7 @@ fn main() -> ! {
                 };
 
                 if let Err(_) = known_nodes.insert(source) {
-                    print!("Too many nodes. Can't add another one.\n");
+                    defmt::info!("Too many nodes. Can't add another one.\n");
                 }
             };
             (_error) {};
@@ -136,7 +122,7 @@ fn main() -> ! {
                     .expect("Failed to broadcast ping");
 
                 timeout_timer.start(10_000u32);
-                let result = block_timeout!(&mut timeout_timer, sending.wait());
+                let result = block_timeout!(&mut timeout_timer, sending.wait_transmit());
 
                 dw1000 = sending.finish_sending()
                     .expect("Failed to finish sending");
@@ -148,9 +134,10 @@ fn main() -> ! {
         );
 
         if output_timer.wait().is_ok() {
-            print!("\n-- Known nodes:\n");
+            defmt::info!("\n-- Known nodes:\n");
             for node in &known_nodes {
-                print!("PAN ID: 0x{:04x}, Short Address: 0x{:04x}\n",
+                defmt::info!(
+                    "PAN ID: 0x{:04x}, Short Address: 0x{:04x}\n",
                     node[0],
                     node[1],
                 );

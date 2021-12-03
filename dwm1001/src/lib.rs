@@ -13,11 +13,8 @@
 //! [nRF52832]: https://www.nordicsemi.com/Products/Low-power-short-range-wireless/nRF52832
 //! [examples directory]: https://github.com/braun-robotics/rust-dwm1001/tree/master/examples
 
-
 #![no_std]
-
 #![deny(missing_docs)]
-
 
 pub use cortex_m;
 #[cfg(feature = "rt")]
@@ -27,80 +24,36 @@ pub use embedded_hal;
 
 pub use nrf52832_hal;
 
-pub use embedded_timeout_macros::{
-    block_timeout,
-    repeat_timeout,
-};
+pub use embedded_timeout_macros::{block_timeout, repeat_timeout};
 
 /// Exports traits that are usually needed when using this crate
 pub mod prelude {
     pub use nrf52832_hal::prelude::*;
 }
 
-pub mod debug;
-
-use cortex_m::{
-    asm,
-    interrupt,
-};
+use cortex_m::{asm, interrupt};
 use dw1000::DW1000;
 use embedded_hal::blocking::delay::DelayMs;
 use nrf52832_hal::{
     gpio::{
-        p0::{
-            self,
-            P0_16,
-            P0_17,
-            P0_18,
-            P0_20,
-            P0_28,
-            P0_29,
-        },
-        Disconnected,
-        Floating,
-        Input,
-        Level,
-        OpenDrainConfig,
-        Output,
-        PushPull,
+        p0::{self, P0_16, P0_17, P0_18, P0_20, P0_28, P0_29},
+        Disconnected, Floating, Input, Level, OpenDrainConfig, Output, PushPull,
     },
-    pac::{
-        self as nrf52,
-        CorePeripherals,
-        Interrupt,
-        Peripherals,
-        SPIM2,
-        TWIM1,
-    },
-    spim,
-    timer,
-    twim,
-    uarte::{
-        Parity as UartParity,
-        Baudrate as UartBaudrate,
-    },
-    Spim,
-    Timer,
-    Twim,
+    pac::{self as nrf52, CorePeripherals, Interrupt, Peripherals, SPIM2, TWIM1},
+    spim, timer, twim,
+    uarte::{Baudrate as UartBaudrate, Parity as UartParity},
+    Spim, Timer, Twim,
 };
 
 #[cfg(feature = "dev")]
 use nrf52832_hal::{
-    prelude::*,
     gpio::{
-        p0::{
-            P0_05,
-            P0_11,
-        },
+        p0::{P0_05, P0_11},
         Pin,
     },
-    pac::{
-        UARTE0,
-    },
-    uarte::{
-        self,
-        Uarte,
-    },
+    pac::UARTE0,
+    prelude::*,
+    uarte::{self, Uarte},
 };
 
 /// Optional Configuration struct for SPIM, not including pins
@@ -122,7 +75,7 @@ pub fn new_usb_uarte<TX, RX>(
     uart0: UARTE0,
     txd_pin: P0_05<TX>,
     rxd_pin: P0_11<RX>,
-    config: UsbUarteConfig
+    config: UsbUarteConfig,
 ) -> Uarte<nrf52::UARTE0> {
     Uarte::new(
         uart0,
@@ -133,7 +86,7 @@ pub fn new_usb_uarte<TX, RX>(
             rts: None,
         },
         config.parity,
-        config.baudrate
+        config.baudrate,
     )
 }
 
@@ -145,11 +98,7 @@ pub fn new_dw1000<SCK, MOSI, MISO, CS>(
     miso: P0_18<MISO>,
     cs: P0_17<CS>,
     spim_opts: Option<SpimConfig>,
-) -> DW1000<
-        Spim<nrf52::SPIM2>,
-        p0::P0_17<Output<PushPull>>,
-        dw1000::Uninitialized>
-{
+) -> DW1000<Spim<nrf52::SPIM2>, p0::P0_17<Output<PushPull>>, dw1000::Uninitialized> {
     let cfg = spim_opts.unwrap_or_else(|| SpimConfig {
         frequency: spim::Frequency::K500,
         mode: spim::MODE_0,
@@ -159,24 +108,20 @@ pub fn new_dw1000<SCK, MOSI, MISO, CS>(
     let spim = Spim::new(
         spim,
         spim::Pins {
-            sck : sck.into_push_pull_output(Level::Low).degrade(),
+            sck: sck.into_push_pull_output(Level::Low).degrade(),
             mosi: Some(mosi.into_push_pull_output(Level::Low).degrade()),
             miso: Some(miso.into_floating_input().degrade()),
         },
         cfg.frequency,
         cfg.mode,
-        cfg.orc
+        cfg.orc,
     );
 
     DW1000::new(spim, cs.into_push_pull_output(Level::High))
 }
 
 /// Create a new instance of the TWIM bus used for the accelerometer
-pub fn new_acc_twim<SCL, SDA>(
-    twim: TWIM1,
-    scl: P0_28<SCL>,
-    sda: P0_29<SDA>,
-) -> Twim<nrf52::TWIM1> {
+pub fn new_acc_twim<SCL, SDA>(twim: TWIM1, scl: P0_28<SCL>, sda: P0_29<SDA>) -> Twim<nrf52::TWIM1> {
     Twim::new(
         twim,
         twim::Pins {
@@ -186,7 +131,6 @@ pub fn new_acc_twim<SCL, SDA>(
         twim::Frequency::K250,
     )
 }
-
 
 /// Configuration parameters for the UART connected via the debugger
 pub struct UsbUarteConfig {
@@ -238,11 +182,7 @@ pub struct DWM1001 {
     pub DW_IRQ: DW_IRQ,
 
     /// The Decawave DW1000 Radio IC
-    pub DW1000: DW1000<
-        Spim<nrf52::SPIM2>,
-        p0::P0_17<Output<PushPull>>,
-        dw1000::Uninitialized
-    >,
+    pub DW1000: DW1000<Spim<nrf52::SPIM2>, p0::P0_17<Output<PushPull>>, dw1000::Uninitialized>,
 
     /// LIS2DH12 3-axis accelerometer
     ///
@@ -478,10 +418,7 @@ impl DWM1001 {
     /// This method will return an instance of `DWM1001` the first time it is
     /// called. It will return only `None` on subsequent calls.
     pub fn take() -> Option<Self> {
-        Some(Self::new(
-            CorePeripherals::take()?,
-            Peripherals::take()?,
-        ))
+        Some(Self::new(CorePeripherals::take()?, Peripherals::take()?))
     }
 
     /// Take ownership of a `DWM1001` instance, circumventing safety guarantees
@@ -497,10 +434,7 @@ impl DWM1001 {
     ///
     /// Always use `DWM1001::take`, unless you really know what you're doing.
     pub unsafe fn steal() -> Self {
-        Self::new(
-            CorePeripherals::steal(),
-            Peripherals::steal(),
-        )
+        Self::new(CorePeripherals::steal(), Peripherals::steal())
     }
 
     fn new(cp: CorePeripherals, p: Peripherals) -> Self {
@@ -517,12 +451,7 @@ impl DWM1001 {
         //   non-`dev` features may be used to manually configure the serial
         //   port.
         #[cfg(feature = "dev")]
-        let uarte0 = new_usb_uarte(
-            p.UARTE0,
-            pins.p0_05,
-            pins.p0_11,
-            UsbUarteConfig::default(),
-        );
+        let uarte0 = new_usb_uarte(p.UARTE0, pins.p0_05, pins.p0_11, UsbUarteConfig::default());
 
         DWM1001 {
             #[cfg(feature = "dev")]
@@ -530,15 +459,15 @@ impl DWM1001 {
 
             pins: Pins {
                 BT_WAKE_UP: pins.p0_02,
-                SPIS_CSn  : pins.p0_03,
-                SPIS_CLK  : pins.p0_04,
-                SPIS_MOSI : pins.p0_06,
-                SPIS_MISO : pins.p0_07,
-                RESETn    : pins.p0_21,
-                READY     : pins.p0_26,
+                SPIS_CSn: pins.p0_03,
+                SPIS_CLK: pins.p0_04,
+                SPIS_MOSI: pins.p0_06,
+                SPIS_MISO: pins.p0_07,
+                RESETn: pins.p0_21,
+                READY: pins.p0_26,
 
-                GPIO_8 : pins.p0_08,
-                GPIO_9 : pins.p0_09,
+                GPIO_8: pins.p0_08,
+                GPIO_9: pins.p0_09,
                 GPIO_10: pins.p0_10,
                 GPIO_12: pins.p0_12,
                 GPIO_13: pins.p0_13,
@@ -546,20 +475,26 @@ impl DWM1001 {
                 GPIO_23: pins.p0_23,
                 GPIO_27: pins.p0_27,
 
-                #[cfg(not(feature = "dev"))] UART_RX   : pins.p0_11,
-                #[cfg(not(feature = "dev"))] UART_TX   : pins.p0_05,
+                #[cfg(not(feature = "dev"))]
+                UART_RX: pins.p0_11,
+                #[cfg(not(feature = "dev"))]
+                UART_TX: pins.p0_05,
 
-                #[cfg(not(feature = "dev"))] GPIO_14: pins.p0_14,
-                #[cfg(not(feature = "dev"))] GPIO_22: pins.p0_22,
-                #[cfg(not(feature = "dev"))] GPIO_30: pins.p0_30,
-                #[cfg(not(feature = "dev"))] GPIO_31: pins.p0_31,
+                #[cfg(not(feature = "dev"))]
+                GPIO_14: pins.p0_14,
+                #[cfg(not(feature = "dev"))]
+                GPIO_22: pins.p0_22,
+                #[cfg(not(feature = "dev"))]
+                GPIO_30: pins.p0_30,
+                #[cfg(not(feature = "dev"))]
+                GPIO_31: pins.p0_31,
 
                 IRQ_ACC: pins.p0_25,
             },
 
             #[cfg(feature = "dev")]
             leds: Leds {
-                D9 : Led::new(pins.p0_30.degrade()),
+                D9: Led::new(pins.p0_30.degrade()),
                 D10: Led::new(pins.p0_31.degrade()),
                 D11: Led::new(pins.p0_22.degrade()),
                 D12: Led::new(pins.p0_14.degrade()),
@@ -568,91 +503,92 @@ impl DWM1001 {
             DW_RST: DW_RST::new(pins.p0_24),
             DW_IRQ: DW_IRQ::new(pins.p0_19),
 
-            DW1000: new_dw1000(p.SPIM2, pins.p0_16, pins.p0_20, pins.p0_18, pins.p0_17, None),
+            DW1000: new_dw1000(
+                p.SPIM2, pins.p0_16, pins.p0_20, pins.p0_18, pins.p0_17, None,
+            ),
 
             LIS2DH12: new_acc_twim(p.TWIM1, pins.p0_28, pins.p0_29),
 
             // nRF52 core peripherals
-            CBP  : cp.CBP,
+            CBP: cp.CBP,
             CPUID: cp.CPUID,
-            DCB  : cp.DCB,
-            DWT  : cp.DWT,
-            FPB  : cp.FPB,
-            FPU  : cp.FPU,
-            ITM  : cp.ITM,
-            MPU  : cp.MPU,
-            NVIC : cp.NVIC,
-            SCB  : cp.SCB,
-            SYST : cp.SYST,
-            TPIU : cp.TPIU,
+            DCB: cp.DCB,
+            DWT: cp.DWT,
+            FPB: cp.FPB,
+            FPU: cp.FPU,
+            ITM: cp.ITM,
+            MPU: cp.MPU,
+            NVIC: cp.NVIC,
+            SCB: cp.SCB,
+            SYST: cp.SYST,
+            TPIU: cp.TPIU,
 
             // nRF52 peripherals
-            FICR  : p.FICR,
-            UICR  : p.UICR,
-            BPROT : p.BPROT,
-            POWER : p.POWER,
-            CLOCK : p.CLOCK,
-            RADIO : p.RADIO,
+            FICR: p.FICR,
+            UICR: p.UICR,
+            BPROT: p.BPROT,
+            POWER: p.POWER,
+            CLOCK: p.CLOCK,
+            RADIO: p.RADIO,
 
             #[cfg(not(feature = "dev"))]
             UARTE0: p.UARTE0,
 
-            UART0 : p.UART0,
-            SPIM0 : p.SPIM0,
-            SPIS0 : p.SPIS0,
-            TWIM0 : p.TWIM0,
-            TWIS0 : p.TWIS0,
-            SPI0  : p.SPI0,
-            TWI0  : p.TWI0,
-            SPIM1 : p.SPIM1,
-            SPIS1 : p.SPIS1,
-            TWIS1 : p.TWIS1,
-            SPI1  : p.SPI1,
-            TWI1  : p.TWI1,
-            NFCT  : p.NFCT,
+            UART0: p.UART0,
+            SPIM0: p.SPIM0,
+            SPIS0: p.SPIS0,
+            TWIM0: p.TWIM0,
+            TWIS0: p.TWIS0,
+            SPI0: p.SPI0,
+            TWI0: p.TWI0,
+            SPIM1: p.SPIM1,
+            SPIS1: p.SPIS1,
+            TWIS1: p.TWIS1,
+            SPI1: p.SPI1,
+            TWI1: p.TWI1,
+            NFCT: p.NFCT,
             GPIOTE: p.GPIOTE,
-            SAADC : p.SAADC,
+            SAADC: p.SAADC,
             TIMER0: p.TIMER0,
             TIMER1: p.TIMER1,
             TIMER2: p.TIMER2,
-            RTC0  : p.RTC0,
-            TEMP  : p.TEMP,
-            RNG   : p.RNG,
-            ECB   : p.ECB,
-            CCM   : p.CCM,
-            AAR   : p.AAR,
-            WDT   : p.WDT,
-            RTC1  : p.RTC1,
-            QDEC  : p.QDEC,
-            COMP  : p.COMP,
+            RTC0: p.RTC0,
+            TEMP: p.TEMP,
+            RNG: p.RNG,
+            ECB: p.ECB,
+            CCM: p.CCM,
+            AAR: p.AAR,
+            WDT: p.WDT,
+            RTC1: p.RTC1,
+            QDEC: p.QDEC,
+            COMP: p.COMP,
             LPCOMP: p.LPCOMP,
-            SWI0  : p.SWI0,
-            EGU0  : p.EGU0,
-            SWI1  : p.SWI1,
-            EGU1  : p.EGU1,
-            SWI2  : p.SWI2,
-            EGU2  : p.EGU2,
-            SWI3  : p.SWI3,
-            EGU3  : p.EGU3,
-            SWI4  : p.SWI4,
-            EGU4  : p.EGU4,
-            SWI5  : p.SWI5,
-            EGU5  : p.EGU5,
+            SWI0: p.SWI0,
+            EGU0: p.EGU0,
+            SWI1: p.SWI1,
+            EGU1: p.EGU1,
+            SWI2: p.SWI2,
+            EGU2: p.EGU2,
+            SWI3: p.SWI3,
+            EGU3: p.EGU3,
+            SWI4: p.SWI4,
+            EGU4: p.EGU4,
+            SWI5: p.SWI5,
+            EGU5: p.EGU5,
             TIMER3: p.TIMER3,
             TIMER4: p.TIMER4,
-            PWM0  : p.PWM0,
-            PDM   : p.PDM,
-            NVMC  : p.NVMC,
-            PPI   : p.PPI,
-            MWU   : p.MWU,
-            PWM1  : p.PWM1,
-            PWM2  : p.PWM2,
-            RTC2  : p.RTC2,
-            I2S   : p.I2S,
+            PWM0: p.PWM0,
+            PDM: p.PDM,
+            NVMC: p.NVMC,
+            PPI: p.PPI,
+            MWU: p.MWU,
+            PWM1: p.PWM1,
+            PWM2: p.PWM2,
+            RTC2: p.RTC2,
+            I2S: p.I2S,
         }
     }
 }
-
 
 /// The nRF52 pins that are available on the DWM1001
 ///
@@ -750,13 +686,11 @@ pub struct Pins {
     // Pins before this comment are available outside the DWM1001. Pins after
     // this comment are connected to components on the board, and should
     // eventually be subsumed by higher-level abstractions.
-
     /// DWM1001: IRQ_ACC; nRF52: P0.25
     ///
     /// Connected to the accelerometer.
     pub IRQ_ACC: p0::P0_25<Disconnected>,
 }
-
 
 /// The LEDs on the DWM1001-Dev board
 ///
@@ -780,7 +714,6 @@ pub struct Leds {
     pub D12: Led,
 }
 
-
 /// An LED on the DWM1001-Dev board
 ///
 /// This struct is only available, if the `dev` feature is enabled.
@@ -802,17 +735,14 @@ impl Led {
 
     /// Enable the LED
     pub fn enable(&mut self) {
-        self.0.set_low()
-            .unwrap();
+        self.0.set_low().unwrap();
     }
 
     /// Disable the LED
     pub fn disable(&mut self) {
-        self.0.set_high()
-            .unwrap();
+        self.0.set_high().unwrap();
     }
 }
-
 
 /// The DW_RST pin (P0.24 on the nRF52)
 ///
@@ -833,20 +763,21 @@ impl DW_RST {
     /// [`DelayMs`] from the `embedded-hal` crate, which the user must supply.
     ///
     /// See [`nrf52832_hal::Delay`] for such an implementation.
-    pub fn reset_dw1000<D>(&mut self, delay: &mut D) where D: DelayMs<u32> {
+    pub fn reset_dw1000<D>(&mut self, delay: &mut D)
+    where
+        D: DelayMs<u32>,
+    {
         // This whole `Option` thing is a bit of a hack. What we actually need
         // here is the ability to put the pin into a tri-state mode that allows
         // us to switch input/output on the fly.
-        let dw_rst = self.0
+        let dw_rst = self
+            .0
             .take()
             .unwrap()
             // According the the DW1000 datasheet (section 5.6.3.1), the reset
             // pin should be pulled low using open-drain, and must never be
             // pulled high.
-            .into_open_drain_output(
-                OpenDrainConfig::Standard0Disconnect1,
-                Level::Low
-            );
+            .into_open_drain_output(OpenDrainConfig::Standard0Disconnect1, Level::Low);
 
         // Section 5.6.3.1 in the data sheet talks about keeping this low for
         // T-RST_OK, which would be 10-50 nanos. But table 15 makes it sound
@@ -861,7 +792,6 @@ impl DW_RST {
         delay.delay_ms(5);
     }
 }
-
 
 /// The DW_IRQ pin (P0.19 on the nRF52)
 ///
@@ -885,16 +815,12 @@ impl DW_IRQ {
     ///   DW1000.
     /// - This method disables interrupt handlers. No interrupt handler will be
     ///   called while this method is active.
-    pub fn wait_for_interrupts<T>(&mut self,
-        gpiote: &mut nrf52::GPIOTE,
-        timer:  &mut Timer<T>,
-    )
-        where T: timer::Instance
+    pub fn wait_for_interrupts<T>(&mut self, gpiote: &mut nrf52::GPIOTE, timer: &mut Timer<T>)
+    where
+        T: timer::Instance,
     {
         gpiote.config[0].write(|w| {
-            let w = w
-                .mode().event()
-                .polarity().lo_to_hi();
+            let w = w.mode().event().polarity().lo_to_hi();
 
             unsafe { w.psel().bits(19) }
         });
@@ -906,7 +832,9 @@ impl DW_IRQ {
 
             // Safe, as I don't believe this can interfere with the critical
             // section we're in.
-            unsafe { nrf52::NVIC::unmask(Interrupt::GPIOTE); }
+            unsafe {
+                nrf52::NVIC::unmask(Interrupt::GPIOTE);
+            }
             timer.enable_interrupt();
 
             asm::dsb();

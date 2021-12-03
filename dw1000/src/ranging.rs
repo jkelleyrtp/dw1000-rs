@@ -391,7 +391,12 @@ pub fn compute_distance_mm(response: &RxMessage<Response>) -> Result<u64, Comput
     let sum = rt_sum
         .checked_add(rtt_sum)
         .ok_or(ComputeDistanceError::SumTooLarge)?;
-    let time_of_flight = (rtt_product - rt_product) / sum;
+
+    let time_diff = rtt_product
+        .checked_sub(rt_product)
+        .ok_or(ComputeDistanceError::RtGreaterThanRtt)?;
+
+    let time_of_flight = time_diff / sum;
 
     // Nominally, all time units are based on a 64 Ghz clock, meaning each time
     // unit is 1/64 ns.
@@ -420,4 +425,8 @@ pub enum ComputeDistanceError {
 
     /// The time of flight is so large, the distance calculation would overflow
     TimeOfFlightTooLarge,
+
+    /// Round trip product is greater than round trip time due to low power
+    // Not exactly sure what causes this but it's a potential problem and occurs when VCC is low
+    RtGreaterThanRtt,
 }

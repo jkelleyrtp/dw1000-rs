@@ -10,57 +10,45 @@
 #![no_main]
 #![no_std]
 
-
-extern crate panic_semihosting;
-
-
-use cortex_m_rt::entry;
+use defmt_rtt as _;
+use panic_probe as _;
 
 use dwm1001::{
-    prelude::*,
-    debug,
+    block_timeout,
     dw1000::{
-        RxConfig,
         mac,
-        ranging::{
-            self,
-            Message as _RangingMessage,
-        },
+        ranging::{self, Message as _RangingMessage},
+        RxConfig,
     },
     nrf52832_hal::{
-        gpio::{
-            p0::P0_17,
-            Output,
-            PushPull,
-        },
+        gpio::{p0::P0_17, Output, PushPull},
         pac::SPIM2,
         rng::Rng,
-        Delay,
-        Spim,
-        Timer,
+        Delay, Spim, Timer,
     },
-    DWM1001,
-    block_timeout,
-    print,
+    prelude::*,
 };
 
-
-#[entry]
+#[cortex_m_rt::entry]
 fn main() -> ! {
-    debug::init();
+    defmt::info!("Launching tag");
 
-    let mut dwm1001 = DWM1001::take().unwrap();
+    let mut dwm1001 = dwm1001::DWM1001::take().unwrap();
 
-    let mut delay  = Delay::new(dwm1001.SYST);
-    let mut rng    = Rng::new(dwm1001.RNG);
+    let mut delay = Delay::new(dwm1001.SYST);
+    let mut rng = Rng::new(dwm1001.RNG);
 
     dwm1001.DW_RST.reset_dw1000(&mut delay);
-    let mut dw1000 = dwm1001.DW1000.init(&mut delay)
+    let mut dw1000 = dwm1001
+        .DW1000
+        .init(&mut delay)
         .expect("Failed to initialize DW1000");
 
-    dw1000.enable_tx_interrupts()
+    dw1000
+        .enable_tx_interrupts()
         .expect("Failed to enable TX interrupts");
-    dw1000.enable_rx_interrupts()
+    dw1000
+        .enable_rx_interrupts()
         .expect("Failed to enable RX interrupts");
 
     let mut dw_irq = dwm1001.DW_IRQ;
@@ -72,7 +60,8 @@ fn main() -> ! {
     // now.
     //
     // [1] https://github.com/Decawave/dwm1001-examples
-    dw1000.set_antenna_delay(16456, 16300)
+    dw1000
+        .set_antenna_delay(16456, 16300)
         .expect("Failed to set antenna delay");
 
     // Set network address
@@ -88,33 +77,33 @@ fn main() -> ! {
     let mut buf = [0; 128];
 
     loop {
+        defmt::info!("waiting for base station ping");
         let mut receiving = dw1000
             .receive(RxConfig::default())
             .expect("Failed to receive message");
 
         timeout_timer.start(500_000u32);
         let message = block_timeout!(&mut timeout_timer, {
-            dw_irq.wait_for_interrupts(
-                &mut gpiote,
-                &mut timeout_timer,
-            );
-            receiving.wait(&mut buf)
+            dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
+            receiving.wait_receive(&mut buf)
         });
 
-        dw1000 = receiving.finish_receiving()
+        dw1000 = receiving
+            .finish_receiving()
             .expect("Failed to finish receiving");
 
         let message = match message {
             Ok(message) => message,
-            Err(_)      => continue, //ignore error
+            Err(_) => {
+                defmt::info!("Timeout error occured");
+                continue;
+            }
         };
 
-        let ping =
-            ranging::Ping::decode::<
-                Spim<SPIM2>,
-                P0_17<Output<PushPull>>,
-            >(&message)
-                .expect("Failed to decode ping");
+        defmt::info!("msg from base station: received");
+
+        let ping = ranging::Ping::decode::<Spim<SPIM2>, P0_17<Output<PushPull>>>(&message)
+            .expect("Failed to decode ping");
         if let Some(ping) = ping {
             // Received ping from an anchor. Reply with a ranging
             // request.
@@ -134,26 +123,18 @@ fn main() -> ! {
 
             timeout_timer.start(500_000u32);
             block_timeout!(&mut timeout_timer, {
-                dw_irq.wait_for_interrupts(
-                    &mut gpiote,
-                    &mut timeout_timer,
-                );
-                sending.wait()
+                dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
+                sending.wait_transmit()
             })
             .expect("Failed to send ranging request");
 
-            dw1000 = sending.finish_sending()
-                .expect("Failed to finish sending");
+            dw1000 = sending.finish_sending().expect("Failed to finish sending");
 
             continue;
         }
 
-        let response =
-            ranging::Response::decode::<
-                Spim<SPIM2>,
-                P0_17<Output<PushPull>>,
-            >(&message)
-                .expect("Failed to decode response");
+        let response = ranging::Response::decode::<Spim<SPIM2>, P0_17<Output<PushPull>>>(&message)
+            .expect("Failed to decode response");
         if let Some(response) = response {
             // Received ranging response from anchor. Now we can compute the
             // distance.
@@ -165,10 +146,8 @@ fn main() -> ! {
             // If this is not a PAN ID and short address, it doesn't
             // come from a compatible node. Ignore it.
             let (pan_id, addr) = match response.source {
-                Some(mac::Address::Short(pan_id, addr)) =>
-                    (pan_id, addr),
-                _ =>
-                    continue,
+                Some(mac::Address::Short(pan_id, addr)) => (pan_id, addr),
+                _ => continue,
             };
 
             // Ranging response received. Compute distance.
@@ -178,15 +157,11 @@ fn main() -> ! {
             delay.delay_ms(10u32);
             dwm1001.leds.D9.disable();
 
-            print!("{:04x}:{:04x} - {} mm\n",
-                pan_id.0,
-                addr.0,
-                distance_mm,
-            );
+            defmt::info!("{:04x}:{:04x} - {} mm\n", pan_id.0, addr.0, distance_mm,);
 
             continue;
         }
 
-        print!("Ignored message that was neither ping nor response\n");
+        defmt::info!("Ignored message that was neither ping nor response\n");
     }
 }

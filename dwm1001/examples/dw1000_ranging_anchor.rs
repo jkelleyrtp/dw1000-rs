@@ -11,58 +11,45 @@
 #![no_main]
 #![no_std]
 
-
-extern crate panic_semihosting;
-
-
-use cortex_m_rt::entry;
-use nb::block;
+use defmt_rtt as _;
+use panic_probe as _;
 
 use dwm1001::{
-    prelude::*,
-    debug,
+    block_timeout,
     dw1000::{
-        RxConfig,
         mac,
-        ranging::{
-            self,
-            Message as _RangingMessage,
-        },
+        ranging::{self, Message as _RangingMessage},
+        RxConfig,
     },
     nrf52832_hal::{
-        gpio::{
-            p0::P0_17,
-            Output,
-            PushPull,
-        },
+        gpio::{p0::P0_17, Output, PushPull},
         pac::SPIM2,
         rng::Rng,
-        Delay,
-        Spim,
-        Timer,
+        Delay, Spim, Timer,
     },
-    DWM1001,
-    block_timeout,
-    print,
+    prelude::*,
 };
 
-
-#[entry]
+#[cortex_m_rt::entry]
 fn main() -> ! {
-    debug::init();
+    defmt::info!("Launching anchor");
 
-    let mut dwm1001 = DWM1001::take().unwrap();
+    let mut dwm1001 = dwm1001::DWM1001::take().unwrap();
 
-    let mut delay  = Delay::new(dwm1001.SYST);
-    let mut rng    = Rng::new(dwm1001.RNG);
+    let mut delay = Delay::new(dwm1001.SYST);
+    let mut rng = Rng::new(dwm1001.RNG);
 
     dwm1001.DW_RST.reset_dw1000(&mut delay);
-    let mut dw1000 = dwm1001.DW1000.init(&mut delay)
+    let mut dw1000 = dwm1001
+        .DW1000
+        .init(&mut delay)
         .expect("Failed to initialize DW1000");
 
-    dw1000.enable_tx_interrupts()
+    dw1000
+        .enable_tx_interrupts()
         .expect("Failed to enable TX interrupts");
-    dw1000.enable_rx_interrupts()
+    dw1000
+        .enable_rx_interrupts()
         .expect("Failed to enable RX interrupts");
 
     let mut dw_irq = dwm1001.DW_IRQ;
@@ -74,7 +61,8 @@ fn main() -> ! {
     // now.
     //
     // [1] https://github.com/Decawave/dwm1001-examples
-    dw1000.set_antenna_delay(16456, 16300)
+    dw1000
+        .set_antenna_delay(16456, 16300)
         .expect("Failed to set antenna delay");
 
     // Set network address
@@ -85,16 +73,34 @@ fn main() -> ! {
         )
         .expect("Failed to set address");
 
-    let mut task_timer    = Timer::new(dwm1001.TIMER0);
+    let mut task_timer = Timer::new(dwm1001.TIMER0);
     let mut timeout_timer = Timer::new(dwm1001.TIMER1);
 
+    defmt::info!("Timer started");
     task_timer.start(1_000_000u32);
 
     let mut buf = [0; 128];
 
+    let mut frame_id = 0;
+    let mut ping_id = 0;
+
     loop {
+        /*
+        Strategy:
+        - Sending a ranging ping
+        - Waiting for a ranging request
+        - Responding with a ranging response
+
+
+
+
+
+        */
+
         // After receiving for a while, it's time to send out a ping
         if let Ok(()) = task_timer.wait() {
+            defmt::info!("Sending ping {}", ping_id);
+            ping_id += 1;
             task_timer.start(5_000_000u32);
 
             dwm1001.leds.D10.enable();
@@ -107,55 +113,53 @@ fn main() -> ! {
                 .expect("Failed to initiate ping transmission");
 
             timeout_timer.start(100_000u32);
-            block!({
-                dw_irq.wait_for_interrupts(
-                    &mut gpiote,
-                    &mut timeout_timer,
-                );
-                sending.wait()
+            nb::block!({
+                dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
+                sending.wait_transmit()
             })
             .expect("Failed to send ping");
 
-            dw1000 = sending.finish_sending()
-                .expect("Failed to finish sending");
+            dw1000 = sending.finish_sending().expect("Failed to finish sending");
         }
+
+        defmt::info!("Starting receive. Frame ID: {}", frame_id);
+        frame_id += 1;
 
         let mut receiving = dw1000
             .receive(RxConfig::default())
             .expect("Failed to receive message");
 
         timeout_timer.start(500_000u32);
+
         let result = block_timeout!(&mut timeout_timer, {
-            dw_irq.wait_for_interrupts(
-                &mut gpiote,
-                &mut timeout_timer,
-            );
-            receiving.wait(&mut buf)
+            dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
+            receiving.wait_receive(&mut buf)
         });
 
-        dw1000 = receiving.finish_receiving()
+        dw1000 = receiving
+            .finish_receiving()
             .expect("Failed to finish receiving");
 
         let message = match result {
             Ok(message) => message,
-            _           => continue,
+            _ => {
+                defmt::info!("Msg not found");
+                continue;
+            }
         };
+
+        defmt::info!("Response found");
 
         dwm1001.leds.D11.enable();
         delay.delay_ms(10u32);
         dwm1001.leds.D11.disable();
 
-        let request =
-            ranging::Request::decode::<
-                Spim<SPIM2>,
-                P0_17<Output<PushPull>>,
-            >(&message);
+        let request = ranging::Request::decode::<Spim<SPIM2>, P0_17<Output<PushPull>>>(&message);
 
         let request = match request {
-            Ok(Some(request)) =>
-                request,
+            Ok(Some(request)) => request,
             Ok(None) | Err(_) => {
-                print!("Ignoring message that is not a request\n");
+                defmt::info!("Ignoring message that is not a request\n");
                 continue;
             }
         };
@@ -174,17 +178,13 @@ fn main() -> ! {
             .send(dw1000)
             .expect("Failed to initiate response transmission");
         timeout_timer.start(100_000u32);
-        block!({
-            dw_irq.wait_for_interrupts(
-                &mut gpiote,
-                &mut timeout_timer,
-            );
-            sending.wait()
+        nb::block!({
+            dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
+            sending.wait_transmit()
         })
         .expect("Failed to send ranging response");
 
-        dw1000 = sending.finish_sending()
-            .expect("Failed to finish sending");
+        dw1000 = sending.finish_sending().expect("Failed to finish sending");
 
         dwm1001.leds.D9.enable();
         delay.delay_ms(10u32);

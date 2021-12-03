@@ -1,0 +1,16 @@
+[build]
+target = "thumbv7em-none-eabihf"
+
+[target.thumbv7em-none-eabihf]
+runner = "probe-run --chip nRF52832_xxAA"
+rustflags = [
+    "-C",
+    "linker=flip-link",
+    "-C",
+    "link-arg=-Tlink.x",
+    "-C",
+    "link-arg=-Tdefmt.x",
+]
+
+# alternative runner
+# runner = "arm-none-eabi-gdb -q -x debug.gdb"

@@ -3,39 +3,28 @@
 #![no_main]
 #![no_std]
 
+use defmt_rtt as _;
+use panic_probe as _;
 
-extern crate panic_semihosting;
-
-
-use cortex_m_rt::entry;
-
-use dwm1001::{
-    debug,
-    DWM1001,
-    print,
-};
-
-
-#[entry]
+#[cortex_m_rt::entry]
 fn main() -> ! {
-    debug::init();
+    let mut dwm1001 = dwm1001::DWM1001::take().unwrap();
 
-    let mut dwm1001 = DWM1001::take().unwrap();
+    defmt::info!("Writing...");
 
-    print!("Writing...\n");
-
-    dwm1001.DW1000
+    dwm1001
+        .DW1000
         .ll()
         .drx_tune2()
         .write(|w|
             // Careful, only specific values are allowed here.
-            w.value(0x311A002D)
-        )
+            w.value(0x311A002D))
         .expect("Failed to write to register");
 
-    print!("Reading...\n");
+    defmt::info!("Reading...");
 
-    let drx_tune2 = dwm1001.DW1000
+    let drx_tune2 = dwm1001
+        .DW1000
         .ll()
         .drx_tune2()
         .read()
@@ -43,20 +32,21 @@ fn main() -> ! {
 
     assert_eq!(drx_tune2.value(), 0x311A002D);
 
-    print!("Writing...\n");
+    defmt::info!("Writing...");
 
-    dwm1001.DW1000
+    dwm1001
+        .DW1000
         .ll()
         .drx_tune2()
         .write(|w|
             // Careful, only specific values are allowed here.
-            w.value(0x313B006B)
-        )
+            w.value(0x313B006B))
         .expect("Failed to write to register");
 
-    print!("Reading...\n");
+    defmt::info!("Reading...");
 
-    let drx_tune2 = dwm1001.DW1000
+    let drx_tune2 = dwm1001
+        .DW1000
         .ll()
         .drx_tune2()
         .read()
@@ -64,7 +54,7 @@ fn main() -> ! {
 
     assert_eq!(drx_tune2.value(), 0x313B006B);
 
-    print!("Success!\n");
+    defmt::info!("Success!");
 
     loop {}
 }
