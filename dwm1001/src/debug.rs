@@ -12,20 +12,16 @@
 //! always compile it without the `semihosting` feature. Programs that enable
 //! semihosting cannot run without a debugger attached.
 
-
 use core::cell::RefCell;
 
 use cortex_m::interrupt::Mutex;
 use cortex_m_semihosting::hio::HStdout;
 
-
 /// Connects to the host's stdout
 ///
 /// Users can typically ignore this static, and use [`init`], [`print!`], and
 /// [`println!`] instead.
-pub static STDOUT: Mutex<RefCell<Option<HStdout>>> =
-    Mutex::new(RefCell::new(None));
-
+pub static STDOUT: Mutex<RefCell<Option<HStdout>>> = Mutex::new(RefCell::new(None));
 
 /// Initializes the debug output, if semihosting is enabled
 ///
@@ -43,14 +39,11 @@ pub fn init() {
         use cortex_m_semihosting::hio;
 
         interrupt::free(|cs| {
-            *STDOUT.borrow(cs).borrow_mut() = Some(
-                hio::hstdout()
-                    .expect("Failed to initialize semihosting")
-            );
+            *STDOUT.borrow(cs).borrow_mut() =
+                Some(hio::hstdout().expect("Failed to initialize semihosting"));
         });
     }
 }
-
 
 /// Sends a debug message to the host, if semihosting is enabled
 #[macro_export]

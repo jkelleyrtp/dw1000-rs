@@ -1,43 +1,34 @@
 //! Waits to receive data and signals status via LEDs
 
-#![no_main]
 #![no_std]
+#![no_main]
 
-
-extern crate panic_semihosting;
-
-
-use cortex_m_rt::entry;
+use defmt_rtt as _;
+use embedded_timeout_macros::TimeoutError;
+use panic_probe as _;
 
 use dwm1001::{
-    block_timeout,
-    debug,
+    block_timeout, debug,
     dw1000::{
+        ranging::{self, Message as _},
         RxConfig,
-        ranging::{
-            self,
-            Message as _,
-        },
     },
-    DWM1001,
-    nrf52832_hal::{
-        Delay,
-        Timer,
-    },
+    nrf52832_hal::{Delay, Timer},
     prelude::*,
-    print,
+    print, DWM1001,
 };
 
-
-#[entry]
+#[cortex_m_rt::entry]
 fn main() -> ! {
-    debug::init();
+    defmt::info!("hello rx!");
 
     let mut dwm1001 = DWM1001::take().unwrap();
-    let mut delay  = Delay::new(dwm1001.SYST);
+    let mut delay = Delay::new(dwm1001.SYST);
 
     dwm1001.DW_RST.reset_dw1000(&mut delay);
-    let mut dw1000 = dwm1001.DW1000.init(&mut delay)
+    let mut dw1000 = dwm1001
+        .DW1000
+        .init(&mut delay)
         .expect("Failed to initialize DW1000");
 
     // Configure timer
@@ -47,7 +38,7 @@ fn main() -> ! {
         let mut receiving = dw1000
             .receive(RxConfig {
                 frame_filtering: false,
-                .. RxConfig::default()
+                ..RxConfig::default()
             })
             .expect("Failed to start receiver");
 
@@ -58,18 +49,30 @@ fn main() -> ! {
 
         let result = block_timeout!(&mut timer, receiving.wait(&mut buffer));
 
-        dw1000 = receiving.finish_receiving()
+        dw1000 = receiving
+            .finish_receiving()
             .expect("Failed to finish receiving");
 
         let message = match result {
-            Ok(message) => {
-                message
-            }
+            Ok(message) => message,
             Err(error) => {
-                print!("Error: {:?}\n", error);
+                match error {
+                    TimeoutError::Timeout => {
+                        defmt::debug!("Timeout");
+                        continue;
+                    }
+                    TimeoutError::Other(o) => {
+                        defmt::debug!("Other error: {:?}", defmt::Debug2Format(&o));
+                        continue;
+                    }
+                }
+                defmt::error!("an error occured");
+                // defmt::error!("an error occured {:?}", error);
                 continue;
             }
         };
+
+        defmt::info!("message successfully received");
 
         if message.frame.payload.starts_with(ranging::Ping::PRELUDE.0) {
             dwm1001.leds.D10.enable();
@@ -77,13 +80,21 @@ fn main() -> ! {
             dwm1001.leds.D10.disable();
             continue;
         }
-        if message.frame.payload.starts_with(ranging::Request::PRELUDE.0) {
+        if message
+            .frame
+            .payload
+            .starts_with(ranging::Request::PRELUDE.0)
+        {
             dwm1001.leds.D11.enable();
             delay.delay_ms(10u32);
             dwm1001.leds.D11.disable();
             continue;
         }
-        if message.frame.payload.starts_with(ranging::Response::PRELUDE.0) {
+        if message
+            .frame
+            .payload
+            .starts_with(ranging::Response::PRELUDE.0)
+        {
             dwm1001.leds.D12.enable();
             delay.delay_ms(10u32);
             dwm1001.leds.D12.disable();
@@ -94,6 +105,6 @@ fn main() -> ! {
         delay.delay_ms(10u32);
         dwm1001.leds.D9.disable();
 
-        print!("Received frame: {:x?}\n", message.frame);
+        defmt::debug!("received frame {:#?}", defmt::Debug2Format(&message.frame));
     }
 }

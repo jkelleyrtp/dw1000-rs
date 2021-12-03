@@ -6,7 +6,7 @@ use crate::{
 use byte::BytesExt as _;
 use core::num::Wrapping;
 use embedded_hal::{blocking::spi, digital::v2::OutputPin};
-use ieee802154::mac::{self, FooterMode};
+use ieee802154::mac::{self, FooterMode, FrameSerDesContext};
 
 /// The behaviour of the sync pin
 pub enum SyncBehaviour {
@@ -170,13 +170,19 @@ where
             header: mac::Header {
                 frame_type: mac::FrameType::Data,
                 version: mac::FrameVersion::Ieee802154_2006,
-                security: mac::Security::None,
+
                 frame_pending: false,
                 ack_request: false,
                 pan_id_compress: false,
                 destination,
                 source: Some(self.get_address()?),
                 seq,
+
+                // todo: not sure if these values are quite right
+                // security: mac::Security::None,
+                auxiliary_security_header: None,
+                ie_present: false,
+                seq_no_suppress: false,
             },
             content: mac::FrameContent::Data,
             payload: data,
@@ -197,15 +203,21 @@ where
 
         // Prepare transmitter
         let mut len = 0;
-        self.ll.tx_buffer().write(|w| {
-            let result = w.data().write_with(&mut len, frame, FooterMode::None);
+        self.ll
+            .tx_buffer()
+            .write(|w: &mut crate::ll::tx_buffer::W| {
+                let result = w.data().write_with(
+                    &mut len,
+                    frame,
+                    &mut FrameSerDesContext::no_security(FooterMode::None),
+                );
 
-            if let Err(err) = result {
-                panic!("Failed to write frame: {:?}", err);
-            }
+                if let Err(err) = result {
+                    panic!("Failed to write frame: {:?}", err);
+                }
 
-            w
-        })?;
+                w
+            })?;
         self.ll.tx_fctrl().modify(|_, w| {
             let tflen = len as u8 + 2;
             w.tflen(tflen) // data length + two-octet CRC
