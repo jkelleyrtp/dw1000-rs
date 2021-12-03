@@ -66,7 +66,6 @@ fn main() -> ! {
                     }
                 }
                 defmt::error!("an error occured");
-                // defmt::error!("an error occured {:?}", error);
                 continue;
             }
         };

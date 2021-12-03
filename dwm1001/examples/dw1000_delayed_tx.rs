@@ -25,7 +25,7 @@ fn main() -> ! {
         let sys_time = dw1000.sys_time().expect("Failed to read system time");
         let tx_time = sys_time + Duration::from_nanos(10_000_000);
 
-        let mut sending: DW1000<_, _, dw1000::Sending> = dw1000
+        let mut sending = dw1000
             .send(
                 b"ping",
                 mac::Address::broadcast(&mac::AddressMode::Short),
