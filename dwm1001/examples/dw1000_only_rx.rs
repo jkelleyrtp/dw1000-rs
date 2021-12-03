@@ -4,7 +4,6 @@
 #![no_main]
 
 use defmt_rtt as _;
-use embedded_timeout_macros::TimeoutError;
 use panic_probe as _;
 
 use dwm1001::{
@@ -57,11 +56,11 @@ fn main() -> ! {
             Ok(message) => message,
             Err(error) => {
                 match error {
-                    TimeoutError::Timeout => {
+                    embedded_timeout_macros::TimeoutError::Timeout => {
                         defmt::debug!("Timeout");
                         continue;
                     }
-                    TimeoutError::Other(o) => {
+                    embedded_timeout_macros::TimeoutError::Other(o) => {
                         defmt::debug!("Other error: {:?}", defmt::Debug2Format(&o));
                         continue;
                     }

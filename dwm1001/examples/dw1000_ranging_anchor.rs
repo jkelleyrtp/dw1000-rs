@@ -11,10 +11,8 @@
 #![no_main]
 #![no_std]
 
-extern crate panic_semihosting;
-
-use cortex_m_rt::entry;
-use nb::block;
+use defmt_rtt as _;
+use panic_probe as _;
 
 use dwm1001::{
     block_timeout, debug,
@@ -33,7 +31,7 @@ use dwm1001::{
     print, DWM1001,
 };
 
-#[entry]
+#[cortex_m_rt::entry]
 fn main() -> ! {
     debug::init();
 
@@ -98,7 +96,7 @@ fn main() -> ! {
                 .expect("Failed to initiate ping transmission");
 
             timeout_timer.start(100_000u32);
-            block!({
+            nb::block!({
                 dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
                 sending.wait()
             })
@@ -154,7 +152,7 @@ fn main() -> ! {
             .send(dw1000)
             .expect("Failed to initiate response transmission");
         timeout_timer.start(100_000u32);
-        block!({
+        nb::block!({
             dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
             sending.wait()
         })
