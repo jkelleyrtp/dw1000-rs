@@ -8,18 +8,11 @@
 #![no_main]
 #![no_std]
 
-
 extern crate panic_semihosting;
-
 
 use cortex_m_rt::entry;
 
-use dwm1001::{
-    debug,
-    DWM1001,
-    print,
-};
-
+use dwm1001::{debug, print, DWM1001};
 
 #[entry]
 fn main() -> ! {
@@ -29,7 +22,8 @@ fn main() -> ! {
 
     print!("Writing...\n");
 
-    dwm1001.DW1000
+    dwm1001
+        .DW1000
         .ll()
         .dx_time()
         .write(|w| w.value(0x1122334455))
@@ -37,7 +31,8 @@ fn main() -> ! {
 
     print!("Reading...\n");
 
-    let dx_time = dwm1001.DW1000
+    let dx_time = dwm1001
+        .DW1000
         .ll()
         .dx_time()
         .read()

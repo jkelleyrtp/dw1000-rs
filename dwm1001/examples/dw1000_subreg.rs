@@ -3,18 +3,11 @@
 #![no_main]
 #![no_std]
 
-
 extern crate panic_semihosting;
-
 
 use cortex_m_rt::entry;
 
-use dwm1001::{
-    debug,
-    DWM1001,
-    print,
-};
-
+use dwm1001::{debug, print, DWM1001};
 
 #[entry]
 fn main() -> ! {
@@ -24,18 +17,19 @@ fn main() -> ! {
 
     print!("Writing...\n");
 
-    dwm1001.DW1000
+    dwm1001
+        .DW1000
         .ll()
         .drx_tune2()
         .write(|w|
             // Careful, only specific values are allowed here.
-            w.value(0x311A002D)
-        )
+            w.value(0x311A002D))
         .expect("Failed to write to register");
 
     print!("Reading...\n");
 
-    let drx_tune2 = dwm1001.DW1000
+    let drx_tune2 = dwm1001
+        .DW1000
         .ll()
         .drx_tune2()
         .read()
@@ -45,18 +39,19 @@ fn main() -> ! {
 
     print!("Writing...\n");
 
-    dwm1001.DW1000
+    dwm1001
+        .DW1000
         .ll()
         .drx_tune2()
         .write(|w|
             // Careful, only specific values are allowed here.
-            w.value(0x313B006B)
-        )
+            w.value(0x313B006B))
         .expect("Failed to write to register");
 
     print!("Reading...\n");
 
-    let drx_tune2 = dwm1001.DW1000
+    let drx_tune2 = dwm1001
+        .DW1000
         .ll()
         .drx_tune2()
         .read()
