@@ -16,6 +16,7 @@ use panic_probe as _;
 use dwm1001::{
     block_timeout,
     dw1000::{
+        configs::{BitRate, PreambleLength, SfdSequence},
         mac,
         ranging::{self, Message as _RangingMessage},
         RxConfig,
@@ -24,7 +25,7 @@ use dwm1001::{
         gpio::{p0::P0_17, Output, PushPull},
         pac::SPIM2,
         rng::Rng,
-        Delay, Spim, Timer,
+        Delay, Spim, Temp, Timer,
     },
     prelude::*,
 };
@@ -51,9 +52,6 @@ fn main() -> ! {
         .enable_rx_interrupts()
         .expect("Failed to enable RX interrupts");
 
-    let mut dw_irq = dwm1001.DW_IRQ;
-    let mut gpiote = dwm1001.GPIOTE;
-
     // These are the hardcoded calibration values from the dwm1001-examples
     // repository[1]. Ideally, the calibration values would be determined using
     // the proper calibration procedure, but hopefully those are good enough for
@@ -77,6 +75,8 @@ fn main() -> ! {
     let mut buffer1 = [0; 1024];
     let mut buffer2 = [0; 1024];
 
+    let mut temp = Temp::new(dwm1001.TEMP);
+
     loop {
         /*
         - wait for ping
@@ -89,7 +89,15 @@ fn main() -> ! {
         defmt::debug!("waiting for base mobile tag ping");
 
         let mut receiving = dw1000
-            .receive(RxConfig::default())
+            .receive(RxConfig {
+                bitrate: BitRate::Kbps110,
+                channel: dw1000::configs::UwbChannel::Channel1,
+                expected_preamble_length: PreambleLength::Symbols1536,
+                sfd_sequence: SfdSequence::Decawave,
+
+                ..Default::default()
+            })
+            // .receive(RxConfig::default())
             .expect("Failed to receive message");
 
         let message = block_timeout!(&mut timer, receiving.wait_receive(&mut buffer1));
@@ -100,7 +108,7 @@ fn main() -> ! {
 
         let message = match message {
             Ok(message) => message,
-            Err(e) => {
+            Err(_) => {
                 defmt::error!("Timeout error occured");
                 continue;
             }
@@ -131,7 +139,15 @@ fn main() -> ! {
 
         let mut sending = ranging::Request::new(&mut dw1000, &ping)
             .expect("Failed to initiate request")
-            .send(dw1000)
+            .send(
+                dw1000,
+                dw1000::TxConfig {
+                    bitrate: BitRate::Kbps110,
+                    channel: dw1000::configs::UwbChannel::Channel1,
+                    preamble_length: PreambleLength::Symbols1536,
+                    ..Default::default()
+                },
+            )
             .expect("Failed to initiate request transmission");
 
         nb::block!(sending.wait_transmit()).expect("Failed to send data");
@@ -140,7 +156,12 @@ fn main() -> ! {
         defmt::debug!("Request sent Transmission sent. Waiting for response.");
 
         let mut receiving = dw1000
-            .receive(RxConfig::default())
+            .receive(RxConfig {
+                bitrate: BitRate::Kbps110,
+                channel: dw1000::configs::UwbChannel::Channel1,
+                expected_preamble_length: PreambleLength::Symbols1536,
+                ..Default::default()
+            })
             .expect("Failed to receive message");
 
         // Set timer for timeout
@@ -171,28 +192,6 @@ fn main() -> ! {
             match ranging::Response::decode::<Spim<SPIM2>, P0_17<Output<PushPull>>>(&message) {
                 Ok(Some(response)) => response,
                 Ok(None) => {
-                    // Frame {
-                    //     header: Header {
-                    //         frame_type: Data,
-                    //         frame_pending: false,
-                    //         ack_request: false,
-                    //         pan_id_compress: false,
-                    //         seq_no_suppress: false,
-                    //         ie_present: false,
-                    //         version: Ieee802154_2006,
-                    //         seq: 129,
-                    //         destination: Some(Short(PanId(65535), ShortAddress(65535))),
-                    //         source: Some(Short(PanId(3415), ShortAddress(6325))),
-                    //         auxiliary_security_header: None,
-                    //     },
-                    //     content: Data,
-                    //     payload: [
-                    //         82, 65, 78, 71, 73, 78, 71, 32, 80, 73, 78, 71, 172, 91, 228, 168, 99,
-                    //         0, 0, 0,
-                    //     ],
-                    //     footer: [189, 146],
-                    // };
-
                     defmt::error!(
                         "Failed to decode ranging response. Frame is {:?}",
                         defmt::Debug2Format(&message.frame)
@@ -218,75 +217,5 @@ fn main() -> ! {
             Some(mac::Address::Short(pan_id, addr)) => (pan_id, addr),
             _ => continue,
         };
-
-        let ping_rt = response.payload.ping_reply_time.value();
-        let ping_rtt = response.payload.ping_round_trip_time.value();
-        let request_rt = response.payload.request_reply_time.value();
-        let request_rtt = response
-            .rx_time
-            .duration_since(response.payload.request_tx_time)
-            .value();
-
-        defmt::info!(
-            r#"
-        Ping reply time: {:?}
-        Ping round trip time: {:?}
-        Request reply time: {:?}
-        Request round trip time: {:?}
-        "#,
-            ping_rt,
-            ping_rtt,
-            request_rt,
-            request_rtt
-        );
-
-        // Compute time of flight according to the formula given in the DW1000 user
-        // manual, section 12.3.2.
-        let rtt_product = ping_rtt.checked_mul(request_rtt).unwrap();
-        // .ok_or(ComputeDistanceError::RoundTripTimesTooLarge)?;
-        let rt_product = ping_rt.checked_mul(request_rt).unwrap();
-        // .ok_or(ComputeDistanceError::ReplyTimesTooLarge)?;
-        let rt_sum = ping_rt.checked_add(request_rt).unwrap();
-        // .ok_or(ComputeDistanceError::SumTooLarge)?;
-        let rtt_sum = ping_rtt.checked_add(request_rtt).unwrap();
-        // .ok_or(ComputeDistanceError::SumTooLarge)?;
-        let sum = rt_sum.checked_add(rtt_sum).unwrap();
-        // .ok_or(ComputeDistanceError::SumTooLarge)?;
-
-        defmt::info!(
-            r#"
-            rtt_product: {:?} 
-            rt_product: {:?} 
-            rt_sum: {:?} 
-            rtt_sum: {:?} 
-            sum: {:?}
-            "#,
-            rtt_product,
-            rt_product,
-            rt_sum,
-            rtt_sum,
-            sum
-        );
-
-        let time_diff = (rtt_product - rt_product);
-        let time_of_flight = time_diff.checked_div(sum);
-        if time_of_flight.is_none() {
-            defmt::error!("Time of flight is too large");
-            continue;
-        }
-
-        // Ranging response received. Compute distance.
-        // match ranging::compute_distance_mm(&response) {
-        //     Ok(distance_mm) => {
-        //         dwm1001.leds.D9.enable();
-        //         delay.delay_ms(10u32);
-        //         dwm1001.leds.D9.disable();
-
-        //         defmt::info!("{:04x}:{:04x} - {} mm\n", pan_id.0, addr.0, distance_mm,);
-        //     }
-        //     Err(e) => {
-        //         defmt::error!("Ranging response error: {:?}", defmt::Debug2Format(&e));
-        //     }
-        // }
     }
 }

@@ -11,6 +11,7 @@
 #![no_std]
 
 use defmt_rtt as _;
+use dw1000::configs::{BitRate, PreambleLength, SfdSequence};
 use panic_probe as _;
 
 use dwm1001::{
@@ -20,12 +21,11 @@ use dwm1001::{
         ranging::{self, Message as _RangingMessage},
         RxConfig,
     },
-    embedded_hal::timer::Cancel,
     nrf52832_hal::{
         gpio::{p0::P0_17, Output, PushPull},
         pac::SPIM2,
         rng::Rng,
-        timer, Delay, Spim, Timer,
+        Delay, Spim, Timer,
     },
     prelude::*,
 };
@@ -52,9 +52,6 @@ fn main() -> ! {
     dw1000
         .enable_rx_interrupts()
         .expect("Failed to enable RX interrupts");
-
-    let mut dw_irq = dwm1001.DW_IRQ;
-    let mut gpiote = dwm1001.GPIOTE;
 
     // These are the hardcoded calibration values from the dwm1001-examples
     // repository[1]. Ideally, the calibration values would be determined using
@@ -98,7 +95,16 @@ fn main() -> ! {
         */
         let mut sending = ranging::Ping::new(&mut dw1000)
             .expect("Failed to initiate ping")
-            .send(dw1000)
+            .send(
+                dw1000,
+                dw1000::TxConfig {
+                    bitrate: BitRate::Kbps110,
+                    channel: dw1000::configs::UwbChannel::Channel1,
+                    preamble_length: PreambleLength::Symbols1536,
+                    sfd_sequence: SfdSequence::Decawave,
+                    ..Default::default()
+                },
+            )
             .expect("Failed to initiate ping transmission");
 
         nb::block!(sending.wait_transmit()).expect("Failed to send data");
@@ -110,7 +116,13 @@ fn main() -> ! {
         Wait for the anchor to respond with a ranging request.
         */
         let mut receiving = dw1000
-            .receive(RxConfig::default())
+            .receive(RxConfig {
+                bitrate: BitRate::Kbps110,
+                channel: dw1000::configs::UwbChannel::Channel1,
+                expected_preamble_length: PreambleLength::Symbols1536,
+                sfd_sequence: SfdSequence::Decawave,
+                ..Default::default()
+            })
             .expect("Failed to receive message");
 
         // Set timer for timeout
@@ -163,7 +175,16 @@ fn main() -> ! {
         // Send ranging response
         let mut sending = ranging::Response::new(&mut dw1000, &request)
             .expect("Failed to initiate response")
-            .send(dw1000)
+            .send(
+                dw1000,
+                dw1000::TxConfig {
+                    bitrate: BitRate::Kbps110,
+                    channel: dw1000::configs::UwbChannel::Channel1,
+                    preamble_length: PreambleLength::Symbols1536,
+                    sfd_sequence: SfdSequence::Decawave,
+                    ..Default::default()
+                },
+            )
             .expect("Failed to initiate response transmission");
 
         nb::block!(sending.wait_transmit()).expect("Failed to send data");
