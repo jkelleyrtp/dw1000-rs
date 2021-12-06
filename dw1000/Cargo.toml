@@ -1,16 +1,22 @@
 [package]
-name    = "dw1000"
+name = "dw1000"
 version = "0.5.0"
 authors = ["Hanno Braun <hanno@braun-embedded.com>"]
 edition = "2018"
 
-description   = "Driver for the Decawave DW1000 UWB wireless transceiver chip, providing radio communication based on IEEE 802.15.4 and distance measurement"
+description = "Driver for the Decawave DW1000 UWB wireless transceiver chip, providing radio communication based on IEEE 802.15.4 and distance measurement"
 documentation = "https://docs.rs/dw1000"
-repository    = "https://github.com/braun-embedded/rust-dw1000"
-license       = "0BSD"
-readme        = "README.md"
-categories    = ["embedded", "hardware-support", "no-std"]
-keywords      = ["decawave", "dw1000", "radio", "embedded-hal", "embedded-hal-driver"]
+repository = "https://github.com/braun-embedded/rust-dw1000"
+license = "0BSD"
+readme = "README.md"
+categories = ["embedded", "hardware-support", "no-std"]
+keywords = [
+    "decawave",
+    "dw1000",
+    "radio",
+    "embedded-hal",
+    "embedded-hal-driver",
+]
 
 
 [badges]
@@ -18,12 +24,12 @@ travis-ci = { repository = "braun-embedded/rust-dw1000" }
 
 
 [dependencies]
-byte         = "0.2.4"
+byte = "0.2.4"
 embedded-hal = "0.2.4"
-ieee802154   = "0.5.0"
-nb           = "1.0.0"
-fixed        = "1.7.0"
-micromath    = "2.0.0"
+ieee802154 = "0.5.0"
+nb = "1.0.0"
+fixed = "1.7.0"
+micromath = "2.0.0"
 
 
 [dependencies.serde]

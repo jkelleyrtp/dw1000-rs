@@ -1,16 +1,16 @@
 [package]
-name    = "dwm1001"
+name = "dwm1001"
 version = "0.5.0"
 authors = ["Hanno Braun <hanno@braun-embedded.com>"]
 edition = "2018"
 
-description   = "Board Support Crate for the Decawave DWM1001 module and development board"
+description = "Board Support Crate for the Decawave DWM1001 module and development board"
 documentation = "https://docs.rs/dwm1001"
-repository    = "https://github.com/braun-embedded/rust-dw1000"
-license       = "0BSD"
-readme        = "README.md"
-categories    = ["embedded", "hardware-support", "no-std"]
-keywords      = ["decawave", "dw1000", "bsc", "radio", "uwb"]
+repository = "https://github.com/braun-embedded/rust-dw1000"
+license = "0BSD"
+readme = "README.md"
+categories = ["embedded", "hardware-support", "no-std"]
+keywords = ["decawave", "dw1000", "bsc", "radio", "uwb"]
 
 
 [package.metadata.docs.rs]
@@ -22,29 +22,29 @@ travis-ci = { repository = "braun-embedded/rust-dw1000" }
 
 
 [dependencies]
-cortex-m                = "0.7.2"
-cortex-m-semihosting    = "0.3.5"
-embedded-hal            = "0.2.4"
+cortex-m = "0.7.2"
+cortex-m-semihosting = "0.3.5"
+embedded-hal = "0.2.4"
 embedded-timeout-macros = "0.3.0"
-lis2dh12                = "0.6.0"
+lis2dh12 = "0.6.0"
 
 [dependencies.cortex-m-rt]
-version  = ">=0.6, <0.8"
+version = ">=0.6, <0.8"
 optional = true
 
 [dependencies.dw1000]
 version = "0.5.0"
-path    = "../dw1000"
+path = "../dw1000"
 
 [dependencies.nrf52832-hal]
-version          = "0.14.0"
+version = "0.14.0"
 default-features = false
-features         = [ "xxAA-package" ]
+features = ["xxAA-package"]
 
 
 [dev-dependencies]
-heapless          = "0.7.0"
-nb                = "1.0.0"
+heapless = "0.7.0"
+nb = "1.0.0"
 panic-semihosting = "0.5.3"
 
 
@@ -58,73 +58,73 @@ semihosting = []
 
 
 [[example]]
-name              = "blink"
+name = "blink"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "uarte"
+name = "uarte"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "dw1000_delayed_tx"
+name = "dw1000_delayed_tx"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "dw1000_id"
+name = "dw1000_id"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "dw1000_only_rx"
+name = "dw1000_only_rx"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "dw1000_only_tx"
+name = "dw1000_only_tx"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "dw1000_ranging_anchor"
+name = "dw1000_ranging_anchor"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "dw1000_ranging_tag"
+name = "dw1000_ranging_tag"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "dw1000_reg_modify"
+name = "dw1000_reg_modify"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "dw1000_reg_rw"
+name = "dw1000_reg_rw"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "dw1000_reg_short"
+name = "dw1000_reg_short"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "dw1000_rx_tx"
+name = "dw1000_rx_tx"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "dw1000_subreg"
+name = "dw1000_subreg"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "dw1000_subreg_ext_addr"
+name = "dw1000_subreg_ext_addr"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "lis2dh12"
+name = "lis2dh12"
 required-features = ["dev", "rt"]
 
 [[example]]
-name              = "uarte_heapless_string"
+name = "uarte_heapless_string"
 required-features = ["dev", "rt"]
 
 
 [profile.release]
-incremental   = false
+incremental = false
 codegen-units = 1
-lto           = true
-opt-level     = 3
-debug         = true
+lto = true
+opt-level = 3
+debug = true

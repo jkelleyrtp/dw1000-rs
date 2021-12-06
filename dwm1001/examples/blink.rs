@@ -1,9 +1,7 @@
 #![no_main]
 #![no_std]
 
-
 extern crate panic_semihosting;
-
 
 use cortex_m_rt::entry;
 use dwm1001;
@@ -12,14 +10,10 @@ use nb::block;
 use dwm1001::{
     nrf52832_hal::{
         prelude::*,
-        timer::{
-            self,
-            Timer,
-        },
+        timer::{self, Timer},
     },
     DWM1001,
 };
-
 
 #[entry]
 fn main() -> ! {
@@ -35,8 +29,10 @@ fn main() -> ! {
     }
 }
 
-
-fn delay<T>(timer: &mut Timer<T>, cycles: u32) where T: timer::Instance {
+fn delay<T>(timer: &mut Timer<T>, cycles: u32)
+where
+    T: timer::Instance,
+{
     timer.start(cycles);
     block!(timer.wait()).unwrap();
 }

@@ -7,18 +7,11 @@
 #![no_main]
 #![no_std]
 
-
 extern crate panic_semihosting;
-
 
 use cortex_m_rt::entry;
 
-use dwm1001::{
-    debug,
-    DWM1001,
-    print,
-};
-
+use dwm1001::{debug, print, DWM1001};
 
 #[entry]
 fn main() -> ! {
@@ -28,18 +21,19 @@ fn main() -> ! {
 
     print!("Writing...\n");
 
-    dwm1001.DW1000
+    dwm1001
+        .DW1000
         .ll()
         .lde_cfg2()
         .write(|w|
             // Careful, only specific values are allowed here.
-            w.value(0x1607)
-        )
+            w.value(0x1607))
         .expect("Failed to write to register");
 
     print!("Reading...\n");
 
-    let lde_cfg2 = dwm1001.DW1000
+    let lde_cfg2 = dwm1001
+        .DW1000
         .ll()
         .lde_cfg2()
         .read()
@@ -49,18 +43,19 @@ fn main() -> ! {
 
     print!("Writing...\n");
 
-    dwm1001.DW1000
+    dwm1001
+        .DW1000
         .ll()
         .lde_cfg2()
         .write(|w|
             // Careful, only specific values are allowed here.
-            w.value(0x0607)
-        )
+            w.value(0x0607))
         .expect("Failed to write to register");
 
     print!("Reading...\n");
 
-    let lde_cfg2 = dwm1001.DW1000
+    let lde_cfg2 = dwm1001
+        .DW1000
         .ll()
         .lde_cfg2()
         .read()
