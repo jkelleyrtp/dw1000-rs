@@ -4,12 +4,9 @@
 use defmt_rtt as _;
 use panic_probe as _;
 
-use dwm1001::{
-    nrf52832_hal::{
-        prelude::*,
-        timer::{self, Timer},
-    },
-    DWM1001,
+use dwm1001::nrf52832_hal::{
+    prelude::*,
+    timer::{self, Timer},
 };
 
 #[cortex_m_rt::entry]
