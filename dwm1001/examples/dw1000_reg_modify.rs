@@ -3,19 +3,14 @@
 #![no_main]
 #![no_std]
 
-extern crate panic_semihosting;
+use defmt_rtt as _;
+use panic_probe as _;
 
-use cortex_m_rt::entry;
-
-use dwm1001::{debug, print, DWM1001};
-
-#[entry]
+#[cortex_m_rt::entry]
 fn main() -> ! {
-    debug::init();
+    let mut dwm1001 = dwm1001::DWM1001::take().unwrap();
 
-    let mut dwm1001 = DWM1001::take().unwrap();
-
-    print!("Initializing...\n");
+    defmt::info!("Initializing...\n");
 
     // Initialize PANADR, so we can test `modify` in a controlled environment
     dwm1001
@@ -25,7 +20,7 @@ fn main() -> ! {
         .write(|w| w.short_addr(0x1234).pan_id(0xabcd))
         .expect("Failed to write to register");
 
-    print!("Modifying...\n");
+    defmt::info!("Modifying...\n");
 
     dwm1001
         .DW1000
@@ -39,7 +34,7 @@ fn main() -> ! {
         })
         .expect("Failed to modify register");
 
-    print!("Reading...\n");
+    defmt::info!("Reading...\n");
 
     let panadr = dwm1001
         .DW1000
@@ -51,7 +46,7 @@ fn main() -> ! {
     assert_eq!(panadr.short_addr(), 0x1234);
     assert_eq!(panadr.pan_id(), 0x5a5a);
 
-    print!("Success!\n");
+    defmt::info!("Success!\n");
 
     loop {}
 }

@@ -11,27 +11,25 @@
 #![no_main]
 #![no_std]
 
-extern crate panic_semihosting;
+use defmt_rtt as _;
+use panic_probe as _;
 
-use cortex_m_rt::entry;
 use dw1000::hl::SendTime;
 use heapless::FnvIndexSet;
 
 use dwm1001::{
-    block_timeout, debug,
+    block_timeout,
     dw1000::{mac, RxConfig, TxConfig},
     nrf52832_hal::{rng::Rng, Delay, Timer},
     prelude::*,
-    print, repeat_timeout, DWM1001,
+    repeat_timeout, DWM1001,
 };
 
-#[entry]
+#[cortex_m_rt::entry]
 fn main() -> ! {
-    debug::init();
-
     let mut known_nodes = FnvIndexSet::<_, 64>::new();
 
-    let mut dwm1001 = DWM1001::take().unwrap();
+    let mut dwm1001 = dwm1001::DWM1001::take().unwrap();
 
     let mut delay = Delay::new(dwm1001.SYST);
     let mut rng = Rng::new(dwm1001.RNG);
@@ -74,7 +72,7 @@ fn main() -> ! {
                 timeout_timer.start(100_000u32);
                 let result = block_timeout!(
                     &mut timeout_timer,
-                    receiving.wait(&mut buffer)
+                    receiving.wait_receive(&mut buffer)
                 );
 
                 dw1000 = receiving.finish_receiving()
@@ -104,7 +102,7 @@ fn main() -> ! {
                 };
 
                 if let Err(_) = known_nodes.insert(source) {
-                    print!("Too many nodes. Can't add another one.\n");
+                    defmt::info!("Too many nodes. Can't add another one.\n");
                 }
             };
             (_error) {};
@@ -124,7 +122,7 @@ fn main() -> ! {
                     .expect("Failed to broadcast ping");
 
                 timeout_timer.start(10_000u32);
-                let result = block_timeout!(&mut timeout_timer, sending.wait());
+                let result = block_timeout!(&mut timeout_timer, sending.wait_transmit());
 
                 dw1000 = sending.finish_sending()
                     .expect("Failed to finish sending");
@@ -136,11 +134,12 @@ fn main() -> ! {
         );
 
         if output_timer.wait().is_ok() {
-            print!("\n-- Known nodes:\n");
+            defmt::info!("\n-- Known nodes:\n");
             for node in &known_nodes {
-                print!(
+                defmt::info!(
                     "PAN ID: 0x{:04x}, Short Address: 0x{:04x}\n",
-                    node[0], node[1],
+                    node[0],
+                    node[1],
                 );
             }
 

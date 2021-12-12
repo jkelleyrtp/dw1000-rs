@@ -31,8 +31,6 @@ pub mod prelude {
     pub use nrf52832_hal::prelude::*;
 }
 
-pub mod debug;
-
 use cortex_m::{asm, interrupt};
 use dw1000::DW1000;
 use embedded_hal::blocking::delay::DelayMs;

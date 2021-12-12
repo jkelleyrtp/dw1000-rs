@@ -6,17 +6,12 @@
 #![no_main]
 #![no_std]
 
-extern crate panic_semihosting;
+use defmt_rtt as _;
+use panic_probe as _;
 
-use cortex_m_rt::entry;
-
-use dwm1001::{debug, print, DWM1001};
-
-#[entry]
+#[cortex_m_rt::entry]
 fn main() -> ! {
-    debug::init();
-
-    let mut dwm1001 = DWM1001::take().unwrap();
+    let mut dwm1001 = dwm1001::DWM1001::take().unwrap();
 
     let dev_id = dwm1001
         .DW1000
@@ -30,7 +25,7 @@ fn main() -> ! {
     assert_eq!(dev_id.ver(), 0x3);
     assert_eq!(dev_id.rev(), 0x0);
 
-    print!("Success!\n");
+    defmt::info!("Success!");
 
     loop {}
 }
