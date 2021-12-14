@@ -1,13 +1,12 @@
 #![no_main]
 #![no_std]
 
-extern crate panic_semihosting;
+use defmt_rtt as _;
+use panic_probe as _;
 
 use core::fmt::Write;
 
-use cortex_m_rt::entry;
 use heapless::String as HString;
-use nb::block;
 
 use dwm1001::{
     nrf52832_hal::{
@@ -17,9 +16,9 @@ use dwm1001::{
     DWM1001,
 };
 
-#[entry]
+#[cortex_m_rt::entry]
 fn main() -> ! {
-    let mut dwm1001 = DWM1001::take().unwrap();
+    let mut dwm1001 = dwm1001::DWM1001::take().unwrap();
 
     let mut timer = Timer::new(dwm1001.TIMER0);
 
@@ -49,5 +48,5 @@ where
     T: timer::Instance,
 {
     timer.start(cycles);
-    block!(timer.wait()).unwrap();
+    nb::block!(timer.wait()).unwrap();
 }

@@ -8,21 +8,16 @@
 #![no_main]
 #![no_std]
 
-extern crate panic_semihosting;
+use defmt_rtt as _;
+use panic_probe as _;
 
-use cortex_m_rt::entry;
+use lis2dh12::RawAccelerometer;
 
-use dwm1001::{debug, print, DWM1001};
-
-use lis2dh12::{self, RawAccelerometer};
-
-#[entry]
+#[cortex_m_rt::entry]
 fn main() -> ! {
-    debug::init();
+    defmt::info!("start");
 
-    print!("start\n");
-
-    let dwm1001 = DWM1001::take().unwrap();
+    let dwm1001 = dwm1001::DWM1001::take().unwrap();
 
     // SDO/SA0 is connected to the supply voltage, so the least significant bit
     // is 1. See datasheet, section 6.1.1.
@@ -32,8 +27,8 @@ fn main() -> ! {
     let mut lis2dh12 =
         lis2dh12::Lis2dh12::new(dwm1001.LIS2DH12, address).expect("lis2dh12 new failed");
 
-    print!(
-        "WHOAMI: {:08b}\n",
+    defmt::info!(
+        "WHOAMI: {:08b}",
         lis2dh12
             .get_device_id()
             .expect("lis2dh12 get_device_id failed")
@@ -55,21 +50,21 @@ fn main() -> ! {
         .enable_temp(true)
         .expect("lis2dh2 enable_temp failed");
 
-    print!(
-        "TEMP: {:?}\n",
+    defmt::info!(
+        "TEMP: {:?}",
         lis2dh12.get_temp_out().expect("lis2dh2 get_temp failed")
     );
 
-    print!(
-        "TEMP_STATUS: {:?}\n",
+    defmt::info!(
+        "TEMP_STATUS: {:?}",
         lis2dh12
             .get_temp_status()
             .expect("lis2dh2 get_temp_status failed")
     );
 
-    print!("STATUS: {:?}\n", lis2dh12.get_status());
+    defmt::info!("STATUS: {:?}", defmt::Debug2Format(&lis2dh12.get_status()));
 
     loop {
-        print!("ACC: {:?}\n", lis2dh12.accel_raw());
+        defmt::info!("ACC: {:?}", defmt::Debug2Format(&lis2dh12.accel_raw()));
     }
 }
