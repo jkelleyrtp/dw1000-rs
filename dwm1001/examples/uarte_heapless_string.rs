@@ -8,11 +8,9 @@ use core::fmt::Write;
 
 use heapless::String as HString;
 
-use dwm1001::{
-    nrf52832_hal::{
-        prelude::*,
-        timer::{self, Timer},
-    },
+use dwm1001::nrf52832_hal::{
+    prelude::*,
+    timer::{self, Timer},
 };
 
 #[cortex_m_rt::entry]
