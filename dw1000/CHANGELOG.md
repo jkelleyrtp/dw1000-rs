@@ -1,3 +1,18 @@
+### v0.6.0 (2021-12-14)
+
+- Add support for double-buffering RX ([#134])
+- Add support for RSSI and LOS calculations ([#134])
+- Add support for sleep and wakeup ([#134])
+- Add support for range bias calculations ([#134])
+- Add support for external sync modes ([#134])
+- Many small fixes and additions ([#134])
+- Update dependencies ([#141], [#145])
+
+[#134]: https://github.com/braun-embedded/rust-dw1000/pull/134
+[#141]: https://github.com/braun-embedded/rust-dw1000/pull/141
+[#145]: https://github.com/braun-embedded/rust-dw1000/pull/145
+
+
 ### v0.5.0 (2021-01-27)
 
 - Update dependencies ([#123])
