@@ -1,6 +1,6 @@
 [package]
 name = "dwm1001"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Hanno Braun <hanno@braun-embedded.com>"]
 edition = "2018"
 description = "Board Support Crate for the Decawave DWM1001 module and development board"
@@ -24,7 +24,7 @@ embedded-hal = "0.2.6"
 embedded-timeout-macros = "0.3.0"
 lis2dh12 = "0.6.6"
 cortex-m-rt = { version = "0.7.1", optional = true }
-dw1000 = { version = "0.5.0", path = "../dw1000" }
+dw1000 = { version = "0.6.0", path = "../dw1000" }
 nrf52832-hal = { version = "0.14.0", default-features = false, features = [
     "xxAA-package",
 ] }
