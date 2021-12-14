@@ -14,7 +14,6 @@ use dwm1001::{
     },
     nrf52832_hal::{Delay, Timer},
     prelude::*,
-    DWM1001,
 };
 
 #[cortex_m_rt::entry]
@@ -65,8 +64,6 @@ fn main() -> ! {
                         continue;
                     }
                 }
-                defmt::error!("an error occured");
-                continue;
             }
         };
 

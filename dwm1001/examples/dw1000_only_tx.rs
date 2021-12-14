@@ -9,7 +9,6 @@ use panic_probe as _;
 use dwm1001::{
     dw1000::{hl::SendTime, mac, TxConfig},
     nrf52832_hal::Delay,
-    DWM1001,
 };
 
 #[cortex_m_rt::entry]

@@ -11,7 +11,6 @@ use dwm1001::{
         prelude::*,
         timer::{self, Timer},
     },
-    DWM1001,
 };
 
 #[cortex_m_rt::entry]

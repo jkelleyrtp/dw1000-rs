@@ -22,7 +22,7 @@ use dwm1001::{
     dw1000::{mac, RxConfig, TxConfig},
     nrf52832_hal::{rng::Rng, Delay, Timer},
     prelude::*,
-    repeat_timeout, DWM1001,
+    repeat_timeout,
 };
 
 #[cortex_m_rt::entry]
