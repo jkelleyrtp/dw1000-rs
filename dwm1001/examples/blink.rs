@@ -4,15 +4,9 @@
 use defmt_rtt as _;
 use panic_probe as _;
 
-use dwm1001;
-use nb::block;
-
-use dwm1001::{
-    nrf52832_hal::{
-        prelude::*,
-        timer::{self, Timer},
-    },
-    DWM1001,
+use dwm1001::nrf52832_hal::{
+    prelude::*,
+    timer::{self, Timer},
 };
 
 #[cortex_m_rt::entry]
@@ -27,11 +21,12 @@ fn main() -> ! {
         dwm1001.leds.D12.disable();
         delay(&mut timer, 230_000); // 230ms
     }
-    fn delay<T>(timer: &mut Timer<T>, cycles: u32)
-    where
-        T: timer::Instance,
-    {
-        timer.start(cycles);
-        block!(timer.wait()).unwrap();
-    }
+}
+
+fn delay<T>(timer: &mut Timer<T>, cycles: u32)
+where
+    T: timer::Instance,
+{
+    timer.start(cycles);
+    nb::block!(timer.wait()).unwrap();
 }

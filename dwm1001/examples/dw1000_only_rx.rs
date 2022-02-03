@@ -14,7 +14,6 @@ use dwm1001::{
     },
     nrf52832_hal::{Delay, Timer},
     prelude::*,
-    DWM1001,
 };
 
 #[cortex_m_rt::entry]
@@ -54,20 +53,16 @@ fn main() -> ! {
 
         let message = match result {
             Ok(message) => message,
-            Err(error) => {
-                match error {
-                    embedded_timeout_macros::TimeoutError::Timeout => {
-                        defmt::debug!("Timeout");
-                        continue;
-                    }
-                    embedded_timeout_macros::TimeoutError::Other(o) => {
-                        defmt::debug!("Other error: {:?}", defmt::Debug2Format(&o));
-                        continue;
-                    }
+            Err(error) => match error {
+                embedded_timeout_macros::TimeoutError::Timeout => {
+                    defmt::debug!("Timeout");
+                    continue;
                 }
-                defmt::error!("an error occured");
-                continue;
-            }
+                embedded_timeout_macros::TimeoutError::Other(o) => {
+                    defmt::debug!("Other error: {:?}", defmt::Debug2Format(&o));
+                    continue;
+                }
+            },
         };
 
         defmt::info!("message successfully received");

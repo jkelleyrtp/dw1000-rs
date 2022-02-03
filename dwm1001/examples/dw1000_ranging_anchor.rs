@@ -15,18 +15,8 @@ use defmt_rtt as _;
 use panic_probe as _;
 
 use dwm1001::{
-    block_timeout,
-    dw1000::{
-        mac,
-        ranging::{self, Message as _RangingMessage},
-        RxConfig,
-    },
-    nrf52832_hal::{
-        gpio::{p0::P0_17, Output, PushPull},
-        pac::SPIM2,
-        rng::Rng,
-        Delay, Spim, Timer,
-    },
+    dw1000::{mac, ranging},
+    nrf52832_hal::{rng::Rng, Delay, Timer},
     prelude::*,
 };
 
@@ -109,7 +99,7 @@ fn main() -> ! {
 
             let mut sending = ranging::Ping::new(&mut dw1000)
                 .expect("Failed to initiate ping")
-                .send(dw1000)
+                .send(dw1000, txconfig())
                 .expect("Failed to initiate ping transmission");
 
             timeout_timer.start(100_000u32);

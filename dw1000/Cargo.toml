@@ -1,6 +1,6 @@
 [package]
 name = "dw1000"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Hanno Braun <hanno@braun-embedded.com>"]
 edition = "2018"
 description = "Driver for the Decawave DW1000 UWB wireless transceiver chip, providing radio communication based on IEEE 802.15.4 and distance measurement"

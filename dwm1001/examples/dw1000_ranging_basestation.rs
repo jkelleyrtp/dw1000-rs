@@ -32,7 +32,7 @@ use dwm1001::{
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
-    defmt::debug!("Launching basestation");
+    defmt::debug!("Launching basestation.");
 
     let mut dwm1001 = dwm1001::DWM1001::take().unwrap();
 
@@ -89,15 +89,7 @@ fn main() -> ! {
         defmt::debug!("waiting for base mobile tag ping");
 
         let mut receiving = dw1000
-            .receive(RxConfig {
-                bitrate: BitRate::Kbps110,
-                channel: dw1000::configs::UwbChannel::Channel1,
-                expected_preamble_length: PreambleLength::Symbols1536,
-                sfd_sequence: SfdSequence::Decawave,
-
-                ..Default::default()
-            })
-            // .receive(RxConfig::default())
+            .receive(rx_configure())
             .expect("Failed to receive message");
 
         let message = block_timeout!(&mut timer, receiving.wait_receive(&mut buffer1));
@@ -156,12 +148,7 @@ fn main() -> ! {
         defmt::debug!("Request sent Transmission sent. Waiting for response.");
 
         let mut receiving = dw1000
-            .receive(RxConfig {
-                bitrate: BitRate::Kbps110,
-                channel: dw1000::configs::UwbChannel::Channel1,
-                expected_preamble_length: PreambleLength::Symbols1536,
-                ..Default::default()
-            })
+            .receive(rx_configure())
             .expect("Failed to receive message");
 
         // Set timer for timeout
@@ -207,6 +194,9 @@ fn main() -> ! {
                 }
             };
 
+        /*
+        4. Calculate distance
+        */
         dwm1001.leds.D11.enable();
         delay.delay_ms(10u32);
         dwm1001.leds.D11.disable();
@@ -217,5 +207,28 @@ fn main() -> ! {
             Some(mac::Address::Short(pan_id, addr)) => (pan_id, addr),
             _ => continue,
         };
+
+        // Ranging response received. Compute distance.
+        match ranging::compute_distance_mm(&response, rx_configure()) {
+            Ok(distance_mm) => {
+                dwm1001.leds.D9.enable();
+                delay.delay_ms(10u32);
+                dwm1001.leds.D9.disable();
+
+                defmt::info!("{:04x}:{:04x} - {} mm\n", pan_id.0, addr.0, distance_mm,);
+            }
+            Err(e) => {
+                defmt::error!("Ranging response error: {:?}", defmt::Debug2Format(&e));
+            }
+        }
+    }
+}
+
+fn rx_configure() -> RxConfig {
+    RxConfig {
+        bitrate: BitRate::Kbps110,
+        channel: dw1000::configs::UwbChannel::Channel1,
+        expected_preamble_length: PreambleLength::Symbols1536,
+        ..Default::default()
     }
 }

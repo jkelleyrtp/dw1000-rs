@@ -6,13 +6,9 @@
 use defmt_rtt as _;
 use panic_probe as _;
 
-use nb::block;
-
 use dwm1001::{
-    dw1000::DW1000,
     dw1000::{hl::SendTime, mac, time::Duration, TxConfig},
     nrf52832_hal::Delay,
-    DWM1001,
 };
 
 #[cortex_m_rt::entry]
@@ -36,7 +32,7 @@ fn main() -> ! {
 
         defmt::info!("Sending... ");
 
-        block!(sending.wait_transmit()).expect("Failed to send data");
+        nb::block!(sending.wait_transmit()).expect("Failed to send data");
 
         dw1000 = sending.finish_sending().expect("Failed to finish sending");
 

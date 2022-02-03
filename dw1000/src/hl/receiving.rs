@@ -513,7 +513,8 @@ where
 
     /// Reads the quality of the received message.
     ///
-    /// This must be called after the [`DW1000::wait`] function has successfully returned.
+    /// This must be called after the [`DW1000::wait_receive`] function has
+    /// successfully returned.
     pub fn read_rx_quality(&mut self) -> Result<RxQuality, Error<SPI, CS>> {
         assert!(self.state.is_finished(), "The function 'wait' must have successfully returned before this function can be called");
 

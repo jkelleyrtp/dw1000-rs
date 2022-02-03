@@ -11,24 +11,13 @@
 #![no_std]
 
 use defmt_rtt as _;
-use dw1000::configs::{BitRate, PreambleLength, SfdSequence};
-use panic_probe as _;
-
-use dwm1001::{
-    block_timeout,
-    dw1000::{
-        mac,
-        ranging::{self, Message as _RangingMessage},
-        RxConfig,
-    },
-    nrf52832_hal::{
-        gpio::{p0::P0_17, Output, PushPull},
-        pac::SPIM2,
-        rng::Rng,
-        Delay, Spim, Timer,
-    },
-    prelude::*,
+use dw1000::{
+    configs::{BitRate, PreambleLength, SfdSequence},
+    mac,
+    ranging::{self, Message},
 };
+use dwm1001::block_timeout;
+use panic_probe as _;
 
 #[cortex_m_rt::entry]
 fn main() -> ! {

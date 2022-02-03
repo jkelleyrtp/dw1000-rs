@@ -170,7 +170,6 @@ where
             header: mac::Header {
                 frame_type: mac::FrameType::Data,
                 version: mac::FrameVersion::Ieee802154_2006,
-
                 frame_pending: false,
                 ack_request: false,
                 pan_id_compress: false,

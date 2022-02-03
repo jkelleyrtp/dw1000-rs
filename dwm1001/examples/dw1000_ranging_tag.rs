@@ -94,8 +94,7 @@ fn main() -> ! {
 
         let message = match message {
             Ok(message) => message,
-            Err(e) => {
-                //
+            Err(_) => {
                 defmt::info!("Timeout error occured");
                 continue;
             }
