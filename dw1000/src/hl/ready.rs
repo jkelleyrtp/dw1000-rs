@@ -1,7 +1,7 @@
 use super::AutoDoubleBufferReceiving;
 use crate::{
-    configs::SfdSequence, time::Instant, Error, Ready, RxConfig, Sending, SingleBufferReceiving,
-    Sleeping, TxConfig, DW1000,
+    configs::SfdSequence, time::Instant, Error, RxConfig, Sending, SingleBufferReceiving, Sleeping,
+    TxConfig, DW1000,
 };
 use byte::BytesExt as _;
 use core::num::Wrapping;
@@ -40,7 +40,7 @@ pub enum IrqPolarity {
     ActiveLow = 0,
 }
 
-impl<SPI, CS> DW1000<SPI, CS, Ready>
+impl<SPI, CS> DW1000<SPI, CS>
 where
     SPI: spi::Transfer<u8> + spi::Write<u8>,
     CS: OutputPin,
@@ -147,7 +147,8 @@ where
         destination: Option<mac::Address>,
         send_time: SendTime,
         config: TxConfig,
-    ) -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>> {
+    ) -> Result<DW1000<SPI, CS>, Error<SPI, CS>> {
+        // ) -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>> {
         // Clear event counters
         self.ll.evc_ctrl().write(|w| w.evc_clr(0b1))?;
         while self.ll.evc_ctrl().read()?.evc_clr() == 0b1 {}

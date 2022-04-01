@@ -5,13 +5,10 @@ use crate::{
 };
 use embedded_hal::{blocking::spi, digital::v2::OutputPin};
 
-use super::Awake;
-
-impl<SPI, CS, State> DW1000<SPI, CS, State>
+impl<SPI, CS> DW1000<SPI, CS>
 where
     SPI: spi::Transfer<u8> + spi::Write<u8>,
     CS: OutputPin,
-    State: Awake,
 {
     /// Returns the TX antenna delay
     pub fn get_tx_antenna_delay(&mut self) -> Result<Duration, Error<SPI, CS>> {

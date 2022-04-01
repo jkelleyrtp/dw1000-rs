@@ -46,50 +46,52 @@ impl Awake for AutoDoubleBufferReceiving {}
 pub trait Asleep {}
 impl Asleep for Sleeping {}
 
-/// Any state struct that implements this trait shares a number of rx operations
-pub trait Receiving: Awake {
-    /// When true, the radio will re-enable the receive operation after it has received a message
-    const AUTO_RX_REENABLE: bool;
-    /// When true, the radio will use both receive buffers.
-    /// This can help decrease the downtime between receiving messages.
-    const DOUBLE_BUFFERED: bool;
+// /// Any state struct that implements this trait shares a number of rx operations
+// pub trait Receiving: Awake {
+//     /// When true, the radio will re-enable the receive operation after it has received a message
+//     const AUTO_RX_REENABLE: bool;
+//     /// When true, the radio will use both receive buffers.
+//     /// This can help decrease the downtime between receiving messages.
+//     const DOUBLE_BUFFERED: bool;
 
-    /// Mark the receiving state as finished
-    fn mark_finished(&mut self);
-    /// Return true if the receiving state has been marked as finished
-    fn is_finished(&self) -> bool;
-    /// Get the rx radio config
-    fn get_rx_config(&self) -> &RxConfig;
-}
-impl Receiving for SingleBufferReceiving {
-    const AUTO_RX_REENABLE: bool = false;
-    const DOUBLE_BUFFERED: bool = false;
+//     /// Mark the receiving state as finished
+//     fn mark_finished(&mut self);
+//     /// Return true if the receiving state has been marked as finished
+//     fn is_finished(&self) -> bool;
+//     /// Get the rx radio config
+//     fn get_rx_config(&self) -> &RxConfig;
+// }
 
-    fn mark_finished(&mut self) {
-        self.finished = true;
-    }
+// impl Receiving for SingleBufferReceiving {
+//     const AUTO_RX_REENABLE: bool = false;
+//     const DOUBLE_BUFFERED: bool = false;
 
-    fn is_finished(&self) -> bool {
-        self.finished
-    }
+//     fn mark_finished(&mut self) {
+//         self.finished = true;
+//     }
 
-    fn get_rx_config(&self) -> &RxConfig {
-        &self.config
-    }
-}
-impl Receiving for AutoDoubleBufferReceiving {
-    const AUTO_RX_REENABLE: bool = true;
-    const DOUBLE_BUFFERED: bool = true;
+//     fn is_finished(&self) -> bool {
+//         self.finished
+//     }
 
-    fn mark_finished(&mut self) {
-        self.finished = true;
-    }
+//     fn get_rx_config(&self) -> &RxConfig {
+//         &self.config
+//     }
+// }
 
-    fn is_finished(&self) -> bool {
-        self.finished
-    }
+// impl Receiving for AutoDoubleBufferReceiving {
+//     const AUTO_RX_REENABLE: bool = true;
+//     const DOUBLE_BUFFERED: bool = true;
 
-    fn get_rx_config(&self) -> &RxConfig {
-        &self.config
-    }
-}
+//     fn mark_finished(&mut self) {
+//         self.finished = true;
+//     }
+
+//     fn is_finished(&self) -> bool {
+//         self.finished
+//     }
+
+//     fn get_rx_config(&self) -> &RxConfig {
+//         &self.config
+//     }
+// }

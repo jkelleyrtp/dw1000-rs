@@ -31,17 +31,13 @@ mod state_impls;
 mod uninitialized;
 
 /// Entry point to the DW1000 driver API
-pub struct DW1000<SPI, CS, State> {
+pub struct DW1000<SPI, CS> {
     ll: ll::DW1000<SPI, CS>,
     seq: Wrapping<u8>,
-    state: State,
 }
 
 // Can't be derived without putting requirements on `SPI` and `CS`.
-impl<SPI, CS, State> fmt::Debug for DW1000<SPI, CS, State>
-where
-    State: fmt::Debug,
-{
+impl<SPI, CS> fmt::Debug for DW1000<SPI, CS> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "DW1000 {{ state: ")?;
         self.state.fmt(f)?;

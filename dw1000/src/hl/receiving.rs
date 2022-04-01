@@ -10,7 +10,7 @@ use embedded_hal::{blocking::spi, digital::v2::OutputPin};
 use fixed::traits::LossyInto;
 use ieee802154::mac::FooterMode;
 
-use super::{AutoDoubleBufferReceiving, Receiving};
+use super::AutoDoubleBufferReceiving;
 
 /// An incoming message
 #[derive(Debug)]
@@ -43,18 +43,35 @@ pub struct RxQuality {
     pub rssi: f32,
 }
 
-impl<SPI, CS, RECEIVING> DW1000<SPI, CS, RECEIVING>
+pub struct Receiving<'a, SPI, CS> {
+    chip: &'a mut DW1000<SPI, CS>,
+    double_buffered: bool,
+    auto_rx_reenable: bool,
+}
+
+impl<'a, B, C> core::ops::Deref for Receiving<'a, B, C> {
+    type Target = DW1000<B, C>;
+    fn deref(&self) -> &Self::Target {
+        &self.chip
+    }
+}
+impl<'a, B, C> core::ops::DerefMut for Receiving<'a, B, C> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.chip
+    }
+}
+
+impl<'a, SPI, CS> Receiving<'a, SPI, CS>
 where
     SPI: spi::Transfer<u8> + spi::Write<u8>,
     CS: OutputPin,
-    RECEIVING: Receiving,
 {
     pub(super) fn start_receiving(&mut self, config: RxConfig) -> Result<(), Error<SPI, CS>> {
         // Really weird thing about double buffering I can't find anything about.
         // When a message is received in double buffer mode that should be filtered out,
         // the radio gives a really short fake interrupt.
         // This messes up all the logic, so unless a solution can be found we simply don't support it.
-        if RECEIVING::DOUBLE_BUFFERED && config.frame_filtering {
+        if self.double_buffered && config.frame_filtering {
             return Err(Error::RxConfigFrameFilteringUnsupported);
         }
 
@@ -92,8 +109,8 @@ where
                 .ffaa(0b1) // receive acknowledgement frames
                 .ffam(0b1) // receive MAC command frames
                 // Set the double buffering and auto re-enable
-                .dis_drxb(!RECEIVING::DOUBLE_BUFFERED as u8)
-                .rxautr(RECEIVING::AUTO_RX_REENABLE as u8)
+                .dis_drxb(!self.double_buffered as u8)
+                .rxautr(self.auto_rx_reenable as u8)
                 // Set whether the receiver should look for 110kbps or 850/6800kbps messages
                 .rxm110k((config.bitrate == BitRate::Kbps110) as u8)
         })?;
@@ -336,7 +353,7 @@ where
         // you have to inspect SYS_STATUS manually during debugging.
         self.clear_status()?;
 
-        if RECEIVING::DOUBLE_BUFFERED {
+        if self.double_buffered {
             // Toggle to the other buffer. This will also signal the IC that the current buffer is free for use
             self.ll
                 .sys_ctrl()
@@ -371,7 +388,7 @@ where
             })
         };
 
-        if RECEIVING::DOUBLE_BUFFERED {
+        if self.double_buffered {
             let status = self.ll.sys_status().read()?;
 
             if status.hsrbp() == status.icrbp() {
@@ -559,11 +576,11 @@ where
     /// If the receive operation has finished, as indicated by `wait`, this is a
     /// no-op. If the receive operation is still ongoing, it will be aborted.
     #[allow(clippy::type_complexity)]
-    pub fn finish_receiving(mut self) -> Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)> {
+    pub fn finish_receiving(mut self) -> Result<DW1000<SPI, CS>, (Self, Error<SPI, CS>)> {
         if !self.state.is_finished() {
             // Can't use `map_err` and `?` here, as the compiler will complain
             // about `self` moving into the closure.
-            match self.force_idle(RECEIVING::DOUBLE_BUFFERED) {
+            match self.force_idle(self.double_buffered) {
                 Ok(()) => (),
                 Err(error) => return Err((self, error)),
             }
@@ -572,7 +589,6 @@ where
         Ok(DW1000 {
             ll: self.ll,
             seq: self.seq,
-            state: Ready,
         })
     }
 }
