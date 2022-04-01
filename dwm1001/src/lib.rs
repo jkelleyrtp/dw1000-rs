@@ -99,7 +99,7 @@ pub fn new_dw1000<SCK, MOSI, MISO, CS>(
     cs: P0_17<CS>,
     spim_opts: Option<SpimConfig>,
 ) -> DW1000<Spim<nrf52::SPIM2>, p0::P0_17<Output<PushPull>>, dw1000::Uninitialized> {
-    let cfg = spim_opts.unwrap_or_else(|| SpimConfig {
+    let cfg = spim_opts.unwrap_or(SpimConfig {
         frequency: spim::Frequency::K500,
         mode: spim::MODE_0,
         orc: 0,

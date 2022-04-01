@@ -158,7 +158,7 @@ where
     ///
     /// Serializes the message payload and uses [`DW1000::send`] internally to
     /// send it.
-    pub fn send<'r, SPI, CS>(
+    pub fn send<SPI, CS>(
         &self,
         dw1000: DW1000<SPI, CS, Ready>,
     ) -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>>

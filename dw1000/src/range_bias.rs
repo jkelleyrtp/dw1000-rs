@@ -56,10 +56,10 @@ pub fn get_range_bias_cm(rsl: f32, rx_config: &RxConfig) -> f32 {
     }
 
     // Determine the message characteristics
-    let low_bandwidth = match rx_config.channel {
-        UwbChannel::Channel7 | UwbChannel::Channel4 => false,
-        _ => true,
-    };
+    let low_bandwidth = !matches!(
+        rx_config.channel,
+        UwbChannel::Channel7 | UwbChannel::Channel4
+    );
     let low_prf = match rx_config.pulse_repetition_frequency {
         PulseRepetitionFrequency::Mhz16 => true,
         PulseRepetitionFrequency::Mhz64 => false,
@@ -102,6 +102,7 @@ pub fn improve_rssi_estimation(original_rssi: f32, rx_config: &crate::configs::R
 
     // The rssi multipliers to get from the original rssi to the new estimated rssi.
     // The multiplier at index 0 is at -105 dBm and increases 2.5 dBm every step.
+    #[allow(clippy::eq_op)]
     const PRF16: [f32; 11] = [
         105.0 / 105.0,
         102.5 / 102.5,
@@ -115,6 +116,8 @@ pub fn improve_rssi_estimation(original_rssi: f32, rx_config: &crate::configs::R
         69.5 / 82.5,
         64.0 / 80.0,
     ];
+
+    #[allow(clippy::eq_op)]
     const PRF64: [f32; 12] = [
         105.0 / 105.0,
         102.5 / 102.5,

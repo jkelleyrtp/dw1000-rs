@@ -558,6 +558,7 @@ where
     ///
     /// If the receive operation has finished, as indicated by `wait`, this is a
     /// no-op. If the receive operation is still ongoing, it will be aborted.
+    #[allow(clippy::type_complexity)]
     pub fn finish_receiving(mut self) -> Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)> {
         if !self.state.is_finished() {
             // Can't use `map_err` and `?` here, as the compiler will complain
@@ -582,6 +583,7 @@ where
     CS: OutputPin,
 {
     /// Try to continue receiving
+    #[allow(clippy::type_complexity)]
     pub fn continue_receiving(
         self,
     ) -> Result<

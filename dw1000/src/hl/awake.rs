@@ -71,7 +71,7 @@ where
         if double_buffered {
             // Mask the double buffered status bits
             self.ll.sys_mask().modify(|r, w| {
-                saved_sys_mask = r.0.clone();
+                saved_sys_mask = r.0;
                 w.mrxfce(0).mrxfcg(0).mrxdfr(0).mldedone(0)
             })?;
         }

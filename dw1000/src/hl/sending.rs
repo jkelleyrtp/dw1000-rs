@@ -63,8 +63,7 @@ where
         }
 
         // Frame sent
-        self.reset_flags()
-            .map_err(|error| nb::Error::Other(error))?;
+        self.reset_flags().map_err(nb::Error::Other)?;
         self.state.finished = true;
 
         let tx_timestamp = self
@@ -83,6 +82,7 @@ where
     ///
     /// If the send operation has finished, as indicated by `wait`, this is a
     /// no-op. If the send operation is still ongoing, it will be aborted.
+    #[allow(clippy::type_complexity)]
     pub fn finish_sending(mut self) -> Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)> {
         if !self.state.finished {
             // Can't use `map_err` and `?` here, as the compiler will complain

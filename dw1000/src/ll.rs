@@ -152,9 +152,9 @@ where
         R: Register + Readable,
     {
         let mut r = R::read();
-        let mut buffer = R::buffer(&mut r);
+        let buffer = R::buffer(&mut r);
 
-        init_header::<R>(false, &mut buffer);
+        init_header::<R>(false, buffer);
 
         self.0.assert_cs_low()?;
         self.0
