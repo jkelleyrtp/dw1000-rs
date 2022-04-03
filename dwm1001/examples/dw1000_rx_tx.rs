@@ -101,7 +101,7 @@ fn main() -> ! {
                         continue,
                 };
 
-                if let Err(_) = known_nodes.insert(source) {
+                if known_nodes.insert(source).is_err() {
                     defmt::info!("Too many nodes. Can't add another one.\n");
                 }
             };

@@ -1,33 +1,23 @@
-//! Range measurement mobile tag. To be used in tandem with `dw1000_ranging_basestation`
+//! Range measurement basestation
 //!
-//! This is a tag acting as a mobile tag, initiating pings to base stations. This tag loops every second polling
-//! the base statinons in the area. A basestation will respond with a ranging request which the mobile tag will
-//! respond with with a ranging response. The base station will then calculate the distance between the two devices
-//! and log it to the console.
+//! This is a tag acting as a base station, collecting distances to mobile tags.
 //!
-//! This tag does not produce any useful console output.
+//! The anchor/tag example does the distance calculation *at the tag* which is less useful for applications where
+//! the tags are very "dumb".
+//!
+//! Instead, the basestation intiates the ranging request and records the distance over defmt.
 
 #![no_main]
 #![no_std]
 
 use defmt_rtt as _;
-use panic_probe as _;
-
-use dwm1001::{
-    block_timeout,
-    dw1000::{
-        mac,
-        ranging::{self, Message as _RangingMessage},
-        RxConfig,
-    },
-    nrf52832_hal::{
-        gpio::{p0::P0_17, Output, PushPull},
-        pac::SPIM2,
-        rng::Rng,
-        Delay, Spim, Timer,
-    },
-    prelude::*,
+use dw1000::{
+    configs::{BitRate, PreambleLength, SfdSequence},
+    mac,
+    ranging::{self, Message},
 };
+use dwm1001::block_timeout;
+use panic_probe as _;
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
@@ -74,13 +64,13 @@ fn main() -> ! {
 
     let mut buffer = [0; 1024];
 
+    //
+
     loop {
         /*
-        Strategy for mobile tag ranging:
-        - 1. Send a ping
-        - 2. Wait for a ranging request
-        - 3. Send a ranging response
-        - 4. Delay to throttle the rate of pings
+        - send a ping
+        - wait for a ranging request
+        - send a ranging response
         */
 
         defmt::info!("Sending ping");
@@ -90,11 +80,20 @@ fn main() -> ! {
         dwm1001.leds.D10.disable();
 
         /*
-        1. Send a ping
+        Send a ping
         */
         let mut sending = ranging::Ping::new(&mut dw1000)
             .expect("Failed to initiate ping")
-            .send(dw1000)
+            .send(
+                dw1000,
+                dw1000::TxConfig {
+                    bitrate: BitRate::Kbps110,
+                    channel: dw1000::configs::UwbChannel::Channel1,
+                    preamble_length: PreambleLength::Symbols1536,
+                    sfd_sequence: SfdSequence::Decawave,
+                    ..Default::default()
+                },
+            )
             .expect("Failed to initiate ping transmission");
 
         nb::block!(sending.wait_transmit()).expect("Failed to send data");
@@ -103,13 +102,21 @@ fn main() -> ! {
         defmt::info!("Ping sent, waiting for base station response");
 
         /*
-        2. Wait for the anchor to respond with a ranging request.
+        Wait for the anchor to respond with a ranging request.
         */
         let mut receiving = dw1000
-            .receive(RxConfig::default())
+            .receive(RxConfig {
+                bitrate: BitRate::Kbps110,
+                channel: dw1000::configs::UwbChannel::Channel1,
+                expected_preamble_length: PreambleLength::Symbols1536,
+                sfd_sequence: SfdSequence::Decawave,
+                ..Default::default()
+            })
             .expect("Failed to receive message");
 
+        // Set timer for timeout
         timer.start(5_000_000u32);
+
         let result = block_timeout!(&mut timer, receiving.wait_receive(&mut buffer));
 
         dw1000 = receiving
@@ -133,7 +140,7 @@ fn main() -> ! {
         };
 
         /*
-        3. Decode the ranging request and respond with a ranging response
+        Decode the ranging request and respond with a ranging response
         */
         let request =
             match ranging::Request::decode::<Spim<SPIM2>, P0_17<Output<PushPull>>>(&message) {
@@ -157,7 +164,16 @@ fn main() -> ! {
         // Send ranging response
         let mut sending = ranging::Response::new(&mut dw1000, &request)
             .expect("Failed to initiate response")
-            .send(dw1000)
+            .send(
+                dw1000,
+                dw1000::TxConfig {
+                    bitrate: BitRate::Kbps110,
+                    channel: dw1000::configs::UwbChannel::Channel1,
+                    preamble_length: PreambleLength::Symbols1536,
+                    sfd_sequence: SfdSequence::Decawave,
+                    ..Default::default()
+                },
+            )
             .expect("Failed to initiate response transmission");
 
         nb::block!(sending.wait_transmit()).expect("Failed to send data");
@@ -169,9 +185,7 @@ fn main() -> ! {
         delay.delay_ms(10u32);
         dwm1001.leds.D9.disable();
 
-        /*
-        - Throttle us to roughly 4 Hz
-        */
+        // throttle us to 10hz max
         delay.delay_ms(250u32);
     }
 }

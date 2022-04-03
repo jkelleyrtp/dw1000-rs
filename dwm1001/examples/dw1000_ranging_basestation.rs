@@ -1,4 +1,4 @@
-//! Range measurement basestation. To be used in tandem with `dw1000_ranging_mobile_tag`
+//! Range measurement basestation
 //!
 //! This is a tag acting as a base station, collecting distances to mobile tags.
 //!
@@ -16,6 +16,7 @@ use panic_probe as _;
 use dwm1001::{
     block_timeout,
     dw1000::{
+        configs::{BitRate, PreambleLength, SfdSequence},
         mac,
         ranging::{self, Message as _RangingMessage},
         RxConfig,
@@ -24,7 +25,7 @@ use dwm1001::{
         gpio::{p0::P0_17, Output, PushPull},
         pac::SPIM2,
         rng::Rng,
-        Delay, Spim, Timer,
+        Delay, Spim, Temp, Timer,
     },
     prelude::*,
 };
@@ -74,22 +75,21 @@ fn main() -> ! {
     let mut buffer1 = [0; 1024];
     let mut buffer2 = [0; 1024];
 
+    let mut temp = Temp::new(dwm1001.TEMP);
+
     loop {
         /*
-        Strategy for basestation:
-        - 1. Wait for ping
-        - 2. Initiate ranging request
-        - 3. Wait for response
-        - 4. Calculate and log distance to tag
+        - wait for ping
+        - initiate ranging request
+        - wait for response
+        - calculate distance
+        - log it
         */
 
-        defmt::debug!("Waiting for mobile tag ping.");
+        defmt::debug!("waiting for base mobile tag ping");
 
-        /*
-        1. Wait for ping
-        */
         let mut receiving = dw1000
-            .receive(RxConfig::default())
+            .receive(rx_configure())
             .expect("Failed to receive message");
 
         let message = block_timeout!(&mut timer, receiving.wait_receive(&mut buffer1));
@@ -118,10 +118,9 @@ fn main() -> ! {
             }
         };
 
-        defmt::debug!(
-            "Received ping from {:?}.\nResponding with ranging request.",
-            ping.source
-        );
+        // Received ping from an anchor. Reply with a ranging
+        defmt::debug!("Received ping. Responding with ranging request.");
+
         dwm1001.leds.D10.enable();
         delay.delay_ms(10u32);
         dwm1001.leds.D10.disable();
@@ -130,12 +129,17 @@ fn main() -> ! {
         // for the reply.
         delay.delay_ms(10u32);
 
-        /*
-        2. Initiate ranging request
-        */
         let mut sending = ranging::Request::new(&mut dw1000, &ping)
             .expect("Failed to initiate request")
-            .send(dw1000)
+            .send(
+                dw1000,
+                dw1000::TxConfig {
+                    bitrate: BitRate::Kbps110,
+                    channel: dw1000::configs::UwbChannel::Channel1,
+                    preamble_length: PreambleLength::Symbols1536,
+                    ..Default::default()
+                },
+            )
             .expect("Failed to initiate request transmission");
 
         nb::block!(sending.wait_transmit()).expect("Failed to send data");
@@ -143,11 +147,8 @@ fn main() -> ! {
 
         defmt::debug!("Request sent Transmission sent. Waiting for response.");
 
-        /*
-        3. Wait for response
-        */
         let mut receiving = dw1000
-            .receive(RxConfig::default())
+            .receive(rx_configure())
             .expect("Failed to receive message");
 
         // Set timer for timeout
@@ -160,16 +161,18 @@ fn main() -> ! {
 
         let message = match result {
             Ok(message) => message,
-            Err(error) => match error {
-                embedded_timeout_macros::TimeoutError::Timeout => {
-                    defmt::debug!("Waiting for mobile tag respond timed out.");
-                    continue;
+            Err(error) => {
+                use embedded_timeout_macros::TimeoutError;
+                match error {
+                    TimeoutError::Timeout => {
+                        defmt::debug!("Waiting for base station timed out. Trying again.")
+                    }
+                    TimeoutError::Other(o) => {
+                        defmt::error!("Other error: {:?}", defmt::Debug2Format(&o));
+                    }
                 }
-                embedded_timeout_macros::TimeoutError::Other(other) => {
-                    defmt::error!("Other timeout error: {:?}", defmt::Debug2Format(&other));
-                    continue;
-                }
-            },
+                continue;
+            }
         };
 
         let response =
@@ -206,7 +209,7 @@ fn main() -> ! {
         };
 
         // Ranging response received. Compute distance.
-        match ranging::compute_distance_mm(&response) {
+        match ranging::compute_distance_mm(&response, rx_configure()) {
             Ok(distance_mm) => {
                 dwm1001.leds.D9.enable();
                 delay.delay_ms(10u32);
@@ -218,5 +221,14 @@ fn main() -> ! {
                 defmt::error!("Ranging response error: {:?}", defmt::Debug2Format(&e));
             }
         }
+    }
+}
+
+fn rx_configure() -> RxConfig {
+    RxConfig {
+        bitrate: BitRate::Kbps110,
+        channel: dw1000::configs::UwbChannel::Channel1,
+        expected_preamble_length: PreambleLength::Symbols1536,
+        ..Default::default()
     }
 }
