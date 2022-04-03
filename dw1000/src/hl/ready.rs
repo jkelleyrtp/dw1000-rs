@@ -1,4 +1,3 @@
-use super::AutoDoubleBufferReceiving;
 use crate::{
     configs::SfdSequence, time::Instant, Error, RxConfig, Sending, SingleBufferReceiving, Sleeping,
     TxConfig, DW1000,
@@ -465,10 +464,10 @@ where
     ///
     /// *Note: The SPI speed may be at most 3 Mhz when calling this function.*
     pub fn enter_sleep(
-        mut self,
+        &mut self,
         irq_on_wakeup: bool,
         sleep_duration: Option<u16>,
-    ) -> Result<DW1000<SPI, CS, Sleeping>, Error<SPI, CS>> {
+    ) -> Result<(), Error<SPI, CS>> {
         // Set the sleep timer
         if let Some(sd) = sleep_duration {
             self.ll.pmsc_ctrl0().modify(|_, w| {

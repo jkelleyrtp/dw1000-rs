@@ -1,8 +1,13 @@
-use crate::{time::Instant, Error, Ready, Sending, DW1000};
+use crate::{time::Instant, Error, DW1000};
 use embedded_hal::{blocking::spi, digital::v2::OutputPin};
 use nb;
 
-impl<SPI, CS> DW1000<SPI, CS, Sending>
+pub struct Sending<'a, SPI, CS> {
+    chip: &'a mut DW1000<SPI, CS>,
+    finished: bool,
+}
+
+impl<'a, SPI, CS> Sending<'a, SPI, CS>
 where
     SPI: spi::Transfer<u8> + spi::Write<u8>,
     CS: OutputPin,
@@ -83,7 +88,7 @@ where
     /// If the send operation has finished, as indicated by `wait`, this is a
     /// no-op. If the send operation is still ongoing, it will be aborted.
     #[allow(clippy::type_complexity)]
-    pub fn finish_sending(mut self) -> Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)> {
+    pub fn finish_sending(mut self) -> Result<(), (Self, Error<SPI, CS>)> {
         if !self.state.finished {
             // Can't use `map_err` and `?` here, as the compiler will complain
             // about `self` moving into the closure.
@@ -103,11 +108,7 @@ where
             Err(e) => return Err((self, Error::Spi(e))),
         }
 
-        Ok(DW1000 {
-            ll: self.ll,
-            seq: self.seq,
-            state: Ready,
-        })
+        Ok(())
     }
 
     fn reset_flags(&mut self) -> Result<(), Error<SPI, CS>> {

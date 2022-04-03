@@ -2,15 +2,13 @@ use crate::{
     configs::{BitRate, SfdSequence},
     mac,
     time::Instant,
-    Error, Ready, RxConfig, DW1000,
+    Error, RxConfig, DW1000,
 };
 use byte::BytesExt as _;
 use core::convert::TryInto;
 use embedded_hal::{blocking::spi, digital::v2::OutputPin};
 use fixed::traits::LossyInto;
 use ieee802154::mac::FooterMode;
-
-use super::AutoDoubleBufferReceiving;
 
 /// An incoming message
 #[derive(Debug)]
@@ -593,23 +591,23 @@ where
     }
 }
 
-impl<SPI, CS> DW1000<SPI, CS, AutoDoubleBufferReceiving>
-where
-    SPI: spi::Transfer<u8> + spi::Write<u8>,
-    CS: OutputPin,
-{
-    /// Try to continue receiving
-    #[allow(clippy::type_complexity)]
-    pub fn continue_receiving(
-        self,
-    ) -> Result<
-        DW1000<SPI, CS, AutoDoubleBufferReceiving>,
-        Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)>,
-    > {
-        if !self.state.is_finished() {
-            Err(self.finish_receiving())
-        } else {
-            Ok(self)
-        }
-    }
-}
+// impl<SPI, CS> DW1000<SPI, CS, AutoDoubleBufferReceiving>
+// where
+//     SPI: spi::Transfer<u8> + spi::Write<u8>,
+//     CS: OutputPin,
+// {
+//     /// Try to continue receiving
+//     #[allow(clippy::type_complexity)]
+//     pub fn continue_receiving(
+//         self,
+//     ) -> Result<
+//         DW1000<SPI, CS, AutoDoubleBufferReceiving>,
+//         Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)>,
+//     > {
+//         if !self.state.is_finished() {
+//             Err(self.finish_receiving())
+//         } else {
+//             Ok(self)
+//         }
+//     }
+// }
