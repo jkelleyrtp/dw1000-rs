@@ -1,11 +1,10 @@
-use crate::{
-    configs::SfdSequence, time::Instant, Error, RxConfig, Sending, SingleBufferReceiving, Sleeping,
-    TxConfig, DW1000,
-};
+use crate::{configs::SfdSequence, time::Instant, Error, RxConfig, Sending, TxConfig, DW1000};
 use byte::BytesExt as _;
 use core::num::Wrapping;
 use embedded_hal::{blocking::spi, digital::v2::OutputPin};
 use ieee802154::mac::{self, FooterMode, FrameSerDesContext};
+
+use super::{DW1000Status, Receiving};
 
 /// The behaviour of the sync pin
 pub enum SyncBehaviour {
@@ -141,13 +140,12 @@ where
     /// is in the `Sending` state, and can be used to wait for the transmission
     /// to finish and check its result.
     pub fn send(
-        mut self,
+        &mut self,
         data: &[u8],
         destination: Option<mac::Address>,
         send_time: SendTime,
         config: TxConfig,
-    ) -> Result<DW1000<SPI, CS>, Error<SPI, CS>> {
-        // ) -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>> {
+    ) -> Result<Sending<SPI, CS>, Error<SPI, CS>> {
         // Clear event counters
         self.ll.evc_ctrl().write(|w| w.evc_clr(0b1))?;
         while self.ll.evc_ctrl().read()?.evc_clr() == 0b1 {}
@@ -309,10 +307,11 @@ where
             }
         })?;
 
-        Ok(DW1000 {
-            ll: self.ll,
-            seq: self.seq,
-            state: Sending { finished: false },
+        self.state = DW1000Status::Sending;
+
+        Ok(Sending {
+            chip: self,
+            finished: false,
         })
     }
 
@@ -326,24 +325,39 @@ where
     /// and more. Make sure that the values used are the same as of the frames
     /// that are transmitted. The default works with the TxConfig's default and
     /// is a sane starting point.
-    pub fn receive(
-        self,
+    pub fn receive(&mut self) -> Result<Receiving<SPI, CS>, Error<SPI, CS>> {
+        self.receive_with_cfg(self.rx_cfg)
+    }
+
+    /// Attempt to receive a single IEEE 802.15.4 MAC frame
+    ///
+    /// Initializes the receiver. The method consumes this instance of `DW1000`
+    /// and returns another instance which is in the [SingleBufferReceiving] state, and can
+    /// be used to wait for a message.
+    ///
+    /// The config parameter allows for the configuration of bitrate, channel
+    /// and more. Make sure that the values used are the same as of the frames
+    /// that are transmitted. The default works with the TxConfig's default and
+    /// is a sane starting point.
+    pub fn receive_with_cfg(
+        &mut self,
         config: RxConfig,
-    ) -> Result<DW1000<SPI, CS, SingleBufferReceiving>, Error<SPI, CS>> {
-        let mut rx_radio = DW1000 {
-            ll: self.ll,
-            seq: self.seq,
-            state: SingleBufferReceiving {
-                finished: false,
-                config,
-            },
+    ) -> Result<Receiving<SPI, CS>, Error<SPI, CS>> {
+        self.state = DW1000Status::SingleBufferReceiving;
+
+        let mut receiving = Receiving {
+            chip: self,
+            double_buffered: false,
+            auto_rx_reenable: false,
+            finished: false,
+            cfg: config,
         };
 
         // Start rx'ing
-        rx_radio.start_receiving(config)?;
+        receiving.start_receiving(config)?;
 
         // Return the double buffer state
-        Ok(rx_radio)
+        Ok(receiving)
     }
 
     /// Attempt to receive many IEEE 802.15.4 MAC frames. This is done in double buffered mode and auto re-enable.
@@ -361,23 +375,24 @@ where
     /// that are transmitted. The default works with the TxConfig's default and
     /// is a sane starting point.
     pub fn receive_auto_double_buffered(
-        self,
+        &mut self,
         config: RxConfig,
-    ) -> Result<DW1000<SPI, CS, AutoDoubleBufferReceiving>, Error<SPI, CS>> {
-        let mut rx_radio = DW1000 {
-            ll: self.ll,
-            seq: self.seq,
-            state: AutoDoubleBufferReceiving {
-                finished: false,
-                config,
-            },
+    ) -> Result<Receiving<SPI, CS>, Error<SPI, CS>> {
+        self.state = DW1000Status::AutoDoubleBufferReceiving;
+
+        let mut receiving = Receiving {
+            chip: self,
+            double_buffered: true,
+            auto_rx_reenable: true,
+            finished: false,
+            cfg: config,
         };
 
         // Start rx'ing
-        rx_radio.start_receiving(config)?;
+        receiving.start_receiving(config)?;
 
         // Return the double buffer state
-        Ok(rx_radio)
+        Ok(receiving)
     }
 
     /// Enables transmit interrupts for the events that `wait` checks
@@ -524,10 +539,30 @@ where
         self.ll.aon_ctrl().write(|w| w)?;
         self.ll.aon_ctrl().write(|w| w.save(1))?;
 
-        Ok(DW1000 {
-            ll: self.ll,
-            seq: self.seq,
-            state: Sleeping { tx_antenna_delay },
-        })
+        self.state = DW1000Status::Sleeping { tx_antenna_delay };
+
+        Ok(())
+    }
+
+    /// set the default config (if there is one)
+    pub fn with_rx_cfg(mut self, cfg: RxConfig) -> Self {
+        self.rx_cfg = cfg;
+        self
+    }
+
+    /// set the default config (if there is one)
+    pub fn with_tx_cfg(mut self, cfg: TxConfig) -> Self {
+        self.tx_cfg = cfg;
+        self
+    }
+
+    /// set the default config (if there is one)
+    pub fn configure_rx(&mut self, cfg: RxConfig) {
+        self.rx_cfg = cfg;
+    }
+
+    /// set the default config (if there is one)
+    pub fn configure_tx(&mut self, cfg: TxConfig) {
+        self.tx_cfg = cfg;
     }
 }

@@ -9,7 +9,7 @@
 //!
 //! [register-level interface]: ../ll/index.html
 
-use crate::ll;
+use crate::{ll, time::Duration, RxConfig, TxConfig};
 use core::{fmt, num::Wrapping};
 
 pub use awake::*;
@@ -34,6 +34,19 @@ mod uninitialized;
 pub struct DW1000<SPI, CS> {
     ll: ll::DW1000<SPI, CS>,
     seq: Wrapping<u8>,
+    state: DW1000Status,
+    tx_cfg: TxConfig,
+    rx_cfg: RxConfig,
+}
+
+/// The current status of the DWM module
+#[derive(Debug)]
+pub(crate) enum DW1000Status {
+    Ready,
+    Sleeping { tx_antenna_delay: Duration },
+    Sending,
+    AutoDoubleBufferReceiving,
+    SingleBufferReceiving,
 }
 
 // Can't be derived without putting requirements on `SPI` and `CS`.

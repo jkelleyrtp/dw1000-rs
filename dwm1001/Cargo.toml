@@ -14,9 +14,6 @@ keywords = ["decawave", "dw1000", "bsc", "radio", "uwb"]
 [package.metadata.docs.rs]
 all-features = true
 
-[badges]
-travis-ci = { repository = "braun-embedded/rust-dw1000" }
-
 [dependencies]
 cortex-m = "0.7.3"
 cortex-m-semihosting = "0.3.7"
@@ -28,7 +25,6 @@ dw1000 = { version = "0.6.0", path = "../dw1000" }
 nrf52832-hal = { version = "0.14.0", default-features = false, features = [
     "xxAA-package",
 ] }
-
 
 [dev-dependencies]
 heapless = "0.7.8"
@@ -43,72 +39,6 @@ default = ["dev", "rt"]
 dev = []
 # enable runtime support
 rt = ["nrf52832-hal/rt", "cortex-m-rt"]
-
-
-[[example]]
-name = "blink"
-required-features = ["dev", "rt"]
-
-[[example]]
-name = "uarte"
-required-features = ["dev", "rt"]
-
-[[example]]
-name = "dw1000_delayed_tx"
-required-features = ["dev", "rt"]
-
-[[example]]
-name = "dw1000_id"
-required-features = ["dev", "rt"]
-
-[[example]]
-name = "dw1000_only_rx"
-required-features = ["dev", "rt"]
-
-[[example]]
-name = "dw1000_only_tx"
-required-features = ["dev", "rt"]
-
-[[example]]
-name = "dw1000_ranging_anchor"
-required-features = ["dev", "rt"]
-
-[[example]]
-name = "dw1000_ranging_tag"
-required-features = ["dev", "rt"]
-
-[[example]]
-name = "dw1000_reg_modify"
-required-features = ["dev", "rt"]
-
-[[example]]
-name = "dw1000_reg_rw"
-required-features = ["dev", "rt"]
-
-[[example]]
-name = "dw1000_reg_short"
-required-features = ["dev", "rt"]
-
-[[example]]
-name = "dw1000_rx_tx"
-required-features = ["dev", "rt"]
-
-[[example]]
-name = "dw1000_subreg"
-required-features = ["dev", "rt"]
-
-[[example]]
-name = "dw1000_subreg_ext_addr"
-required-features = ["dev", "rt"]
-
-[[example]]
-name = "lis2dh12"
-required-features = ["dev", "rt"]
-
-[[example]]
-name = "uarte_heapless_string"
-required-features = ["dev", "rt"]
-
 
 [profile.release]
 incremental = false

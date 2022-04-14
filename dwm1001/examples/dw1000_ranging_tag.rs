@@ -17,8 +17,7 @@ use dwm1001::{
     block_timeout,
     dw1000::{
         mac,
-        ranging::{self, Message as _RangingMessage},
-        RxConfig,
+        ranging::{self},
     },
     nrf52832_hal::{
         gpio::{p0::P0_17, Output, PushPull},
@@ -78,36 +77,20 @@ fn main() -> ! {
 
     loop {
         defmt::info!("waiting for base station ping");
-        let mut receiving = dw1000
-            .receive(RxConfig::default())
-            .expect("Failed to receive message");
+        let mut receiving = dw1000.receive().expect("Failed to receive message");
 
         timeout_timer.start(500_000u32);
+
         let message = block_timeout!(&mut timeout_timer, {
             dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
-            receiving.wait_receive(&mut buf)
+            receiving.wait(&mut buf)
         });
 
-        dw1000 = receiving
-            .finish_receiving()
-            .expect("Failed to finish receiving");
-
-        let message = match message {
-            Ok(message) => message,
-            Err(_) => {
-                defmt::info!("Timeout error occured");
-                continue;
-            }
-        };
-
-        defmt::info!("msg from base station: received");
-
-        let ping = ranging::Ping::decode::<Spim<SPIM2>, P0_17<Output<PushPull>>>(&message)
-            .expect("Failed to decode ping");
-        if let Some(ping) = ping {
+        if let Ok(Ok(Some(ping))) =
+            message.map(|f| f.decode::<ranging::Ping, Spim<SPIM2>, P0_17<Output<PushPull>>>())
+        {
             // Received ping from an anchor. Reply with a ranging
             // request.
-
             dwm1001.leds.D10.enable();
             delay.delay_ms(10u32);
             dwm1001.leds.D10.disable();
@@ -118,24 +101,27 @@ fn main() -> ! {
 
             let mut sending = ranging::Request::new(&mut dw1000, &ping)
                 .expect("Failed to initiate request")
-                .send(dw1000)
+                .send(&mut dw1000)
                 .expect("Failed to initiate request transmission");
 
             timeout_timer.start(500_000u32);
+
             block_timeout!(&mut timeout_timer, {
                 dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
                 sending.wait_transmit()
             })
             .expect("Failed to send ranging request");
 
-            dw1000 = sending.finish_sending().expect("Failed to finish sending");
-
             continue;
         }
 
-        let response = ranging::Response::decode::<Spim<SPIM2>, P0_17<Output<PushPull>>>(&message)
-            .expect("Failed to decode response");
-        if let Some(response) = response {
+        let response = block_timeout!(&mut timeout_timer, {
+            dw_irq.wait_for_interrupts(&mut gpiote, &mut timeout_timer);
+            receiving.wait(&mut buf)
+        })
+        .map(|f| f.decode::<ranging::Response, Spim<SPIM2>, P0_17<Output<PushPull>>>());
+
+        if let Ok(Ok(Some(response))) = response {
             // Received ranging response from anchor. Now we can compute the
             // distance.
 

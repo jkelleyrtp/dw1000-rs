@@ -18,7 +18,6 @@ use dwm1001::{
     dw1000::{
         mac,
         ranging::{self, Message as _RangingMessage},
-        RxConfig,
     },
     nrf52832_hal::{
         gpio::{p0::P0_17, Output, PushPull},
@@ -94,27 +93,20 @@ fn main() -> ! {
         */
         let mut sending = ranging::Ping::new(&mut dw1000)
             .expect("Failed to initiate ping")
-            .send(dw1000)
+            .send(&mut dw1000)
             .expect("Failed to initiate ping transmission");
 
         nb::block!(sending.wait_transmit()).expect("Failed to send data");
-        dw1000 = sending.finish_sending().expect("Failed to finish sending");
 
         defmt::info!("Ping sent, waiting for base station response");
 
         /*
         2. Wait for the anchor to respond with a ranging request.
         */
-        let mut receiving = dw1000
-            .receive(RxConfig::default())
-            .expect("Failed to receive message");
+        let mut receiving = dw1000.receive().expect("Failed to receive message");
 
         timer.start(5_000_000u32);
-        let result = block_timeout!(&mut timer, receiving.wait_receive(&mut buffer));
-
-        dw1000 = receiving
-            .finish_receiving()
-            .expect("Failed to finish receiving");
+        let result = block_timeout!(&mut timer, receiving.wait(&mut buffer));
 
         let message = match result {
             Ok(message) => message,
@@ -157,11 +149,10 @@ fn main() -> ! {
         // Send ranging response
         let mut sending = ranging::Response::new(&mut dw1000, &request)
             .expect("Failed to initiate response")
-            .send(dw1000)
+            .send(&mut dw1000)
             .expect("Failed to initiate response transmission");
 
         nb::block!(sending.wait_transmit()).expect("Failed to send data");
-        dw1000 = sending.finish_sending().expect("Failed to finish sending");
 
         defmt::info!("Ranging response sent");
 

@@ -1,6 +1,7 @@
 use crate::{
     configs::{BitRate, SfdSequence},
     mac,
+    ranging::RxMessage,
     time::Instant,
     Error, RxConfig, DW1000,
 };
@@ -23,6 +24,19 @@ pub struct Message<'l> {
     pub frame: mac::Frame<'l>,
 }
 
+impl<'l> Message<'l> {
+    /// Decode this message
+    pub fn decode<T: crate::ranging::Message, SPI, CS>(
+        self,
+    ) -> Result<Option<RxMessage<T>>, Error<SPI, CS>>
+    where
+        SPI: spi::Transfer<u8> + spi::Write<u8>,
+        CS: OutputPin,
+    {
+        T::decode(&self)
+    }
+}
+
 /// A struct representing the quality of the received message.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct RxQuality {
@@ -41,22 +55,22 @@ pub struct RxQuality {
     pub rssi: f32,
 }
 
+/// An holder of state for a receiving radio
 pub struct Receiving<'a, SPI, CS> {
-    chip: &'a mut DW1000<SPI, CS>,
-    double_buffered: bool,
-    auto_rx_reenable: bool,
-}
+    /// The chip
+    pub chip: &'a mut DW1000<SPI, CS>,
 
-impl<'a, B, C> core::ops::Deref for Receiving<'a, B, C> {
-    type Target = DW1000<B, C>;
-    fn deref(&self) -> &Self::Target {
-        &self.chip
-    }
-}
-impl<'a, B, C> core::ops::DerefMut for Receiving<'a, B, C> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.chip
-    }
+    /// Should we use two buffers to more quickly swap between transmitting and receiving?
+    pub double_buffered: bool,
+
+    /// Should we re-enable rx when finished
+    pub auto_rx_reenable: bool,
+
+    /// What's the cfg used for this receiving
+    pub cfg: RxConfig,
+
+    /// Are we finished receiving
+    pub finished: bool,
 }
 
 impl<'a, SPI, CS> Receiving<'a, SPI, CS>
@@ -77,10 +91,10 @@ where
         // receiving anything, after receiving one good frame. Reset the
         // receiver to make sure its in a valid state before attempting to
         // receive anything.
-        self.ll.pmsc_ctrl0().modify(
+        self.chip.ll.pmsc_ctrl0().modify(
             |_, w| w.softreset(0b1110), // reset receiver
         )?;
-        self.ll.pmsc_ctrl0().modify(
+        self.chip.ll.pmsc_ctrl0().modify(
             |_, w| w.softreset(0b1111), // clear reset
         )?;
 
@@ -98,17 +112,20 @@ where
         // confirm this does indeed fix the receive-only example, it seems
         // (based on my eyeball-only measurements) that the RX/TX example is
         // dropping fewer frames now.
-        self.force_idle(false)?;
+        self.chip.force_idle(false)?;
 
-        self.ll.sys_cfg().modify(|_, w| {
+        let double_buffered = self.double_buffered as u8;
+        let auto_rx_reenable = self.auto_rx_reenable as u8;
+
+        self.chip.ll.sys_cfg().modify(|_, w| {
             w.ffen(config.frame_filtering as u8) // enable or disable frame filtering
                 .ffab(0b1) // receive beacon frames
                 .ffad(0b1) // receive data frames
                 .ffaa(0b1) // receive acknowledgement frames
                 .ffam(0b1) // receive MAC command frames
                 // Set the double buffering and auto re-enable
-                .dis_drxb(!self.double_buffered as u8)
-                .rxautr(self.auto_rx_reenable as u8)
+                .dis_drxb(!double_buffered)
+                .rxautr(auto_rx_reenable)
                 // Set whether the receiver should look for 110kbps or 850/6800kbps messages
                 .rxm110k((config.bitrate == BitRate::Kbps110) as u8)
         })?;
@@ -117,17 +134,18 @@ where
         // CLKPLL_LL bit in SYS_STATUS, this bit needs to be set to ensure the
         // reliable operation of the CLKPLL_LL bit. Since I've seen that bit
         // being set, I want to make sure I'm not just seeing crap.
-        self.ll.ec_ctrl().modify(|_, w| w.pllldt(0b1))?;
+        self.chip.ll.ec_ctrl().modify(|_, w| w.pllldt(0b1))?;
 
         // Now that PLLLDT is set, clear all bits in SYS_STATUS that depend on
         // it for reliable operation. After that is done, these bits should work
         // reliably.
-        self.ll
+        self.chip
+            .ll
             .sys_status()
             .write(|w| w.cplock(0b1).clkpll_ll(0b1))?;
 
         // Apply the config
-        self.ll.chan_ctrl().modify(|_, w| {
+        self.chip.ll.chan_ctrl().modify(|_, w| {
             w.tx_chan(config.channel as u8)
                 .rx_chan(config.channel as u8)
                 .dwsfd(
@@ -160,20 +178,20 @@ where
 
         match config.sfd_sequence {
             SfdSequence::IEEE => {} // IEEE has predefined sfd lengths and the register has no effect.
-            SfdSequence::Decawave => self.ll.sfd_length().write(|w| w.value(8))?, // This isn't entirely necessary as the Decawave8 settings in chan_ctrl already force it to 8
-            SfdSequence::DecawaveAlt => self.ll.sfd_length().write(|w| w.value(16))?, // Set to 16
+            SfdSequence::Decawave => self.chip.ll.sfd_length().write(|w| w.value(8))?, // This isn't entirely necessary as the Decawave8 settings in chan_ctrl already force it to 8
+            SfdSequence::DecawaveAlt => self.chip.ll.sfd_length().write(|w| w.value(16))?, // Set to 16
             SfdSequence::User => {} // Users are responsible for setting the lengths themselves
         }
 
         // Set general tuning
-        self.ll.drx_tune0b().write(|w| {
+        self.chip.ll.drx_tune0b().write(|w| {
             w.value(
                 config
                     .bitrate
                     .get_recommended_drx_tune0b(config.sfd_sequence),
             )
         })?;
-        self.ll.drx_tune1a().write(|w| {
+        self.chip.ll.drx_tune1a().write(|w| {
             w.value(
                 config
                     .pulse_repetition_frequency
@@ -183,33 +201,38 @@ where
         let drx_tune1b = config
             .expected_preamble_length
             .get_recommended_drx_tune1b(config.bitrate)?;
-        self.ll.drx_tune1b().write(|w| w.value(drx_tune1b))?;
+        self.chip.ll.drx_tune1b().write(|w| w.value(drx_tune1b))?;
         let drx_tune2 = config
             .pulse_repetition_frequency
             .get_recommended_drx_tune2(
                 config.expected_preamble_length.get_recommended_pac_size(),
             )?;
-        self.ll.drx_tune2().write(|w| w.value(drx_tune2))?;
-        self.ll
+        self.chip.ll.drx_tune2().write(|w| w.value(drx_tune2))?;
+        self.chip
+            .ll
             .drx_tune4h()
             .write(|w| w.value(config.expected_preamble_length.get_recommended_dxr_tune4h()))?;
 
         // Set channel tuning
-        self.ll
+        self.chip
+            .ll
             .rf_rxctrlh()
             .write(|w| w.value(config.channel.get_recommended_rf_rxctrlh()))?;
-        self.ll
+        self.chip
+            .ll
             .fs_pllcfg()
             .write(|w| w.value(config.channel.get_recommended_fs_pllcfg()))?;
-        self.ll
+        self.chip
+            .ll
             .fs_plltune()
             .write(|w| w.value(config.channel.get_recommended_fs_plltune()))?;
 
         // Set the LDE registers
-        self.ll
+        self.chip
+            .ll
             .lde_cfg2()
             .write(|w| w.value(config.pulse_repetition_frequency.get_recommended_lde_cfg2()))?;
-        self.ll.lde_repc().write(|w| {
+        self.chip.ll.lde_repc().write(|w| {
             w.value(
                 config.channel.get_recommended_lde_repc_value(
                     config.pulse_repetition_frequency,
@@ -219,15 +242,15 @@ where
         })?;
 
         // Check if the rx buffer pointer is correct
-        let status = self.ll.sys_status().read()?;
+        let status = self.chip.ll.sys_status().read()?;
         if status.hsrbp() != status.icrbp() {
             // The RX Buffer Pointer of the host and the ic side don't point to the same one.
             // We need to switch over
-            self.ll.sys_ctrl().modify(|_, w| w.hrbpt(1))?;
+            self.chip.ll.sys_ctrl().modify(|_, w| w.hrbpt(1))?;
         }
 
         // Start receiving
-        self.ll.sys_ctrl().modify(|_, w| w.rxenab(0b1))?;
+        self.chip.ll.sys_ctrl().modify(|_, w| w.rxenab(0b1))?;
 
         Ok(())
     }
@@ -244,14 +267,12 @@ where
     /// driver, but please note that if you're using the DWM1001 module or
     /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
     /// this.
-    pub fn wait_receive<'b>(
-        &mut self,
-        buffer: &'b mut [u8],
-    ) -> nb::Result<Message<'b>, Error<SPI, CS>> {
+    pub fn wait<'b>(&mut self, buffer: &'b mut [u8]) -> nb::Result<Message<'b>, Error<SPI, CS>> {
         // ATTENTION:
         // If you're changing anything about which SYS_STATUS flags are being
         // checked in this method, also make sure to update `enable_interrupts`.
         let sys_status = self
+            .chip
             .ll()
             .sys_status()
             .read()
@@ -302,7 +323,9 @@ where
         if sys_status.ldedone() == 0b0 {
             return Err(nb::Error::WouldBlock);
         }
+
         let rx_time = self
+            .chip
             .ll()
             .rx_time()
             .read()
@@ -316,11 +339,13 @@ where
 
         // Read received frame
         let rx_finfo = self
+            .chip
             .ll()
             .rx_finfo()
             .read()
             .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
         let rx_buffer = self
+            .chip
             .ll()
             .rx_buffer()
             .read()
@@ -339,7 +364,7 @@ where
         let frame = buffer[..len]
             .read_with(
                 &mut 0,
-                if self.state.get_rx_config().append_crc {
+                if self.cfg.append_crc {
                     FooterMode::Explicit
                 } else {
                     FooterMode::None
@@ -353,13 +378,21 @@ where
 
         if self.double_buffered {
             // Toggle to the other buffer. This will also signal the IC that the current buffer is free for use
-            self.ll
+            self.chip
+                .ll
                 .sys_ctrl()
                 .modify(|_, w| w.hrbpt(1))
                 .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
         }
 
-        self.state.mark_finished();
+        self.finished = true;
+
+        // if !self.state.is_finished() {
+        // Can't use `map_err` and `?` here, as the compiler will complain
+        // about `self` moving into the closure.
+        // self.state.mark_finished();
+
+        self.chip.force_idle(self.double_buffered)?;
 
         Ok(Message { rx_time, frame })
     }
@@ -387,23 +420,23 @@ where
         };
 
         if self.double_buffered {
-            let status = self.ll.sys_status().read()?;
+            let status = self.chip.ll.sys_status().read()?;
 
             if status.hsrbp() == status.icrbp() {
-                let saved_sys_mask = self.ll.sys_mask().read()?.0;
+                let saved_sys_mask = self.chip.ll.sys_mask().read()?.0;
                 // Mask all status bits to prevent spurious interrupts
-                self.ll.sys_mask().write(|w| w)?;
+                self.chip.ll.sys_mask().write(|w| w)?;
 
-                do_clear(self.ll())?;
+                do_clear(self.chip.ll())?;
 
                 // Restore the mask
-                self.ll.sys_mask().write(|w| {
+                self.chip.ll.sys_mask().write(|w| {
                     w.0.copy_from_slice(&saved_sys_mask);
                     w
                 })?;
             }
         } else {
-            do_clear(self.ll())?;
+            do_clear(self.chip.ll())?;
         }
 
         Ok(())
@@ -413,9 +446,9 @@ where
         #[allow(unused_imports)]
         use micromath::F32Ext;
 
-        let rx_time_register = self.ll().rx_time().read()?;
-        let rx_fqual_register = self.ll().rx_fqual().read()?;
-        let lde_cfg1_register = self.ll().lde_cfg1().read()?;
+        let rx_time_register = self.chip.ll().rx_time().read()?;
+        let rx_fqual_register = self.chip.ll().rx_fqual().read()?;
+        let lde_cfg1_register = self.chip.ll().lde_cfg1().read()?;
 
         let path_position: f32 =
             fixed::types::U10F6::from_le_bytes(rx_time_register.fp_index().to_le_bytes())
@@ -432,7 +465,7 @@ where
         let window_start = (path_position as u16).saturating_sub(WINDOW_SIZE as u16);
 
         let mut cir_buffer = [0u8; WINDOW_SIZE * 4 + 4];
-        let cir = self.ll.cir(window_start * 4, &mut cir_buffer)?;
+        let cir = self.chip.ll.cir(window_start * 4, &mut cir_buffer)?;
 
         // To determine the number of peaks in the newly formed analysis window we take the difference of consecutive values.
         // We identify a peak when these differences change from positive to negative.
@@ -462,13 +495,13 @@ where
         #[allow(unused_imports)]
         use micromath::F32Ext;
 
-        let rx_time_register = self.ll().rx_time().read()?;
+        let rx_time_register = self.chip.ll().rx_time().read()?;
 
         let path_position: f32 =
             fixed::types::U10F6::from_le_bytes(rx_time_register.fp_index().to_le_bytes())
                 .lossy_into();
 
-        let peak_path_index: f32 = self.ll().lde_ppindx().read()?.value() as f32;
+        let peak_path_index: f32 = self.chip.ll().lde_ppindx().read()?.value() as f32;
 
         let idiff = (path_position - peak_path_index).abs();
         if idiff <= 3.3 {
@@ -481,13 +514,13 @@ where
     }
 
     fn calculate_mc(&mut self) -> Result<f32, Error<SPI, CS>> {
-        let rx_time_register = self.ll().rx_time().read()?;
-        let rx_fqual_register = self.ll().rx_fqual().read()?;
+        let rx_time_register = self.chip.ll().rx_time().read()?;
+        let rx_fqual_register = self.chip.ll().rx_fqual().read()?;
 
         let fp_ampl1: u16 = rx_time_register.fp_ampl1();
         let fp_ampl2: u16 = rx_fqual_register.fp_ampl2();
         let fp_ampl3: u16 = rx_fqual_register.fp_ampl3();
-        let peak_path_amplitude: u16 = self.ll().lde_ppampl().read()?.value();
+        let peak_path_amplitude: u16 = self.chip.ll().lde_ppampl().read()?.value();
 
         Ok(fp_ampl1.max(fp_ampl2).max(fp_ampl3) as f32 / peak_path_amplitude as f32)
     }
@@ -499,17 +532,17 @@ where
         #[allow(unused_imports)]
         use micromath::F32Ext;
 
-        let c = self.ll.rx_fqual().read()?.cir_pwr() as f32;
-        let a = match self.state.get_rx_config().pulse_repetition_frequency {
+        let c = self.chip.ll.rx_fqual().read()?.cir_pwr() as f32;
+        let a = match self.cfg.pulse_repetition_frequency {
             crate::configs::PulseRepetitionFrequency::Mhz16 => 113.77,
             crate::configs::PulseRepetitionFrequency::Mhz64 => 121.74,
         };
 
-        let data_rate = self.state.get_rx_config().bitrate;
-        let sfd_sequence = self.state.get_rx_config().sfd_sequence;
+        let data_rate = self.cfg.bitrate;
+        let sfd_sequence = self.cfg.sfd_sequence;
 
-        let rxpacc = self.ll.rx_finfo().read()?.rxpacc();
-        let rxpacc_nosat = self.ll.rxpacc_nosat().read()?.value();
+        let rxpacc = self.chip.ll.rx_finfo().read()?.rxpacc();
+        let rxpacc_nosat = self.chip.ll.rxpacc_nosat().read()?.value();
 
         let n = if rxpacc == rxpacc_nosat {
             rxpacc as f32 + sfd_sequence.get_rxpacc_adjustment(data_rate) as f32
@@ -531,7 +564,7 @@ where
     /// This must be called after the [`DW1000::wait_receive`] function has
     /// successfully returned.
     pub fn read_rx_quality(&mut self) -> Result<RxQuality, Error<SPI, CS>> {
-        assert!(self.state.is_finished(), "The function 'wait' must have successfully returned before this function can be called");
+        assert!(self.finished, "The function 'wait' must have successfully returned before this function can be called");
 
         let luep = self.calculate_luep()?;
         let prnlos = self.calculate_prnlos()?;
@@ -560,34 +593,13 @@ where
     /// In the manual, the return values are named (N, T1, RX_RAWST)
     /// This is left to the user so the precision of the calculations are left to the user to decide.
     pub fn read_external_sync_time(&mut self) -> Result<(u32, u8, u64), Error<SPI, CS>> {
-        assert!(self.state.is_finished(), "The function 'wait' must have successfully returned before this function can be called");
+        assert!(self.finished, "The function 'wait' must have successfully returned before this function can be called");
 
-        let cycles_since_sync = self.ll().ec_rxtc().read()?.rx_ts_est();
-        let nanos_until_tick = self.ll().ec_golp().read()?.offset_ext();
-        let raw_timestamp = self.ll().rx_time().read()?.rx_rawst();
+        let cycles_since_sync = self.chip.ll().ec_rxtc().read()?.rx_ts_est();
+        let nanos_until_tick = self.chip.ll().ec_golp().read()?.offset_ext();
+        let raw_timestamp = self.chip.ll().rx_time().read()?.rx_rawst();
 
         Ok((cycles_since_sync, nanos_until_tick, raw_timestamp))
-    }
-
-    /// Finishes receiving and returns to the `Ready` state
-    ///
-    /// If the receive operation has finished, as indicated by `wait`, this is a
-    /// no-op. If the receive operation is still ongoing, it will be aborted.
-    #[allow(clippy::type_complexity)]
-    pub fn finish_receiving(mut self) -> Result<DW1000<SPI, CS>, (Self, Error<SPI, CS>)> {
-        if !self.state.is_finished() {
-            // Can't use `map_err` and `?` here, as the compiler will complain
-            // about `self` moving into the closure.
-            match self.force_idle(self.double_buffered) {
-                Ok(()) => (),
-                Err(error) => return Err((self, error)),
-            }
-        }
-
-        Ok(DW1000 {
-            ll: self.ll,
-            seq: self.seq,
-        })
     }
 }
 

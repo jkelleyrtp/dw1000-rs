@@ -1,11 +1,19 @@
-use crate::{ll, Error, Ready, Uninitialized, DW1000};
+use crate::{ll, Error, RxConfig, TxConfig, DW1000};
 use core::num::Wrapping;
 use embedded_hal::{
     blocking::{delay::DelayMs, spi},
     digital::v2::OutputPin,
 };
 
-impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
+/// A Radio before initialization
+///
+/// Calling "initialize" will give us an actual DWM radio that can have methods called on it
+pub struct UninitializedDW1000<SPI, CS> {
+    ll: ll::DW1000<SPI, CS>,
+    seq: Wrapping<u8>,
+}
+
+impl<SPI, CS> UninitializedDW1000<SPI, CS>
 where
     SPI: spi::Transfer<u8> + spi::Write<u8>,
     CS: OutputPin,
@@ -15,11 +23,15 @@ where
     /// Requires the SPI peripheral and the chip select pin that are connected
     /// to the DW1000.
     pub fn new(spi: SPI, chip_select: CS) -> Self {
-        DW1000 {
+        UninitializedDW1000 {
             ll: ll::DW1000::new(spi, chip_select),
             seq: Wrapping(0),
-            state: Uninitialized,
         }
+    }
+
+    /// Get the low-level interface to the uninitialized DWM1000
+    pub fn ll(&mut self) -> &mut ll::DW1000<SPI, CS> {
+        &mut self.ll
     }
 
     /// Initialize the DW1000
@@ -35,7 +47,7 @@ where
     pub fn init<D: DelayMs<u8>>(
         mut self,
         delay: &mut D,
-    ) -> Result<DW1000<SPI, CS, Ready>, Error<SPI, CS>> {
+    ) -> Result<DW1000<SPI, CS>, Error<SPI, CS>> {
         // Set AGC_TUNE1. See user manual, section 2.5.5.1.
         self.ll.agc_tune1().write(|w| w.value(0x8870))?;
 
@@ -88,7 +100,22 @@ where
         Ok(DW1000 {
             ll: self.ll,
             seq: self.seq,
-            state: Ready,
+            state: super::DW1000Status::Ready,
+            rx_cfg: RxConfig::default(),
+            tx_cfg: TxConfig::default(),
         })
+    }
+
+    pub(crate) fn read_otp(&mut self, address: u16) -> Result<u32, Error<SPI, CS>> {
+        // Set address
+        self.ll.otp_addr().write(|w| w.value(address))?;
+        // Switch into read mode
+        self.ll.otp_ctrl().write(|w| w.otprden(0b1).otpread(0b1))?;
+        self.ll.otp_ctrl().write(|w| w.otprden(0b1))?;
+        // Read back value
+        let value = self.ll.otp_rdat().read()?.value();
+        // End read mode
+        self.ll.otp_ctrl().write(|w| w)?;
+        Ok(value)
     }
 }

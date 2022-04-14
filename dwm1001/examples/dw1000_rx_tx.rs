@@ -66,19 +66,14 @@ fn main() -> ! {
             &mut task_timer,
             {
                 let mut receiving = dw1000
-                    .receive(RxConfig::default())
+                    .receive()
                     .expect("Failed to receive");
 
                 timeout_timer.start(100_000u32);
-                let result = block_timeout!(
+                block_timeout!(
                     &mut timeout_timer,
-                    receiving.wait_receive(&mut buffer)
-                );
-
-                dw1000 = receiving.finish_receiving()
-                    .expect("Failed to finish receiving");
-
-                result
+                    receiving.wait(&mut buffer)
+                )
             },
             (message) {
                 if message.frame.payload != b"ping" {
@@ -123,9 +118,6 @@ fn main() -> ! {
 
                 timeout_timer.start(10_000u32);
                 let result = block_timeout!(&mut timeout_timer, sending.wait_transmit());
-
-                dw1000 = sending.finish_sending()
-                    .expect("Failed to finish sending");
 
                 result
             },

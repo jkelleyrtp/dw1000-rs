@@ -18,7 +18,6 @@ use dwm1001::{
     dw1000::{
         mac,
         ranging::{self, Message as _RangingMessage},
-        RxConfig,
     },
     nrf52832_hal::{
         gpio::{p0::P0_17, Output, PushPull},
@@ -88,15 +87,9 @@ fn main() -> ! {
         /*
         1. Wait for ping
         */
-        let mut receiving = dw1000
-            .receive(RxConfig::default())
-            .expect("Failed to receive message");
+        let mut receiving = dw1000.receive().expect("Failed to receive message");
 
-        let message = block_timeout!(&mut timer, receiving.wait_receive(&mut buffer1));
-
-        dw1000 = receiving
-            .finish_receiving()
-            .expect("Failed to finish receiving");
+        let message = block_timeout!(&mut timer, receiving.wait(&mut buffer1));
 
         let message = match message {
             Ok(message) => message,
@@ -135,28 +128,21 @@ fn main() -> ! {
         */
         let mut sending = ranging::Request::new(&mut dw1000, &ping)
             .expect("Failed to initiate request")
-            .send(dw1000)
+            .send(&mut dw1000)
             .expect("Failed to initiate request transmission");
 
         nb::block!(sending.wait_transmit()).expect("Failed to send data");
-        dw1000 = sending.finish_sending().expect("Failed to finish sending");
 
         defmt::debug!("Request sent Transmission sent. Waiting for response.");
 
         /*
         3. Wait for response
         */
-        let mut receiving = dw1000
-            .receive(RxConfig::default())
-            .expect("Failed to receive message");
+        let mut receiving = dw1000.receive().expect("Failed to receive message");
 
         // Set timer for timeout
         timer.start(5_000_000u32);
-        let result = block_timeout!(&mut timer, receiving.wait_receive(&mut buffer2));
-
-        dw1000 = receiving
-            .finish_receiving()
-            .expect("Failed to finish receiving");
+        let result = block_timeout!(&mut timer, receiving.wait(&mut buffer2));
 
         let message = match result {
             Ok(message) => message,

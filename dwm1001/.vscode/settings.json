@@ -1,0 +1,20 @@
+{
+    "rust-analyzer.cargo.features": [
+        "rt",
+        "dev"
+    ],
+    "rust-analyzer.cargo.allFeatures": false,
+    "rust-analyzer.checkOnSave.features": [
+        "rt",
+        "dev"
+    ],
+    "rust-analyzer.checkOnSave.allFeatures": false,
+    "rust-analyzer.checkOnSave.allTargets": false,
+    "rust-analyzer.cargo.target": "thumbv7em-none-eabihf",
+    "rust-analyzer.procMacro.enable": true,
+    "rust-analyzer.experimental.procAttrMacros": true,
+    "rust-analyzer.checkOnSave.extraArgs": [
+        "--examples",
+    ],
+    "editor.formatOnSave": true
+}

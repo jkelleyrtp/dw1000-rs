@@ -32,7 +32,7 @@ pub mod prelude {
 }
 
 use cortex_m::{asm, interrupt};
-use dw1000::DW1000;
+use dw1000::hl::UninitializedDW1000;
 use embedded_hal::blocking::delay::DelayMs;
 use nrf52832_hal::{
     gpio::{
@@ -98,7 +98,7 @@ pub fn new_dw1000<SCK, MOSI, MISO, CS>(
     miso: P0_18<MISO>,
     cs: P0_17<CS>,
     spim_opts: Option<SpimConfig>,
-) -> DW1000<Spim<nrf52::SPIM2>, p0::P0_17<Output<PushPull>>, dw1000::Uninitialized> {
+) -> UninitializedDW1000<Spim<nrf52::SPIM2>, p0::P0_17<Output<PushPull>>> {
     let cfg = spim_opts.unwrap_or(SpimConfig {
         frequency: spim::Frequency::K500,
         mode: spim::MODE_0,
@@ -117,7 +117,7 @@ pub fn new_dw1000<SCK, MOSI, MISO, CS>(
         cfg.orc,
     );
 
-    DW1000::new(spim, cs.into_push_pull_output(Level::High))
+    UninitializedDW1000::new(spim, cs.into_push_pull_output(Level::High))
 }
 
 /// Create a new instance of the TWIM bus used for the accelerometer
@@ -182,7 +182,7 @@ pub struct DWM1001 {
     pub DW_IRQ: DW_IRQ,
 
     /// The Decawave DW1000 Radio IC
-    pub DW1000: DW1000<Spim<nrf52::SPIM2>, p0::P0_17<Output<PushPull>>, dw1000::Uninitialized>,
+    pub DW1000: UninitializedDW1000<Spim<nrf52::SPIM2>, p0::P0_17<Output<PushPull>>>,
 
     /// LIS2DH12 3-axis accelerometer
     ///

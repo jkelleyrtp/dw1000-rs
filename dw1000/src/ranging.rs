@@ -50,7 +50,7 @@ use crate::hl::SendTime;
 use crate::{
     hl, mac,
     time::{Duration, Instant},
-    Error, Ready, Sending, TxConfig, DW1000,
+    Error, Sending, TxConfig, DW1000,
 };
 
 /// The transmission delay
@@ -158,10 +158,10 @@ where
     ///
     /// Serializes the message payload and uses [`DW1000::send`] internally to
     /// send it.
-    pub fn send<SPI, CS>(
+    pub fn send<'a, SPI, CS>(
         &self,
-        dw1000: DW1000<SPI, CS, Ready>,
-    ) -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>>
+        dw1000: &'a mut DW1000<SPI, CS>,
+    ) -> Result<Sending<'a, SPI, CS>, Error<SPI, CS>>
     where
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         CS: OutputPin,
@@ -177,14 +177,12 @@ where
         buf[..T::PRELUDE.0.len()].copy_from_slice(T::PRELUDE.0);
         ssmarshal::serialize(&mut buf[T::PRELUDE.0.len()..], &self.payload)?;
 
-        let future = dw1000.send(
+        dw1000.send(
             &buf[..T::LEN],
             self.recipient,
             SendTime::Delayed(self.tx_time),
             TxConfig::default(),
-        )?;
-
-        Ok(future)
+        )
     }
 }
 
@@ -213,9 +211,7 @@ impl Ping {
     /// time to 10 milliseconds in the future. Make sure to send the message
     /// within that time frame, or the distance measurement will be negatively
     /// affected.
-    pub fn new<SPI, CS>(
-        dw1000: &mut DW1000<SPI, CS, Ready>,
-    ) -> Result<TxMessage<Self>, Error<SPI, CS>>
+    pub fn new<SPI, CS>(dw1000: &mut DW1000<SPI, CS>) -> Result<TxMessage<Self>, Error<SPI, CS>>
     where
         SPI: spi::Transfer<u8> + spi::Write<u8>,
         CS: OutputPin,
@@ -265,7 +261,7 @@ impl Request {
     /// within that time frame, or the distance measurement will be negatively
     /// affected.
     pub fn new<SPI, CS>(
-        dw1000: &mut DW1000<SPI, CS, Ready>,
+        dw1000: &mut DW1000<SPI, CS>,
         ping: &RxMessage<Ping>,
     ) -> Result<TxMessage<Self>, Error<SPI, CS>>
     where
@@ -327,7 +323,7 @@ impl Response {
     /// within that time frame, or the distance measurement will be negatively
     /// affected.
     pub fn new<SPI, CS>(
-        dw1000: &mut DW1000<SPI, CS, Ready>,
+        dw1000: &mut DW1000<SPI, CS>,
         request: &RxMessage<Request>,
     ) -> Result<TxMessage<Self>, Error<SPI, CS>>
     where

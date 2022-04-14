@@ -33,8 +33,6 @@ fn main() -> ! {
 
         nb::block!(sending.wait_transmit()).expect("Failed to send data");
 
-        dw1000 = sending.finish_sending().expect("Failed to finish sending");
-
         if cast % 10 == 0 {
             defmt::info!("{}", cast);
         }

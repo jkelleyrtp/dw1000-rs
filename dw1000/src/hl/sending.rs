@@ -2,9 +2,10 @@ use crate::{time::Instant, Error, DW1000};
 use embedded_hal::{blocking::spi, digital::v2::OutputPin};
 use nb;
 
+/// A holder of state for a transmission
 pub struct Sending<'a, SPI, CS> {
-    chip: &'a mut DW1000<SPI, CS>,
-    finished: bool,
+    pub(crate) chip: &'a mut DW1000<SPI, CS>,
+    pub(crate) finished: bool,
 }
 
 impl<'a, SPI, CS> Sending<'a, SPI, CS>
@@ -29,6 +30,7 @@ where
         // this will indicate that the delay was too short, and the frame was
         // sent too late.
         let evc_hpw = self
+            .chip
             .ll
             .evc_hpw()
             .read()
@@ -43,6 +45,7 @@ where
         // up while sending, and the frame preamble might not have transmit
         // correctly.
         let evc_tpw = self
+            .chip
             .ll
             .evc_tpw()
             .read()
@@ -56,6 +59,7 @@ where
         // If you're changing anything about which SYS_STATUS flags are being
         // checked in this method, also make sure to update `enable_interrupts`.
         let sys_status = self
+            .chip
             .ll
             .sys_status()
             .read()
@@ -69,9 +73,10 @@ where
 
         // Frame sent
         self.reset_flags().map_err(nb::Error::Other)?;
-        self.state.finished = true;
+        self.finished = true;
 
         let tx_timestamp = self
+            .chip
             .ll
             .tx_time()
             .read()
@@ -80,39 +85,20 @@ where
         // This is safe because the value read from the device will never be higher than the allowed value.
         let tx_timestamp = unsafe { Instant::new_unchecked(tx_timestamp) };
 
+        self.chip.force_idle(false)?;
+        self.reset_flags()?;
+
+        // Turn off the external transmit synchronization
+        match self.chip.ll.ec_ctrl().modify(|_, w| w.ostsm(0)) {
+            Ok(_) => {}
+            Err(e) => return nb::Result::Err(nb::Error::Other(Error::Spi(e))),
+        }
+
         Ok(tx_timestamp)
     }
 
-    /// Finishes sending and returns to the `Ready` state
-    ///
-    /// If the send operation has finished, as indicated by `wait`, this is a
-    /// no-op. If the send operation is still ongoing, it will be aborted.
-    #[allow(clippy::type_complexity)]
-    pub fn finish_sending(mut self) -> Result<(), (Self, Error<SPI, CS>)> {
-        if !self.state.finished {
-            // Can't use `map_err` and `?` here, as the compiler will complain
-            // about `self` moving into the closure.
-            match self.force_idle(false) {
-                Ok(()) => (),
-                Err(error) => return Err((self, error)),
-            }
-            match self.reset_flags() {
-                Ok(()) => (),
-                Err(error) => return Err((self, error)),
-            }
-        }
-
-        // Turn off the external transmit synchronization
-        match self.ll.ec_ctrl().modify(|_, w| w.ostsm(0)) {
-            Ok(_) => {}
-            Err(e) => return Err((self, Error::Spi(e))),
-        }
-
-        Ok(())
-    }
-
     fn reset_flags(&mut self) -> Result<(), Error<SPI, CS>> {
-        self.ll.sys_status().write(
+        self.chip.ll.sys_status().write(
             |w| {
                 w.txfrb(0b1) // Transmit Frame Begins
                     .txprs(0b1) // Transmit Preamble Sent

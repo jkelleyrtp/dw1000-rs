@@ -34,8 +34,6 @@ fn main() -> ! {
 
         nb::block!(sending.wait_transmit()).expect("Failed to send data");
 
-        dw1000 = sending.finish_sending().expect("Failed to finish sending");
-
         defmt::info!("done\n");
     }
 }
