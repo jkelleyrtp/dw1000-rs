@@ -35,8 +35,8 @@ pub struct DW1000<SPI, CS> {
     ll: ll::DW1000<SPI, CS>,
     seq: Wrapping<u8>,
     state: DW1000Status,
-    tx_cfg: TxConfig,
-    rx_cfg: RxConfig,
+    pub(crate) tx_cfg: TxConfig,
+    pub(crate) rx_cfg: RxConfig,
 }
 
 /// The current status of the DWM module

@@ -181,7 +181,7 @@ where
             &buf[..T::LEN],
             self.recipient,
             SendTime::Delayed(self.tx_time),
-            TxConfig::default(),
+            dw1000.tx_cfg,
         )
     }
 }
