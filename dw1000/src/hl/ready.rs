@@ -5,7 +5,7 @@ use crate::{
 };
 use byte::BytesExt as _;
 use core::num::Wrapping;
-use embedded_hal::{blocking::spi, digital::v2::OutputPin};
+use embedded_hal::spi::SpiDevice;
 use ieee802154::mac::{self, FooterMode, FrameSerDesContext};
 
 /// The behaviour of the sync pin
@@ -40,17 +40,12 @@ pub enum IrqPolarity {
     ActiveLow = 0,
 }
 
-impl<SPI, CS> DW1000<SPI, CS, Ready>
+impl<SPI> DW1000<SPI, Ready>
 where
-    SPI: spi::Transfer<u8> + spi::Write<u8>,
-    CS: OutputPin,
+    SPI: SpiDevice,
 {
     /// Sets the RX and TX antenna delays
-    pub fn set_antenna_delay(
-        &mut self,
-        rx_delay: u16,
-        tx_delay: u16,
-    ) -> Result<(), Error<SPI, CS>> {
+    pub fn set_antenna_delay(&mut self, rx_delay: u16, tx_delay: u16) -> Result<(), Error<SPI>> {
         self.ll.lde_rxantd().write(|w| w.value(rx_delay))?;
         self.ll.tx_antd().write(|w| w.value(tx_delay))?;
 
@@ -62,7 +57,7 @@ where
         &mut self,
         pan_id: mac::PanId,
         addr: mac::ShortAddress,
-    ) -> Result<(), Error<SPI, CS>> {
+    ) -> Result<(), Error<SPI>> {
         self.ll
             .panadr()
             .write(|w| w.pan_id(pan_id.0).short_addr(addr.0))?;
@@ -73,7 +68,7 @@ where
     /// Sets up the sync pin functionality
     ///
     /// After init, it is set to None
-    pub fn set_sync_behaviour(&mut self, behaviour: SyncBehaviour) -> Result<(), Error<SPI, CS>> {
+    pub fn set_sync_behaviour(&mut self, behaviour: SyncBehaviour) -> Result<(), Error<SPI>> {
         match behaviour {
             SyncBehaviour::None => {
                 // Disable all
@@ -116,7 +111,7 @@ where
     /// Set the polarity of the interrupt pin.
     ///
     /// The default is ActiveHigh, which is also recommended for power savings.
-    pub fn set_irq_polarity(&mut self, polarity: IrqPolarity) -> Result<(), Error<SPI, CS>> {
+    pub fn set_irq_polarity(&mut self, polarity: IrqPolarity) -> Result<(), Error<SPI>> {
         self.ll
             .sys_cfg()
             .modify(|_, w| w.hirq_pol(polarity as u8))?;
@@ -147,7 +142,7 @@ where
         destination: Option<mac::Address>,
         send_time: SendTime,
         config: TxConfig,
-    ) -> Result<DW1000<SPI, CS, Sending>, Error<SPI, CS>> {
+    ) -> Result<DW1000<SPI, Sending>, Error<SPI>> {
         // Clear event counters
         self.ll.evc_ctrl().write(|w| w.evc_clr(0b1))?;
         while self.ll.evc_ctrl().read()?.evc_clr() == 0b1 {}
@@ -329,7 +324,7 @@ where
     pub fn receive(
         self,
         config: RxConfig,
-    ) -> Result<DW1000<SPI, CS, SingleBufferReceiving>, Error<SPI, CS>> {
+    ) -> Result<DW1000<SPI, SingleBufferReceiving>, Error<SPI>> {
         let mut rx_radio = DW1000 {
             ll: self.ll,
             seq: self.seq,
@@ -363,7 +358,7 @@ where
     pub fn receive_auto_double_buffered(
         self,
         config: RxConfig,
-    ) -> Result<DW1000<SPI, CS, AutoDoubleBufferReceiving>, Error<SPI, CS>> {
+    ) -> Result<DW1000<SPI, AutoDoubleBufferReceiving>, Error<SPI>> {
         let mut rx_radio = DW1000 {
             ll: self.ll,
             seq: self.seq,
@@ -383,7 +378,7 @@ where
     /// Enables transmit interrupts for the events that `wait` checks
     ///
     /// Overwrites any interrupt flags that were previously set.
-    pub fn enable_tx_interrupts(&mut self) -> Result<(), Error<SPI, CS>> {
+    pub fn enable_tx_interrupts(&mut self) -> Result<(), Error<SPI>> {
         self.ll.sys_mask().modify(|_, w| w.mtxfrs(0b1))?;
         Ok(())
     }
@@ -391,7 +386,7 @@ where
     /// Enables receive interrupts for the events that `wait` checks
     ///
     /// Overwrites any interrupt flags that were previously set.
-    pub fn enable_rx_interrupts(&mut self) -> Result<(), Error<SPI, CS>> {
+    pub fn enable_rx_interrupts(&mut self) -> Result<(), Error<SPI>> {
         self.ll().sys_mask().modify(|_, w| {
             w.mrxdfr(0b1) // Data Frame Ready
                 .mrxfce(0b1) // FCS Error
@@ -408,7 +403,7 @@ where
     }
 
     /// Disables all interrupts
-    pub fn disable_interrupts(&mut self) -> Result<(), Error<SPI, CS>> {
+    pub fn disable_interrupts(&mut self) -> Result<(), Error<SPI>> {
         self.ll.sys_mask().write(|w| w)?;
         Ok(())
     }
@@ -431,7 +426,7 @@ where
         enable_rx: bool,
         enable_tx: bool,
         blink_time: u8,
-    ) -> Result<(), Error<SPI, CS>> {
+    ) -> Result<(), Error<SPI>> {
         // Turn on the timer that will control the blinking (The debounce clock)
         self.ll.pmsc_ctrl0().modify(|_, w| {
             w.gpdce((enable_rx_ok || enable_sfd || enable_rx || enable_tx) as u8)
@@ -459,15 +454,15 @@ where
     ///
     /// - `irq_on_wakeup`: When set to true, the IRQ pin will be asserted when the radio wakes up
     /// - `sleep_duration`: When `None`, the radio will not wake up by itself and go into the deep sleep mode.
-    /// When `Some`, then the radio will wake itself up after the given time. Every tick is ~431ms, but there may
-    /// be a significant deviation from this due to the chip's manufacturing process.
+    ///   When `Some`, then the radio will wake itself up after the given time. Every tick is ~431ms, but there may
+    ///   be a significant deviation from this due to the chip's manufacturing process.
     ///
     /// *Note: The SPI speed may be at most 3 Mhz when calling this function.*
     pub fn enter_sleep(
         mut self,
         irq_on_wakeup: bool,
         sleep_duration: Option<u16>,
-    ) -> Result<DW1000<SPI, CS, Sleeping>, Error<SPI, CS>> {
+    ) -> Result<DW1000<SPI, Sleeping>, Error<SPI>> {
         // Set the sleep timer
         if let Some(sd) = sleep_duration {
             self.ll.pmsc_ctrl0().modify(|_, w| {

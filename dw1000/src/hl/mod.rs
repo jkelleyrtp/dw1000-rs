@@ -12,14 +12,10 @@
 use crate::ll;
 use core::{fmt, num::Wrapping};
 
-pub use awake::*;
 pub use error::*;
 pub use ready::*;
 pub use receiving::*;
-pub use sending::*;
-pub use sleeping::*;
 pub use state_impls::*;
-pub use uninitialized::*;
 
 mod awake;
 mod error;
@@ -31,14 +27,14 @@ mod state_impls;
 mod uninitialized;
 
 /// Entry point to the DW1000 driver API
-pub struct DW1000<SPI, CS, State> {
-    ll: ll::DW1000<SPI, CS>,
+pub struct DW1000<SPI, State> {
+    ll: ll::DW1000<SPI>,
     seq: Wrapping<u8>,
     state: State,
 }
 
 // Can't be derived without putting requirements on `SPI` and `CS`.
-impl<SPI, CS, State> fmt::Debug for DW1000<SPI, CS, State>
+impl<SPI, State> fmt::Debug for DW1000<SPI, State>
 where
     State: fmt::Debug,
 {

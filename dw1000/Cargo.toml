@@ -1,8 +1,8 @@
 [package]
 name = "dw1000"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Hanno Braun <hanno@braun-embedded.com>"]
-edition = "2018"
+edition = "2021"
 description = "Driver for the Decawave DW1000 UWB wireless transceiver chip, providing radio communication based on IEEE 802.15.4 and distance measurement"
 documentation = "https://docs.rs/dw1000"
 repository = "https://github.com/braun-embedded/rust-dw1000"
@@ -16,13 +16,14 @@ keywords = [
     "embedded-hal",
     "embedded-hal-driver",
 ]
+rust-version = "1.79"
 
 [badges]
 travis-ci = { repository = "braun-embedded/rust-dw1000" }
 
 [dependencies]
 byte = "0.2.6"
-embedded-hal = "0.2.6"
+embedded-hal = "1.0.0"
 ieee802154 = "0.6.0"
 nb = "1.0.0"
 fixed = "1.11.0"

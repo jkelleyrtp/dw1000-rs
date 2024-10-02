@@ -1,11 +1,10 @@
 use crate::{time::Instant, Error, Ready, Sending, DW1000};
-use embedded_hal::{blocking::spi, digital::v2::OutputPin};
+use embedded_hal::spi::SpiDevice;
 use nb;
 
-impl<SPI, CS> DW1000<SPI, CS, Sending>
+impl<SPI> DW1000<SPI, Sending>
 where
-    SPI: spi::Transfer<u8> + spi::Write<u8>,
-    CS: OutputPin,
+    SPI: SpiDevice,
 {
     /// Wait for the transmission to finish
     ///
@@ -19,7 +18,7 @@ where
     /// driver, but please note that if you're using the DWM1001 module or
     /// DWM1001-Dev board, that the `dwm1001` crate has explicit support for
     /// this.
-    pub fn wait_transmit(&mut self) -> nb::Result<Instant, Error<SPI, CS>> {
+    pub fn wait_transmit(&mut self) -> nb::Result<Instant, Error<SPI>> {
         // Check Half Period Warning Counter. If this is a delayed transmission,
         // this will indicate that the delay was too short, and the frame was
         // sent too late.
@@ -27,7 +26,7 @@ where
             .ll
             .evc_hpw()
             .read()
-            .map_err(|error| nb::Error::Other(Error::Spi(error)))?
+            .map_err(|error| nb::Error::Other(Error::Spi(error.0)))?
             .value();
         if evc_hpw != 0 {
             return Err(nb::Error::Other(Error::DelayedSendTooLate));
@@ -41,7 +40,7 @@ where
             .ll
             .evc_tpw()
             .read()
-            .map_err(|error| nb::Error::Other(Error::Spi(error)))?
+            .map_err(|error| nb::Error::Other(Error::Spi(error.0)))?
             .value();
         if evc_tpw != 0 {
             return Err(nb::Error::Other(Error::DelayedSendPowerUpWarning));
@@ -54,7 +53,7 @@ where
             .ll
             .sys_status()
             .read()
-            .map_err(|error| nb::Error::Other(Error::Spi(error)))?;
+            .map_err(|error| nb::Error::Other(Error::Spi(error.0)))?;
 
         // Has the frame been sent?
         if sys_status.txfrs() == 0b0 {
@@ -70,7 +69,7 @@ where
             .ll
             .tx_time()
             .read()
-            .map_err(|error| nb::Error::Other(Error::Spi(error)))?
+            .map_err(|error| nb::Error::Other(Error::Spi(error.0)))?
             .tx_stamp();
         // This is safe because the value read from the device will never be higher than the allowed value.
         let tx_timestamp = unsafe { Instant::new_unchecked(tx_timestamp) };
@@ -83,7 +82,7 @@ where
     /// If the send operation has finished, as indicated by `wait`, this is a
     /// no-op. If the send operation is still ongoing, it will be aborted.
     #[allow(clippy::type_complexity)]
-    pub fn finish_sending(mut self) -> Result<DW1000<SPI, CS, Ready>, (Self, Error<SPI, CS>)> {
+    pub fn finish_sending(mut self) -> Result<DW1000<SPI, Ready>, (Self, Error<SPI>)> {
         if !self.state.finished {
             // Can't use `map_err` and `?` here, as the compiler will complain
             // about `self` moving into the closure.
@@ -100,7 +99,7 @@ where
         // Turn off the external transmit synchronization
         match self.ll.ec_ctrl().modify(|_, w| w.ostsm(0)) {
             Ok(_) => {}
-            Err(e) => return Err((self, Error::Spi(e))),
+            Err(e) => return Err((self, Error::Spi(e.0))),
         }
 
         Ok(DW1000 {
@@ -110,7 +109,7 @@ where
         })
     }
 
-    fn reset_flags(&mut self) -> Result<(), Error<SPI, CS>> {
+    fn reset_flags(&mut self) -> Result<(), Error<SPI>> {
         self.ll.sys_status().write(
             |w| {
                 w.txfrb(0b1) // Transmit Frame Begins
