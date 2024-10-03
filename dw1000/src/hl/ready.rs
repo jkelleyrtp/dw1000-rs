@@ -143,23 +143,7 @@ where
         send_time: SendTime,
         config: TxConfig,
     ) -> Result<DW1000<SPI, Sending>, Error<SPI>> {
-        // Clear event counters
-        self.ll.evc_ctrl().write(|w| w.evc_clr(0b1))?;
-        while self.ll.evc_ctrl().read()?.evc_clr() == 0b1 {}
-
-        // (Re-)Enable event counters
-        self.ll.evc_ctrl().write(|w| w.evc_en(0b1))?;
-        while self.ll.evc_ctrl().read()?.evc_en() == 0b1 {}
-
-        // Sometimes, for unknown reasons, the DW1000 gets stuck in RX mode.
-        // Starting the transmitter won't get it to enter TX mode, which means
-        // all subsequent send operations will fail. Let's disable the
-        // transceiver and force the chip into IDLE mode to make sure that
-        // doesn't happen.
-        self.force_idle(false)?;
-
-        let seq = self.seq.0;
-        self.seq += Wrapping(1);
+        let seq = self.next_seq();
 
         let frame = mac::Frame {
             header: mac::Header {
@@ -180,6 +164,73 @@ where
             footer: [0; 2],
         };
 
+        self.send_raw(
+            |data| {
+                let mut len = 0;
+                let result = data.write_with(
+                    &mut len,
+                    frame,
+                    &mut FrameSerDesContext::no_security(FooterMode::None),
+                );
+
+                if let Err(err) = result {
+                    panic!("Failed to write frame: {:?}", err);
+                }
+
+                len
+            },
+            send_time,
+            config,
+        )
+    }
+
+    /// Get the sequence number for the next frame to be sent
+    ///
+    /// This also automatically increases the sequence number.
+    pub fn next_seq(&mut self) -> u8 {
+        let seq = self.seq.0;
+        self.seq += Wrapping(1);
+        seq
+    }
+
+    /// Send raw bytes
+    ///
+    /// The `writer` closure receives a buffer to write the data to be sent into.
+    ///
+    /// This operation can be delayed to aid in distance measurement, by setting
+    /// `delayed_time` to `Some(instant)`. If you want to send the frame as soon
+    /// as possible, just pass `None` instead.
+    ///
+    /// The config parameter struct allows for setting the channel, bitrate, and
+    /// more. This configuration needs to be the same as the configuration used
+    /// by the receiver, or the message may not be received.
+    /// The defaults are a sane starting point.
+    ///
+    /// This method starts the transmission and returns immediately thereafter.
+    /// It consumes this instance of `DW1000` and returns another instance which
+    /// is in the `Sending` state, and can be used to wait for the transmission
+    /// to finish and check its result.
+    pub fn send_raw(
+        mut self,
+        writer: impl FnOnce(&mut [u8]) -> usize,
+        send_time: SendTime,
+        config: TxConfig,
+    ) -> Result<DW1000<SPI, Sending>, Error<SPI>> {
+        // Clear event counters
+        self.ll.evc_ctrl().write(|w| w.evc_clr(0b1))?;
+        while self.ll.evc_ctrl().read()?.evc_clr() == 0b1 {}
+
+        // (Re-)Enable event counters
+        self.ll.evc_ctrl().write(|w| w.evc_en(0b1))?;
+        while self.ll.evc_ctrl().read()?.evc_en() == 0b1 {}
+
+        // Sometimes, for unknown reasons, the DW1000 gets stuck in RX mode.
+        // Starting the transmitter won't get it to enter TX mode, which means
+        // all subsequent send operations will fail. Let's disable the
+        // transceiver and force the chip into IDLE mode to make sure that
+        // doesn't happen.
+        self.force_idle(false)?;
+
         match send_time {
             SendTime::Delayed(time) => {
                 // Put the time into the delay register
@@ -195,16 +246,7 @@ where
         // Prepare transmitter
         let mut len = 0;
         self.ll.tx_buffer().write(|w| {
-            let result = w.data().write_with(
-                &mut len,
-                frame,
-                &mut FrameSerDesContext::no_security(FooterMode::None),
-            );
-
-            if let Err(err) = result {
-                panic!("Failed to write frame: {:?}", err);
-            }
-
+            len = writer(w.data());
             w
         })?;
         self.ll.tx_fctrl().modify(|_, w| {
