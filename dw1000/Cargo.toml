@@ -29,7 +29,6 @@ nb = "1.0.0"
 fixed = "1.11.0"
 micromath = "2.0.0"
 
-
 [dependencies.serde]
 version = "1.0.130"
 default-features = false
@@ -40,7 +39,7 @@ version = "1.0.0"
 default-features = false
 
 [dependencies.num_enum]
-version = "0.5.4"
+version = "0.7.3"
 default-features = false
 
 [features]

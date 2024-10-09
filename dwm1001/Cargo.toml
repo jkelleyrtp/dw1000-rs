@@ -19,33 +19,33 @@ travis-ci = { repository = "braun-embedded/rust-dw1000" }
 
 [dependencies]
 cortex-m = "0.7.3"
-cortex-m-semihosting = "0.3.7"
-embedded-hal = "0.2.6"
+cortex-m-semihosting = "0.5.0"
+embedded-hal = "1.0.0"
 embedded-timeout-macros = "0.3.0"
-lis2dh12 = "0.6.6"
+lis2dh12 = "0.7.0"
 cortex-m-rt = { version = "0.7.1", optional = true }
-dw1000 = { version = "0.6.0" }
-nrf52832-hal = { version = "0.14.0", default-features = false, features = [
-    "xxAA-package",
-] }
+dw1000 = { version = "0.7.0", path = "../dw1000" }
+# nrf52832-hal = { version = "0.18.0", default-features = false, features = ["xxAA-package", "embedded-hal-02"] }
+embassy-nrf = { version = "0.2.0", features = ["rt", "nrf52832"]}
 
 [lib]
 test = false
 bench = false
 
 [dev-dependencies]
-heapless = "0.7.8"
+heapless = "0.8.0"
 nb = "1.0.0"
 panic-probe = "0.3.0"
 defmt = "0.3.0"
-defmt-rtt = "0.3.1"
+defmt-rtt = "0.4.1"
 
 [features]
 default = ["dev", "rt"]
 # expose features of DWM1001-Dev board
 dev = []
 # enable runtime support
-rt = ["nrf52832-hal/rt", "cortex-m-rt"]
+rt = ["cortex-m-rt"]
+# rt = ["nrf52832-hal/rt", "cortex-m-rt"]
 
 
 [[example]]

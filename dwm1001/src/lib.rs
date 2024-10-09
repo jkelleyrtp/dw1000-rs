@@ -22,27 +22,23 @@ pub use cortex_m_rt;
 pub use dw1000;
 pub use embedded_hal;
 
-pub use nrf52832_hal;
+use embedded_hal::digital::OutputPin;
+// pub use nrf52832_hal;
+pub use embassy_nrf;
 
 pub use embedded_timeout_macros::{block_timeout, repeat_timeout};
 
 /// Exports traits that are usually needed when using this crate
 pub mod prelude {
-    pub use nrf52832_hal::prelude::*;
+    // pub use embassy_nrf::prelude::*;
 }
 
 use cortex_m::{asm, interrupt};
 use dw1000::DW1000;
-use embedded_hal::blocking::delay::DelayMs;
-use nrf52832_hal::{
-    gpio::{
-        p0::{self, P0_16, P0_17, P0_18, P0_20, P0_28, P0_29},
-        Disconnected, Floating, Input, Level, OpenDrainConfig, Output, PushPull,
-    },
-    pac::{self as nrf52, CorePeripherals, Interrupt, Peripherals, SPIM2, TWIM1},
-    spim, timer, twim,
-    uarte::{Baudrate as UartBaudrate, Parity as UartParity},
-    Spim, Timer, Twim,
+// use embedded_hal::blocking::delay::DelayMs;
+use embassy_nrf::{
+    gpio::Input,
+    spim::{self, Spim},
 };
 
 #[cfg(feature = "dev")]
@@ -98,7 +94,8 @@ pub fn new_dw1000<SCK, MOSI, MISO, CS>(
     miso: P0_18<MISO>,
     cs: P0_17<CS>,
     spim_opts: Option<SpimConfig>,
-) -> DW1000<Spim<nrf52::SPIM2>, p0::P0_17<Output<PushPull>>, dw1000::Uninitialized> {
+) -> DW1000<Spim<nrf52::SPIM2>, dw1000::Uninitialized> {
+    // ) -> DW1000<Spim<nrf52::SPIM2>, p0::P0_17<Output<PushPull>>, dw1000::Uninitialized> {
     let cfg = spim_opts.unwrap_or(SpimConfig {
         frequency: spim::Frequency::K500,
         mode: spim::MODE_0,
@@ -108,7 +105,7 @@ pub fn new_dw1000<SCK, MOSI, MISO, CS>(
     let spim = Spim::new(
         spim,
         spim::Pins {
-            sck: sck.into_push_pull_output(Level::Low).degrade(),
+            sck: Some(sck.into_push_pull_output(Level::Low).degrade()),
             mosi: Some(mosi.into_push_pull_output(Level::Low).degrade()),
             miso: Some(miso.into_floating_input().degrade()),
         },
@@ -117,7 +114,7 @@ pub fn new_dw1000<SCK, MOSI, MISO, CS>(
         cfg.orc,
     );
 
-    DW1000::new(spim, cs.into_push_pull_output(Level::High))
+    DW1000::new(spim)
 }
 
 /// Create a new instance of the TWIM bus used for the accelerometer
@@ -182,7 +179,7 @@ pub struct DWM1001 {
     pub DW_IRQ: DW_IRQ,
 
     /// The Decawave DW1000 Radio IC
-    pub DW1000: DW1000<Spim<nrf52::SPIM2>, p0::P0_17<Output<PushPull>>, dw1000::Uninitialized>,
+    pub DW1000: DW1000<Spim<nrf52::SPIM2>, dw1000::Uninitialized>,
 
     /// LIS2DH12 3-axis accelerometer
     ///
@@ -764,8 +761,8 @@ impl DW_RST {
     ///
     /// See [`nrf52832_hal::Delay`] for such an implementation.
     pub fn reset_dw1000<D>(&mut self, delay: &mut D)
-    where
-        D: DelayMs<u32>,
+    // where
+    // D: DelayMs<u32>,
     {
         // This whole `Option` thing is a bit of a hack. What we actually need
         // here is the ability to put the pin into a tri-state mode that allows
@@ -779,17 +776,17 @@ impl DW_RST {
             // pulled high.
             .into_open_drain_output(OpenDrainConfig::Standard0Disconnect1, Level::Low);
 
-        // Section 5.6.3.1 in the data sheet talks about keeping this low for
-        // T-RST_OK, which would be 10-50 nanos. But table 15 makes it sound
-        // like that should actually be T-DIG_ON (1.5-2 millis), which lines up
-        // with the example code I looked at.
-        delay.delay_ms(2);
+        // // Section 5.6.3.1 in the data sheet talks about keeping this low for
+        // // T-RST_OK, which would be 10-50 nanos. But table 15 makes it sound
+        // // like that should actually be T-DIG_ON (1.5-2 millis), which lines up
+        // // with the example code I looked at.
+        // delay.delay_ms(2);
 
         self.0 = Some(dw_rst.into_floating_input());
 
-        // There must be some better way to determine whether the DW1000 is
-        // ready, but I guess waiting for some time will do.
-        delay.delay_ms(5);
+        // // There must be some better way to determine whether the DW1000 is
+        // // ready, but I guess waiting for some time will do.
+        // delay.delay_ms(5);
     }
 }
 
