@@ -1,22 +1,18 @@
 use crate::{ll, Error, Ready, Uninitialized, DW1000};
 use core::num::Wrapping;
-use embedded_hal::{
-    blocking::{delay::DelayMs, spi},
-    digital::v2::OutputPin,
-};
+use embedded_hal::{delay::DelayNs, spi::SpiDevice};
 
-impl<SPI, CS> DW1000<SPI, CS, Uninitialized>
+impl<SPI> DW1000<SPI, Uninitialized>
 where
-    SPI: spi::Transfer<u8> + spi::Write<u8>,
-    CS: OutputPin,
+    SPI: SpiDevice,
 {
     /// Create a new instance of `DW1000`
     ///
     /// Requires the SPI peripheral and the chip select pin that are connected
     /// to the DW1000.
-    pub fn new(spi: SPI, chip_select: CS) -> Self {
+    pub fn new(spi: SPI) -> Self {
         DW1000 {
-            ll: ll::DW1000::new(spi, chip_select),
+            ll: ll::DW1000::new(spi),
             seq: Wrapping(0),
             state: Uninitialized,
         }
@@ -32,10 +28,7 @@ where
     /// Please note that this method assumes that you kept the default
     /// configuration. It is generally recommended not to change configuration
     /// before calling this method.
-    pub fn init<D: DelayMs<u8>>(
-        mut self,
-        delay: &mut D,
-    ) -> Result<DW1000<SPI, CS, Ready>, Error<SPI, CS>> {
+    pub fn init<D: DelayNs>(mut self, delay: &mut D) -> Result<DW1000<SPI, Ready>, Error<SPI>> {
         // Set AGC_TUNE1. See user manual, section 2.5.5.1.
         self.ll.agc_tune1().write(|w| w.value(0x8870))?;
 

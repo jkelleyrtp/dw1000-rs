@@ -1,16 +1,15 @@
 use crate::ll;
 use core::fmt;
-use embedded_hal::{blocking::spi, digital::v2::OutputPin};
+use embedded_hal::spi::SpiDevice;
 use ssmarshal;
 
 /// An error that can occur when sending or receiving data
-pub enum Error<SPI, CS>
+pub enum Error<SPI>
 where
-    SPI: spi::Transfer<u8> + spi::Write<u8>,
-    CS: OutputPin,
+    SPI: SpiDevice,
 {
     /// Error occured while using SPI bus
-    Spi(ll::Error<SPI, CS>),
+    Spi(SPI::Error),
 
     /// Receiver FCS error
     Fcs,
@@ -83,20 +82,18 @@ where
     RxConfigFrameFilteringUnsupported,
 }
 
-impl<SPI, CS> From<ll::Error<SPI, CS>> for Error<SPI, CS>
+impl<SPI> From<ll::Error<SPI>> for Error<SPI>
 where
-    SPI: spi::Transfer<u8> + spi::Write<u8>,
-    CS: OutputPin,
+    SPI: SpiDevice,
 {
-    fn from(error: ll::Error<SPI, CS>) -> Self {
-        Error::Spi(error)
+    fn from(error: ll::Error<SPI>) -> Self {
+        Error::Spi(error.0)
     }
 }
 
-impl<SPI, CS> From<ssmarshal::Error> for Error<SPI, CS>
+impl<SPI> From<ssmarshal::Error> for Error<SPI>
 where
-    SPI: spi::Transfer<u8> + spi::Write<u8>,
-    CS: OutputPin,
+    SPI: SpiDevice,
 {
     fn from(error: ssmarshal::Error) -> Self {
         Error::Ssmarshal(error)
@@ -105,13 +102,9 @@ where
 
 // We can't derive this implementation, as `Debug` is only implemented
 // conditionally for `ll::Debug`.
-impl<SPI, CS> fmt::Debug for Error<SPI, CS>
+impl<SPI> fmt::Debug for Error<SPI>
 where
-    SPI: spi::Transfer<u8> + spi::Write<u8>,
-    <SPI as spi::Transfer<u8>>::Error: fmt::Debug,
-    <SPI as spi::Write<u8>>::Error: fmt::Debug,
-    CS: OutputPin,
-    <CS as OutputPin>::Error: fmt::Debug,
+    SPI: SpiDevice,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

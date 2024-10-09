@@ -15,27 +15,26 @@
 //! [high-level interface]: ../hl/index.html
 //! [filing an issue]: https://github.com/braun-robotics/rust-dw1000/issues/new
 
-use core::{fmt, marker::PhantomData};
+use core::marker::PhantomData;
 
-use embedded_hal::{blocking::spi, digital::v2::OutputPin};
+use embedded_hal::spi::{Operation, SpiDevice};
 
 /// Entry point to the DW1000 driver's low-level API
 ///
 /// Please consider using [hl::DW1000] instead.
 ///
 /// [hl::DW1000]: ../hl/struct.DW1000.html
-pub struct DW1000<SPI, CS> {
+pub struct DW1000<SPI> {
     spi: SPI,
-    chip_select: CS,
 }
 
-impl<SPI, CS> DW1000<SPI, CS> {
+impl<SPI: SpiDevice> DW1000<SPI> {
     /// Create a new instance of `DW1000`
     ///
     /// Requires the SPI peripheral and the chip select pin that are connected
     /// to the DW1000.
-    pub fn new(spi: SPI, chip_select: CS) -> Self {
-        DW1000 { spi, chip_select }
+    pub fn new(spi: SPI) -> Self {
+        DW1000 { spi }
     }
 
     /// Read a whole block of data
@@ -49,22 +48,14 @@ impl<SPI, CS> DW1000<SPI, CS> {
         id: u8,
         start_sub_id: u16,
         buffer: &'a mut [u8],
-    ) -> Result<&'a mut [u8], Error<SPI, CS>>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS: OutputPin,
-    {
+    ) -> Result<&'a mut [u8], Error<SPI>> {
         // Make it simple and use the 3 byte header
         buffer[0] = (((start_sub_id as u8) << 6) & 0x40) | (id & 0x3f);
         buffer[1] = 0x80 | (start_sub_id & 0x7F) as u8;
         buffer[2] = ((start_sub_id & 0x7f80) >> 7) as u8;
 
-        self.assert_cs_low()?;
         // Read the data
-        self.spi
-            .transfer(buffer)
-            .map_err(|err| Error::Transfer(err))?;
-        self.assert_cs_high()?;
+        self.spi.transfer_in_place(buffer).map_err(Error)?;
 
         Ok(&mut buffer[3..])
     }
@@ -79,11 +70,7 @@ impl<SPI, CS> DW1000<SPI, CS> {
         &mut self,
         start_index: u16,
         buffer: &'a mut [u8],
-    ) -> Result<&'a mut [u8], Error<SPI, CS>>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS: OutputPin,
-    {
+    ) -> Result<&'a mut [u8], Error<SPI>> {
         let block = self.block_read(0x25, start_index, buffer)?;
         Ok(&mut block[1..])
     }
@@ -109,29 +96,11 @@ impl<SPI, CS> DW1000<SPI, CS> {
         }
     }
 
-    /// Internal function for pulling the cs low. Used for sleep wakeup.
-    pub(crate) fn assert_cs_low(&mut self) -> Result<(), Error<SPI, CS>>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS: OutputPin,
-    {
-        self.chip_select
-            .set_low()
-            .map_err(|err| Error::ChipSelect(err))?;
-        Ok(())
-    }
-
-    /// Internal function for pulling the cs high. Used for sleep wakeup.
-    pub(crate) fn assert_cs_high(&mut self) -> Result<(), Error<SPI, CS>>
-    where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS: OutputPin,
-    {
-        self.chip_select
-            .set_high()
-            .map_err(|err| Error::ChipSelect(err))?;
-
-        Ok(())
+    /// Deasserts CS, waits the given amount of µs, and reasserts CS
+    pub(crate) fn wake_up(&mut self, wait_time_us: u32) -> Result<(), Error<SPI>> {
+        self.spi
+            .transaction(&mut [Operation::DelayNs(wait_time_us * 1000)])
+            .map_err(Error)
     }
 }
 
@@ -139,15 +108,14 @@ impl<SPI, CS> DW1000<SPI, CS> {
 ///
 /// You can get an instance for a given register using one of the methods on
 /// [`DW1000`].
-pub struct RegAccessor<'s, R, SPI, CS>(&'s mut DW1000<SPI, CS>, PhantomData<R>);
+pub struct RegAccessor<'s, R, SPI>(&'s mut DW1000<SPI>, PhantomData<R>);
 
-impl<'s, R, SPI, CS> RegAccessor<'s, R, SPI, CS>
+impl<'s, R, SPI> RegAccessor<'s, R, SPI>
 where
-    SPI: spi::Transfer<u8> + spi::Write<u8>,
-    CS: OutputPin,
+    SPI: SpiDevice,
 {
     /// Read from the register
-    pub fn read(&mut self) -> Result<R::Read, Error<SPI, CS>>
+    pub fn read(&mut self) -> Result<R::Read, Error<SPI>>
     where
         R: Register + Readable,
     {
@@ -156,18 +124,13 @@ where
 
         init_header::<R>(false, buffer);
 
-        self.0.assert_cs_low()?;
-        self.0
-            .spi
-            .transfer(buffer)
-            .map_err(|err| Error::Transfer(err))?;
-        self.0.assert_cs_high()?;
+        self.0.spi.transfer_in_place(buffer).map_err(Error)?;
 
         Ok(r)
     }
 
     /// Write to the register
-    pub fn write<F>(&mut self, f: F) -> Result<(), Error<SPI, CS>>
+    pub fn write<F>(&mut self, f: F) -> Result<(), Error<SPI>>
     where
         R: Register + Writable,
         F: FnOnce(&mut R::Write) -> &mut R::Write,
@@ -178,15 +141,13 @@ where
         let buffer = R::buffer(&mut w);
         init_header::<R>(true, buffer);
 
-        self.0.assert_cs_low()?;
-        <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer).map_err(|err| Error::Write(err))?;
-        self.0.assert_cs_high()?;
+        self.0.spi.write(buffer).map_err(Error)?;
 
         Ok(())
     }
 
     /// Modify the register
-    pub fn modify<F>(&mut self, f: F) -> Result<(), Error<SPI, CS>>
+    pub fn modify<F>(&mut self, f: F) -> Result<(), Error<SPI>>
     where
         R: Register + Readable + Writable,
         F: for<'r> FnOnce(&mut R::Read, &'r mut R::Write) -> &'r mut R::Write,
@@ -201,48 +162,16 @@ where
         let buffer = <R as Writable>::buffer(&mut w);
         init_header::<R>(true, buffer);
 
-        self.0.assert_cs_low()?;
-        <SPI as spi::Write<u8>>::write(&mut self.0.spi, buffer).map_err(|err| Error::Write(err))?;
-        self.0.assert_cs_high()?;
+        self.0.spi.write(buffer).map_err(Error)?;
 
         Ok(())
     }
 }
 
 /// An SPI error that can occur when communicating with the DW1000
-pub enum Error<SPI, CS>
-where
-    SPI: spi::Transfer<u8> + spi::Write<u8>,
-    CS: OutputPin,
-{
-    /// SPI error occured during a transfer transaction
-    Transfer(<SPI as spi::Transfer<u8>>::Error),
-
-    /// SPI error occured during a write transaction
-    Write(<SPI as spi::Write<u8>>::Error),
-
-    /// Error occured while changing chip select signal
-    ChipSelect(<CS as OutputPin>::Error),
-}
-
-// We can't derive this implementation, as the compiler will complain that the
-// associated error type doesn't implement `Debug`.
-impl<SPI, CS> fmt::Debug for Error<SPI, CS>
-where
-    SPI: spi::Transfer<u8> + spi::Write<u8>,
-    <SPI as spi::Transfer<u8>>::Error: fmt::Debug,
-    <SPI as spi::Write<u8>>::Error: fmt::Debug,
-    CS: OutputPin,
-    <CS as OutputPin>::Error: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::Transfer(error) => write!(f, "Transfer({:?})", error),
-            Error::Write(error) => write!(f, "Write({:?})", error),
-            Error::ChipSelect(error) => write!(f, "ChipSelect({:?})", error),
-        }
-    }
-}
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct Error<SPI: SpiDevice>(pub SPI::Error);
 
 /// Initializes the SPI message header
 ///
@@ -420,13 +349,12 @@ macro_rules! impl_register {
 
                                 // If there are more bytes, let's shift those
                                 // too.
-                                // We need to allow exceeding bitshifts in this
-                                // loop, as we run into that if `OFFSET_IN_BYTE`
+                                // We need to allow exceeding bitshifts (arithmetic_overflow)
+                                // in this loop, as we run into that if `OFFSET_IN_BYTE`
                                 // equals `0`. Please note that we never
                                 // actually encounter that at runtime, due to
                                 // the if condition above.
                                 let mut i = 1;
-                                #[allow(exceeding_bitshifts)]
                                 #[allow(arithmetic_overflow)]
                                 while i < LEN {
                                     bytes[i - 1] |=
@@ -449,11 +377,10 @@ macro_rules! impl_register {
                             const LAST_INDEX: usize =
                                 SIZE_IN_BYTES - 1;
                             if BITS_ABOVE_FIELD < 8 {
-                                // Need to allow exceeding bitshifts to make the
-                                // compiler happy. They're never actually
+                                // Need to allow exceeding bitshifts (arithmetic_overflow)
+                                // to make the compiler happy. They're never actually
                                 // encountered at runtime, due to the if
                                 // condition.
-                                #[allow(exceeding_bitshifts)]
                                 #[allow(arithmetic_overflow)]
                                 {
                                     bytes[LAST_INDEX] <<= BITS_ABOVE_FIELD;
@@ -616,10 +543,10 @@ macro_rules! impl_register {
         )*
 
 
-        impl<SPI, CS> DW1000<SPI, CS> {
+        impl<SPI> DW1000<SPI> {
             $(
                 #[$doc]
-                pub fn $name_lower(&mut self) -> RegAccessor<$name, SPI, CS> {
+                pub fn $name_lower(&mut self) -> RegAccessor<$name, SPI> {
                     RegAccessor(self, PhantomData)
                 }
             )*
@@ -1202,9 +1129,9 @@ impl Writable for TX_BUFFER {
     }
 }
 
-impl<SPI, CS> DW1000<SPI, CS> {
+impl<SPI> DW1000<SPI> {
     /// Transmit Data Buffer
-    pub fn tx_buffer(&mut self) -> RegAccessor<TX_BUFFER, SPI, CS> {
+    pub fn tx_buffer(&mut self) -> RegAccessor<TX_BUFFER, SPI> {
         RegAccessor(self, PhantomData)
     }
 }
@@ -1247,9 +1174,9 @@ impl Readable for RX_BUFFER {
     }
 }
 
-impl<SPI, CS> DW1000<SPI, CS> {
+impl<SPI> DW1000<SPI> {
     /// Receive Data Buffer
-    pub fn rx_buffer(&mut self) -> RegAccessor<RX_BUFFER, SPI, CS> {
+    pub fn rx_buffer(&mut self) -> RegAccessor<RX_BUFFER, SPI> {
         RegAccessor(self, PhantomData)
     }
 }

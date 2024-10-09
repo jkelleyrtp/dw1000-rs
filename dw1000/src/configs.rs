@@ -4,7 +4,7 @@
 //! The configs are passed to the send and receive functions.
 
 use crate::Error;
-use embedded_hal::{blocking::spi, digital::v2::OutputPin};
+use embedded_hal::spi::SpiDevice;
 use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Serialize};
 
@@ -84,7 +84,7 @@ impl Default for RxConfig {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
 #[repr(u8)]
 /// The bitrate at which a message is transmitted
 pub enum BitRate {
@@ -94,13 +94,8 @@ pub enum BitRate {
     /// 850 kilobits per second.
     Kbps850 = 0b01,
     /// 6.8 megabits per second.
+    #[default]
     Kbps6800 = 0b10,
-}
-
-impl Default for BitRate {
-    fn default() -> Self {
-        BitRate::Kbps6800
-    }
 }
 
 impl BitRate {
@@ -118,20 +113,15 @@ impl BitRate {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
 #[repr(u8)]
 /// The PRF value
 pub enum PulseRepetitionFrequency {
     /// 16 megahertz
+    #[default]
     Mhz16 = 0b01,
     /// 64 megahertz
     Mhz64 = 0b10,
-}
-
-impl Default for PulseRepetitionFrequency {
-    fn default() -> Self {
-        PulseRepetitionFrequency::Mhz16
-    }
 }
 
 impl PulseRepetitionFrequency {
@@ -145,10 +135,9 @@ impl PulseRepetitionFrequency {
     }
 
     /// Gets the recommended value for the drx_tune2 register based on the PRF and PAC size
-    pub fn get_recommended_drx_tune2<SPI, CS>(&self, pac_size: u8) -> Result<u32, Error<SPI, CS>>
+    pub fn get_recommended_drx_tune2<SPI>(&self, pac_size: u8) -> Result<u32, Error<SPI>>
     where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS: OutputPin,
+        SPI: SpiDevice,
     {
         // Values taken from Table 33 of the DW1000 User Manual.
         match (self, pac_size) {
@@ -175,7 +164,7 @@ impl PulseRepetitionFrequency {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
 #[repr(u8)]
 /// An enum that specifies the length of the preamble.
 ///
@@ -190,6 +179,7 @@ pub enum PreambleLength {
     /// 128 symbols of preamble.
     /// Only supported at Bitrate::Kbps850 & Bitrate::Kbps6800.
     /// Unofficial extension from decawave.
+    #[default]
     Symbols128 = 0b0101,
     /// 256 symbols of preamble.
     /// Only supported at Bitrate::Kbps850 & Bitrate::Kbps6800.
@@ -215,12 +205,6 @@ pub enum PreambleLength {
     Symbols4096 = 0b1100,
 }
 
-impl Default for PreambleLength {
-    fn default() -> Self {
-        PreambleLength::Symbols128
-    }
-}
-
 impl PreambleLength {
     /// Gets the recommended PAC size based on the preamble length.
     pub fn get_recommended_pac_size(&self) -> u8 {
@@ -238,13 +222,9 @@ impl PreambleLength {
     }
 
     /// Gets the recommended drx_tune1b register value based on the preamble length and the bitrate.
-    pub fn get_recommended_drx_tune1b<SPI, CS>(
-        &self,
-        bitrate: BitRate,
-    ) -> Result<u16, Error<SPI, CS>>
+    pub fn get_recommended_drx_tune1b<SPI>(&self, bitrate: BitRate) -> Result<u16, Error<SPI>>
     where
-        SPI: spi::Transfer<u8> + spi::Write<u8>,
-        CS: OutputPin,
+        SPI: SpiDevice,
     {
         // Values are taken from Table 32 of the DW1000 User manual
         match (self, bitrate) {
@@ -274,7 +254,7 @@ impl PreambleLength {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
 #[repr(u8)]
 /// An enum that allows the selection between different SFD sequences
 ///
@@ -292,6 +272,7 @@ pub enum SfdSequence {
     /// | 110 kbps  | 0     | 0      | 0      | Not set      | IEEE 64 symbols, not recommended |
     /// | 850 kbps  | 0     | 0      | 0      | Not set      | IEEE 8 symbols, not recommended |
     /// | 6.8 mbps  | 0     | 0      | 0      | Not set      | IEEE 8 symbol |
+    #[default]
     IEEE,
     /// A sequence defined by Decawave that is supposed to be more robust.
     /// This is an unofficial addition.
@@ -330,12 +311,6 @@ pub enum SfdSequence {
     User,
 }
 
-impl Default for SfdSequence {
-    fn default() -> Self {
-        SfdSequence::IEEE
-    }
-}
-
 impl SfdSequence {
     /// Gets the adjustment that needs to be made to the rxpacc field of the RX Frame Information Register.
     /// Follows table 18 of the user manual.
@@ -366,7 +341,7 @@ impl SfdSequence {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive)]
 #[repr(u8)]
 /// All the available UWB channels.
 ///
@@ -391,17 +366,12 @@ pub enum UwbChannel {
     /// Channel 5
     /// - Center frequency: 6489.6 Mhz
     /// - Bandwidth: 499.2 Mhz
+    #[default]
     Channel5 = 5,
     /// Channel 7
     /// - Center frequency: 6489.6 Mhz
     /// - Bandwidth: 1081.6 Mhz
     Channel7 = 7,
-}
-
-impl Default for UwbChannel {
-    fn default() -> Self {
-        UwbChannel::Channel5
-    }
 }
 
 impl UwbChannel {

@@ -1,20 +1,18 @@
+use super::Awake;
 use crate::{
     ll, mac,
     time::{Duration, Instant},
     Error, DW1000,
 };
-use embedded_hal::{blocking::spi, digital::v2::OutputPin};
+use embedded_hal::spi::SpiDevice;
 
-use super::Awake;
-
-impl<SPI, CS, State> DW1000<SPI, CS, State>
+impl<SPI, State> DW1000<SPI, State>
 where
-    SPI: spi::Transfer<u8> + spi::Write<u8>,
-    CS: OutputPin,
+    SPI: SpiDevice,
     State: Awake,
 {
     /// Returns the TX antenna delay
-    pub fn get_tx_antenna_delay(&mut self) -> Result<Duration, Error<SPI, CS>> {
+    pub fn get_tx_antenna_delay(&mut self) -> Result<Duration, Error<SPI>> {
         let tx_antenna_delay = self.ll.tx_antd().read()?.value();
 
         // Since `tx_antenna_delay` is `u16`, the following will never panic.
@@ -24,7 +22,7 @@ where
     }
 
     /// Returns the RX antenna delay
-    pub fn get_rx_antenna_delay(&mut self) -> Result<Duration, Error<SPI, CS>> {
+    pub fn get_rx_antenna_delay(&mut self) -> Result<Duration, Error<SPI>> {
         let rx_antenna_delay = self.ll.lde_rxantd().read()?.value();
 
         // Since `rx_antenna_delay` is `u16`, the following will never panic.
@@ -34,7 +32,7 @@ where
     }
 
     /// Returns the network id and address used for sending and receiving
-    pub fn get_address(&mut self) -> Result<mac::Address, Error<SPI, CS>> {
+    pub fn get_address(&mut self) -> Result<mac::Address, Error<SPI>> {
         let panadr = self.ll.panadr().read()?;
 
         Ok(mac::Address::Short(
@@ -44,7 +42,7 @@ where
     }
 
     /// Returns the current system time
-    pub fn sys_time(&mut self) -> Result<Instant, Error<SPI, CS>> {
+    pub fn sys_time(&mut self) -> Result<Instant, Error<SPI>> {
         let sys_time = self.ll.sys_time().read()?.value();
 
         // Since hardware timestamps fit within 40 bits, the following should
@@ -58,14 +56,14 @@ where
     /// various assumptions that the high-level API makes about the operation of
     /// the DW1000. Don't use the register-level and high-level APIs in tandem,
     /// unless you know what you're doing.
-    pub fn ll(&mut self) -> &mut ll::DW1000<SPI, CS> {
+    pub fn ll(&mut self) -> &mut ll::DW1000<SPI> {
         &mut self.ll
     }
 
     /// Force the DW1000 into IDLE mode
     ///
     /// Any ongoing RX/TX operations will be aborted.
-    pub(super) fn force_idle(&mut self, double_buffered: bool) -> Result<(), Error<SPI, CS>> {
+    pub(super) fn force_idle(&mut self, double_buffered: bool) -> Result<(), Error<SPI>> {
         let mut saved_sys_mask = [0; 5];
 
         if double_buffered {
@@ -112,7 +110,7 @@ where
         Ok(())
     }
 
-    pub(crate) fn read_otp(&mut self, address: u16) -> Result<u32, Error<SPI, CS>> {
+    pub(crate) fn read_otp(&mut self, address: u16) -> Result<u32, Error<SPI>> {
         // Set address
         self.ll.otp_addr().write(|w| w.value(address))?;
         // Switch into read mode
