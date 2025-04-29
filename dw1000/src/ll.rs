@@ -50,7 +50,7 @@ impl<SPI: SpiDevice> DW1000<SPI> {
         buffer: &'a mut [u8],
     ) -> Result<&'a mut [u8], Error<SPI>> {
         // Make it simple and use the 3 byte header
-        buffer[0] = (((start_sub_id as u8) << 6) & 0x40) | (id & 0x3f);
+        buffer[0] = 0x40 | (id & 0x3f);
         buffer[1] = 0x80 | (start_sub_id & 0x7F) as u8;
         buffer[2] = ((start_sub_id & 0x7f80) >> 7) as u8;
 
